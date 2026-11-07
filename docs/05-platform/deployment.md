@@ -18,6 +18,7 @@
 | 実行アカウント | `idea-audition-run@idea-audition.iam.gserviceaccount.com`（Vertex AI 利用者・Firestore 利用者・合言葉の Secret の読み取りのみ） |
 | APIキー | 使わない（Vertex AI・Firestore はサービスアカウントで認証） |
 | 合言葉 | Secret Manager `idea-audition-access-code` を環境変数 `ACCESS_CODE` として渡す |
+| AI のモード | `AI_GATEWAY=gemini` なので Gemini と固定データの両方を選べる（既定は Gemini）。チーム向けの説明は `gemini-credits.md` |
 | 環境変数 | `AI_GATEWAY=gemini`、`GOOGLE_CLOUD_PROJECT=idea-audition`、`GOOGLE_CLOUD_LOCATION=global`、`PERSISTENCE=firestore` |
 | 予算アラート | 請求先 VICTORY に ¥3,000（クレジット $20 相当）、50%・90%・100% でメール通知（クレジット適用前の金額で判定） |
 

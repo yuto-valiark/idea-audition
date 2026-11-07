@@ -67,7 +67,7 @@ export async function flushPromises() {
 
 /** 即時に応答する AI スタブ */
 export class StubAi implements IdeaGenerationPort {
-  readonly name = 'stub';
+  constructor(readonly name = 'stub') {}
   refineCalls: RefineInput[] = [];
   private n = 0;
   async generateIdeas(input: { count: number; context?: ConsensusContext }) {

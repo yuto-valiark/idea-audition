@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SessionMode, SessionSnapshot } from './model.ts';
+import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
 export const HIP_VERSION = '1';
@@ -12,7 +12,9 @@ const id = z.string().min(1).max(80);
 /* ------------------------------------------------------------------ */
 
 export const CommandPayloads = {
-  START_AUDITION: z.object({ theme: text, mode: SessionMode }),
+  START_AUDITION: z.object({ theme: text, mode: SessionMode, aiMode: AiMode.optional() }),
+  /** AI のモードを切り替える（ホストのみ。途中でも可） */
+  SET_AI_MODE: z.object({ mode: AiMode }),
   REQUEST_PROMOTION: z.object({ instanceId: id }),
   NEXT_IDEA: z.object({ instanceId: id.optional() }),
   /** 審査員の「見送り」：この案はないと判断して、すぐ次のキャラと交代させる */
@@ -53,6 +55,7 @@ const commandEnvelope = <T extends CommandType>(type: T) =>
 
 export const CommandMessage = z.discriminatedUnion('type', [
   commandEnvelope('START_AUDITION'),
+  commandEnvelope('SET_AI_MODE'),
   commandEnvelope('REQUEST_PROMOTION'),
   commandEnvelope('NEXT_IDEA'),
   commandEnvelope('REJECT_CANDIDATE'),
@@ -136,6 +139,7 @@ export const EventType = z.enum([
   'CANDIDATE_STAYED',
   'CONSENSUS_UPDATED',
   'PROPOSAL_UPDATED',
+  'AI_MODE_CHANGED',
   'PROMOTION_CONFIRMED',
   'FINALIST_REFINEMENT_STARTED',
   'FINALIST_CRITIQUE_POSTED',

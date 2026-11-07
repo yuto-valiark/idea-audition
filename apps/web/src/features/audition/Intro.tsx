@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
-import { useMe } from '../../shared/selectors.ts';
+import { EMPTY, useMe } from '../../shared/selectors.ts';
 import styles from './Intro.module.css';
 
 const DEMO_THEME = '大学の学食をもっと楽しくする企画';
@@ -14,12 +14,15 @@ export function Intro() {
   const { isSpectator } = useMe();
   const [theme, setTheme] = useState(DEMO_THEME);
   const [mode, setMode] = useState<'team' | 'solo'>('team');
+  const aiAvailable = useSession((s) => s.snapshot?.ai.available ?? EMPTY);
+  const [aiMode, setAiMode] = useState<'gemini' | 'fixture' | null>(null);
+  const chosenAi = aiMode ?? aiAvailable[0] ?? 'fixture';
   const [busy, setBusy] = useState(false);
 
   async function start() {
     if (!theme.trim() || busy) return;
     setBusy(true);
-    await send('START_AUDITION', { theme: theme.trim(), mode });
+    await send('START_AUDITION', { theme: theme.trim(), mode, aiMode: chosenAi });
     setBusy(false);
   }
 
@@ -60,6 +63,17 @@ export function Intro() {
               <option value="team">みんなで審査</option>
               <option value="solo">ひとりで審査</option>
             </select>
+            {aiAvailable.length > 1 && (
+              <select
+                value={chosenAi}
+                onChange={(e) => setAiMode(e.target.value as 'gemini' | 'fixture')}
+                aria-label="AIのモード"
+                title="Gemini はクレジットを使います。固定データは無料で、UIの確認やデモ向けです"
+              >
+                <option value="gemini">AI：Gemini</option>
+                <option value="fixture">固定データ（無料）</option>
+              </select>
+            )}
             <button className={styles.primary} disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
               オーディションをはじめる <ArrowRight size={18} />
             </button>

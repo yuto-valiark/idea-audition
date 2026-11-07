@@ -8,7 +8,7 @@ import type {
 } from '@idea-audition/protocol';
 import type { Attention } from './attention.ts';
 import type { Ledger } from './consensus.ts';
-import type { ProposalContent } from '@idea-audition/protocol';
+import type { AiMode, ProposalContent } from '@idea-audition/protocol';
 
 export interface Proposal {
   status: 'generating' | 'ready' | 'failed';
@@ -199,4 +199,5 @@ export interface SessionState {
   ledgerCursor?: number;
   proposal?: Proposal | null;
   startedAt?: number | null;
+  aiMode?: AiMode;
 }

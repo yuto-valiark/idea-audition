@@ -2,6 +2,7 @@ import {
   CHARACTER_DESIGNS,
   HIP_VERSION,
   LOWER_SLOT_COUNT,
+  type AiMode,
   type CommandMessage,
   type CommandResultMessage,
   type EphemeralMessage,
@@ -64,7 +65,10 @@ export const DEFAULT_ACTOR_CONFIG: ActorConfig = {
 };
 
 interface Deps {
+  /** 既定の AI（aiModes が無いときに使う） */
   ai: IdeaGenerationPort;
+  /** モードごとの AI。セッションのモードで使い分ける（例：gemini と fixture） */
+  aiModes?: Partial<Record<AiMode, IdeaGenerationPort>>;
   store: SessionStorePort;
   scheduler: Scheduler;
   clock: Clock;
@@ -125,6 +129,18 @@ export class SessionActor {
     } else {
       this.session = new AuditionSession(sessionId, domainDeps);
     }
+    // このサーバーで選べるモード。既定は「AI があればそれ（gemini）、無ければ固定データ」
+    const available = (deps.aiModes ? (Object.keys(deps.aiModes) as AiMode[]) : [deps.ai.name === 'fixture' ? 'fixture' : 'gemini']) as AiMode[];
+    const order: AiMode[] = ['gemini', 'fixture'];
+    this.session.aiAvailable = order.filter((m) => available.includes(m));
+    if (!this.session.aiAvailable.includes(this.session.aiMode) || !restored) {
+      this.session.aiMode = this.session.aiAvailable[0] ?? 'fixture';
+    }
+  }
+
+  /** いまのセッションのモードで使う AI */
+  private get ai(): IdeaGenerationPort {
+    return this.deps.aiModes?.[this.session.aiMode] ?? this.deps.ai;
   }
 
   /**
@@ -248,9 +264,20 @@ export class SessionActor {
 
     switch (cmd.type) {
       case 'START_AUDITION': {
-        const r = apply(s.start(cmd.payload.theme, cmd.payload.mode));
+        const r = apply(s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode));
         if (r.ok) this.onStarted();
         return r;
+      }
+      case 'SET_AI_MODE': {
+        const r = s.setAiMode(judgeId, cmd.payload.mode);
+        if (!r.ok) return r;
+        this.emit(r.events, meta);
+        if (r.events.length > 0 && s.status === 'audition_active') {
+          // 前のモードで作り置きした案は捨て、新しいモードで作り直す（すぐ補充できるよう1件だけ残す）
+          s.stock = s.stock.slice(0, 1);
+          this.ensureStock();
+        }
+        return { ok: true };
       }
       case 'RESET_SESSION': {
         const r = apply(s.reset(judgeId));
@@ -465,11 +492,11 @@ export class SessionActor {
     };
     const epoch = this.epoch;
     const started = this.deps.clock.now();
-    this.deps.ai.generateProposal(input).then(
+    this.ai.generateProposal(input).then(
       (content) => {
         if (epoch !== this.epoch || s.champion?.ideaId !== champion.ideaId) return;
-        this.deps.log?.(`[proposal] ready ${this.deps.clock.now() - started}ms (${this.deps.ai.name})`);
-        this.emit(s.finishProposal(content, this.deps.ai.name), { actorJudgeId: null });
+        this.deps.log?.(`[proposal] ready ${this.deps.clock.now() - started}ms (${this.ai.name})`);
+        this.emit(s.finishProposal(content, this.ai.name), { actorJudgeId: null });
       },
       (e) => {
         this.deps.log?.('generateProposal failed', e);
@@ -493,7 +520,7 @@ export class SessionActor {
     const rev = s.currentRevision(idea.ideaId);
     const epoch = this.epoch;
     const name = this.characterName(instanceId);
-    this.deps.ai
+    this.ai
       .answer({
         theme: s.theme,
         idea: { title: rev.title, summary: rev.summary },
@@ -601,7 +628,7 @@ export class SessionActor {
     const epoch = this.epoch;
     const avoidTitles = [...s.ideas.values()].map((i) => i.revisions[0]!.title).concat(s.stock.map((d) => d.title));
     const context = buildConsensusContext(s);
-    this.deps.ai
+    this.ai
       .generateIdeas({ theme: s.theme, count: Math.min(need, LOWER_SLOT_COUNT + 3), avoidTitles, context })
       .then((drafts) => {
         if (epoch !== this.epoch) return;
@@ -644,7 +671,7 @@ export class SessionActor {
     const epoch = this.epoch;
     this.emit(s.setFinalistStatus(participantIds, 'refining'), { actorJudgeId: null });
 
-    this.deps.ai
+    this.ai
       .refine({
         theme: s.theme,
         trigger: isArrival ? 'arrival' : trigger.kind,
@@ -740,7 +767,7 @@ export class SessionActor {
     const epoch = this.epoch;
     this.consensusRunning = true;
     try {
-      const drafts = await this.deps.ai.updateConsensus(input);
+      const drafts = await this.ai.updateConsensus(input);
       if (epoch !== this.epoch) return;
       const result = s.applyLedgerOps(toLedgerOps(s, drafts), uptoSeq);
       this.consensusDecisionsSince = startedAt;

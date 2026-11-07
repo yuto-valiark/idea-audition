@@ -36,6 +36,7 @@ export function Header() {
         <Users size={15} />
         <span>{connected}人で参加中</span>
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
+        <AiModeBadge />
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
       </div>
     </header>
@@ -127,5 +128,40 @@ function ToastItem(props: { id: string; text: string; tone: string; onDone: (id:
     <div className={styles.toast} data-tone={props.tone}>
       {props.text}
     </div>
+  );
+}
+
+/** いまの AI のモード。ホストは押して切り替えられる（Gemini はクレジットを使う） */
+function AiModeBadge() {
+  const ai = useSession((s) => s.snapshot?.ai);
+  const status = useSession((s) => s.snapshot?.status);
+  const send = useSession((s) => s.send);
+  const { isHost } = useMe();
+  if (!ai || status === 'lobby') return null;
+  const next = ai.mode === 'gemini' ? 'fixture' : 'gemini';
+  const canSwitch = isHost && ai.available.includes(next);
+  const label = ai.mode === 'gemini' ? 'AI：Gemini' : '固定データ';
+  return (
+    <button
+      className={styles.aiBadge}
+      data-mode={ai.mode}
+      disabled={!canSwitch}
+      title={
+        canSwitch
+          ? `${next === 'gemini' ? 'Gemini（クレジットを使う）' : '固定データ（無料）'}に切り替える`
+          : ai.mode === 'gemini'
+            ? 'Gemini で生成中（クレジットを使います）'
+            : '固定データで動作中（無料）'
+      }
+      onClick={() => {
+        const message =
+          next === 'gemini'
+            ? 'Gemini に切り替えますか？（クレジットを使います。作り置きの案は入れ替わります）'
+            : '固定データに切り替えますか？（無料。作り置きの案は入れ替わります）';
+        if (confirm(message)) void send('SET_AI_MODE', { mode: next });
+      }}
+    >
+      {label}
+    </button>
   );
 }

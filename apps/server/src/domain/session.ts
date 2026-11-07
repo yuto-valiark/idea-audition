@@ -1,5 +1,6 @@
 import {
   type ProposalContent,
+  type AiMode,
   CHARACTER_DESIGNS,
   LOWER_SLOT_COUNT,
   MAX_JUDGES,
@@ -84,6 +85,10 @@ export class AuditionSession {
   /** 優勝案の企画書（優勝が決まると作り始める） */
   proposal: Proposal | null = null;
   startedAt: number | null = null;
+  /** AI のモード。セッションごとに選べる（固定データなら Gemini のクレジットを使わない） */
+  aiMode: AiMode = 'fixture';
+  /** このサーバーで選べるモード（アクターが設定する。保存しない） */
+  aiAvailable: AiMode[] = ['fixture'];
 
   /** 下段の入れ替え方（アクターが設定する） */
   rotationPolicy: RotationPolicy = DEFAULT_ROTATION_POLICY;
@@ -124,6 +129,7 @@ export class AuditionSession {
       ledgerCursor: this.ledgerCursor,
       proposal: this.proposal ? structuredClone(this.proposal) : null,
       startedAt: this.startedAt,
+      aiMode: this.aiMode,
     };
   }
 
@@ -165,6 +171,7 @@ export class AuditionSession {
     s.ledgerCursor = state.ledgerCursor ?? 0;
     s.proposal = state.proposal ? structuredClone(state.proposal) : null;
     s.startedAt = state.startedAt ?? null;
+    if (state.aiMode) s.aiMode = state.aiMode;
     return s;
   }
 
@@ -231,11 +238,12 @@ export class AuditionSession {
 
   /* ---------------------------- セッション ---------------------------- */
 
-  start(theme: string, mode: SessionMode): DomainResult {
+  start(theme: string, mode: SessionMode, aiMode?: AiMode): DomainResult {
     if (this.status !== 'lobby' && this.status !== 'completed') return reject('SESSION_NOT_ACTIVE');
     this.clearBoard();
     this.theme = theme;
     this.mode = mode;
+    if (aiMode && this.aiAvailable.includes(aiMode)) this.aiMode = aiMode;
     this.status = 'audition_active';
     this.startedAt = this.deps.clock.now();
     return ok([{ type: 'SESSION_STARTED', detail: { theme, mode } }]);
@@ -495,6 +503,17 @@ export class AuditionSession {
   /** 審査員が増減したら合意の母数が変わるので状態を計算し直す */
   refreshLedgerStatuses() {
     this.ledger = recomputeStatuses(this.ledger, Math.max(1, this.judges.length));
+  }
+
+  /* ----------------------------- AI のモード ----------------------------- */
+
+  /** AI のモードを切り替える。ホストのみ（ソロは本人がホスト）。選べないモードは拒否 */
+  setAiMode(judgeId: string, mode: AiMode): DomainResult {
+    if (!this.isHost(judgeId)) return reject('NOT_HOST');
+    if (!this.aiAvailable.includes(mode)) return reject('NOT_AUTHORIZED');
+    if (this.aiMode === mode) return ok([]);
+    this.aiMode = mode;
+    return ok([{ type: 'AI_MODE_CHANGED', detail: { mode } }]);
   }
 
   /* ------------------------------ 企画書 ------------------------------ */

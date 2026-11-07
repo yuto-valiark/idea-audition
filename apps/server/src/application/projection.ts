@@ -83,6 +83,7 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
         }
       : null,
     startedAt: s.startedAt === null ? null : iso(s.startedAt),
+    ai: { mode: s.aiMode, available: [...s.aiAvailable] },
     consensus: {
       version: s.ledger.version,
       claims: s.ledger.claims.map((c) => {

@@ -27,7 +27,12 @@ pnpm dev
 - 同じセッションに入るには同じ URL を開きます。`?s=<セッション名>` で別のセッションになります（省略時は `demo`）
 - 審査員は1つのセッションに4人まで。5人目以降は観覧モード
 
-AI は既定で固定データ（`FixtureGateway`）を使うので、APIキーなしで通しデモができます。設定は `.env.example` を参照。
+AI は既定で固定データ（`FixtureGateway`）を使うので、GCP の権限が無くても全機能を試せます。
+
+- **AI のモード**：開始画面で「AI：Gemini（クレジットを使う）」と「固定データ（無料）」を選べ、審査の途中でもホストがヘッダーのバッジで切り替えられます（Gemini はサーバーが `AI_GATEWAY=gemini` のときだけ選べる）。
+- **手元で Gemini を使う・クレジットの使い方**：[docs/05-platform/gemini-credits.md](docs/05-platform/gemini-credits.md)
+- **本番**：https://idea-audition-852280753109.asia-northeast1.run.app （合言葉が必要）、デプロイ手順は [docs/05-platform/deployment.md](docs/05-platform/deployment.md)
+- 設定の一覧は `.env.example`。
 
 ## テスト・ビルド
 

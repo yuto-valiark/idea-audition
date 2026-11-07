@@ -1,5 +1,6 @@
 import { DEFAULT_ACTOR_CONFIG, DEFAULT_ROTATION, SessionActor } from './application/session-actor.ts';
 import type { IdeaGenerationPort, SessionStorePort, SpeechTranscriptionPort } from './application/ports.ts';
+import type { AiMode } from '@idea-audition/protocol';
 import { FixtureGateway } from './infrastructure/fixture/fixture-gateway.ts';
 import { GeminiGateway } from './infrastructure/gemini/gemini-gateway.ts';
 import { createVertexClient, geminiConfigFromEnv } from './infrastructure/gemini/client.ts';
@@ -20,18 +21,23 @@ const num = (key: string, fallback: number) => {
   return Number.isFinite(v) && process.env[key] !== '' && process.env[key] !== undefined ? v : fallback;
 };
 
-function createGateway(): IdeaGenerationPort {
+/**
+ * 使える AI のモード。固定データ（無料）は常に選べ、AI_GATEWAY=gemini なら Gemini も選べる。
+ * どちらを使うかはセッションごとに開始画面・ヘッダーで切り替える（クレジットの節約・精度の比較用）。
+ */
+function createGateways(): Partial<Record<AiMode, IdeaGenerationPort>> {
   const fixture = new FixtureGateway(Number(env('FIXTURE_LATENCY_MS', '900')));
   const kind = env('AI_GATEWAY', 'fixture');
-  if (kind === 'fixture') return fixture;
   if (kind !== 'gemini') {
-    log(`AI_GATEWAY=${kind} は不明です。fixture を使います。`);
-    return fixture;
+    if (kind !== 'fixture') log(`AI_GATEWAY=${kind} は不明です。fixture だけを使います。`);
+    log('AI modes: fixture');
+    return { fixture };
   }
   const config = geminiConfigFromEnv(process.env);
-  log(`AI: gemini (fast=${config.fast.model}/${config.fast.thinkingLevel}, refine=${config.refine.model}/${config.refine.thinkingLevel}), fallback=fixture`);
-  // 失敗したら固定データで応答し、デモを止めない
-  return new ResilientGateway(new GeminiGateway(createVertexClient(process.env), config, log), fixture, log);
+  log(`AI modes: gemini (fast=${config.fast.model}/${config.fast.thinkingLevel}, refine=${config.refine.model}/${config.refine.thinkingLevel}), fixture`);
+  // Gemini が失敗したら固定データで応答し、デモを止めない
+  const gemini = new ResilientGateway(new GeminiGateway(createVertexClient(process.env), config, log), fixture, log);
+  return { gemini, fixture };
 }
 
 function createStore(): SessionStorePort {
@@ -53,7 +59,8 @@ function createTranscriber(): SpeechTranscriptionPort | null {
   return new GeminiLiveTranscriber(createVertexClient(process.env, location), model, log);
 }
 
-const ai = createGateway();
+const aiModes = createGateways();
+const ai = aiModes.gemini ?? aiModes.fixture!;
 const transcriber = createTranscriber();
 const store = createStore();
 const config = {
@@ -92,6 +99,7 @@ const registry: ActorRegistry = {
       // 同時に来た接続が同じアクターを共有できるよう、Promise ごと保持する
       const actor = SessionActor.open(sessionId, {
         ai,
+        aiModes,
         store,
         scheduler: nodeScheduler,
         clock: systemClock,

@@ -15,6 +15,10 @@ export type SessionStatus = z.infer<typeof SessionStatus>;
 export const SessionMode = z.enum(['solo', 'team']);
 export type SessionMode = z.infer<typeof SessionMode>;
 
+/** AI のモード：本物の Gemini（クレジットを使う）か、固定データ（無料・デモ用） */
+export const AiMode = z.enum(['gemini', 'fixture']);
+export type AiMode = z.infer<typeof AiMode>;
+
 export const FinalistStatus = z.enum(['refining', 'critiquing', 'ready']);
 export type FinalistStatus = z.infer<typeof FinalistStatus>;
 
@@ -156,5 +160,7 @@ export const SessionSnapshot = z.object({
   proposal: ProposalView.nullable(),
   /** セッション開始時刻（審査レポート用） */
   startedAt: z.string().nullable(),
+  /** いまの AI のモードと、このサーバーで選べるモード */
+  ai: z.object({ mode: AiMode, available: z.array(AiMode) }),
 });
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>;

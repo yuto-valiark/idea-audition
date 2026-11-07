@@ -20,6 +20,7 @@
 | 文書 | 内容 | Status |
 |---|---|---|
 | [00-product/acceptance-criteria.md](00-product/acceptance-criteria.md) | 確定仕様から抽出した受け入れ条件・ドメイン不変条件 | Accepted（第22章由来）|
+| [05-platform/gemini-credits.md](05-platform/gemini-credits.md) | **チーム向け**：Gemini（クレジット）の使い方、AIモードの切り替え、手元で Gemini を使う手順、節約のルール | — |
 | [05-platform/deployment.md](05-platform/deployment.md) | デプロイ手順（Cloud Run・合言葉・台数の切り替え・ログ） | Accepted |
 | [02-architecture/overview.md](02-architecture/overview.md) | 全体図・技術スタック・キャッシュ・データの流れ | Accepted |
 | [open-questions.md](open-questions.md) | 未決事項と暫定推奨 | — |
