@@ -174,7 +174,9 @@ export class SessionActor {
     const joined = this.session.join(hello.judgeId);
     this.session.refreshLedgerStatuses();
     const judgeId = joined.ok ? joined.value.judgeId : null;
+    const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
+    if (wasEmpty) this.resumeAfterEmpty();
     conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
@@ -182,6 +184,7 @@ export class SessionActor {
   detach(conn: Connection) {
     const entry = this.connections.get(conn.id);
     this.connections.delete(conn.id);
+    if (this.connections.size === 0) this.pauseWhileEmpty();
     if (!entry?.judgeId) return;
     const stillConnected = [...this.connections.values()].some((c) => c.judgeId === entry.judgeId);
     if (stillConnected) return;
@@ -546,14 +549,39 @@ export class SessionActor {
     this.refineQueue = [];
     this.refining = false;
     this.ensureStock();
+    this.startRotation();
+  }
+
+  /** 下段の入れ替えを始める（誰も接続していなければ始めない） */
+  private startRotation() {
     this.stopRotation?.();
     this.stopRotation = null;
     const rotation = this.deps.config.rotation;
-    if (rotation) {
-      this.session.rotationPolicy = rotation.policy;
-      this.lastWarningAt = this.deps.clock.now();
-      this.stopRotation = this.deps.scheduler.setInterval(() => this.rotationTick(rotation), rotation.checkMs);
-    }
+    if (!rotation || this.session.status !== 'audition_active' || this.connections.size === 0) return;
+    this.session.rotationPolicy = rotation.policy;
+    this.lastWarningAt = this.deps.clock.now();
+    this.stopRotation = this.deps.scheduler.setInterval(() => this.rotationTick(rotation), rotation.checkMs);
+  }
+
+  /**
+   * 誰も接続していない間は止める：下段の入れ替え（そのたびに Gemini で補充する）と、
+   * 合意台帳の更新の予約。動いている最中の AI 呼び出し（改良・企画書）は、その1回だけ最後まで行う。
+   */
+  private pauseWhileEmpty() {
+    this.stopRotation?.();
+    this.stopRotation = null;
+    this.consensusTimer?.();
+    this.consensusTimer = null;
+    this.session.cancelAllLeaving();
+    this.deps.log?.(`[idle] ${this.session.sessionId}: no one connected, paused rotation and generation`);
+  }
+
+  /** 誰かが戻ってきたら再開する */
+  private resumeAfterEmpty() {
+    if (this.session.status !== 'audition_active') return;
+    this.startRotation();
+    this.ensureStock();
+    if (this.session.pendingUtterances().length > 0) this.scheduleConsensus('utterance');
   }
 
   private onStopped() {
@@ -620,7 +648,8 @@ export class SessionActor {
   /** 空き枠＋目標ストック件数になるまで先読み生成する（ADR-0005 §3） */
   private ensureStock() {
     const s = this.session;
-    if (s.status !== 'audition_active' || this.generating) return;
+    // 誰も見ていないときは作り置きしない（戻ってきたら resumeAfterEmpty で再開）
+    if (s.status !== 'audition_active' || this.generating || this.connections.size === 0) return;
     const empty = s.lowerSlots.filter((x) => x === null).length;
     const need = empty + this.deps.config.stockTarget - s.stock.length;
     if (need <= 0) return;
@@ -743,7 +772,7 @@ export class SessionActor {
    */
   private scheduleConsensus(reason: 'utterance' | 'decision') {
     const cfg = this.deps.config.consensus;
-    if (!cfg || this.session.status === 'lobby') return;
+    if (!cfg || this.session.status === 'lobby' || this.connections.size === 0) return;
     const pending = this.session.pendingUtterances().length;
     const delay =
       reason === 'decision' ? cfg.afterDecisionMs : pending >= cfg.flushAfterUtterances ? 200 : cfg.afterUtteranceMs;

@@ -438,6 +438,11 @@ export class AuditionSession {
     return [{ type: 'CANDIDATE_LEAVING', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
   }
 
+  /** 退場予告をすべて取り消す（誰もいなくなったとき） */
+  cancelAllLeaving() {
+    for (const c of this.characters.values()) c.leavingAt = null;
+  }
+
   /** 退場予告中の案（複数同時にあり得る） */
   leavingCandidates(): { instanceId: string; leavingAt: number }[] {
     return this.lowerSlots
