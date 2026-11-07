@@ -101,6 +101,13 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     if (from && character) display.addFlight({ instanceId, designId: character.designId, from, kind: 'upper' });
   }
 
+  // 退場した案は Idea BOX へ飛ばす（仕様書 22.7「落選：フリップを畳んで Idea BOX へ」）
+  if (e.type === 'CANDIDATE_ARCHIVED' && typeof d.instanceId === 'string') {
+    const from = anchorCenter(`lower:${d.instanceId}`);
+    const character = e.snapshot.characters[d.instanceId];
+    if (from && character) display.addFlight({ instanceId: d.instanceId, designId: character.designId, from, kind: 'box' });
+  }
+
   apply(e.snapshot);
 
   switch (e.type) {

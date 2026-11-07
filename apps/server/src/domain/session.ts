@@ -8,6 +8,15 @@ import {
 } from '@idea-audition/protocol';
 import { pickDesign } from './character-allocation.ts';
 import {
+  DEFAULT_ROTATION_POLICY,
+  addAttention,
+  detectMention,
+  newAttention,
+  pickExitCandidate,
+  type AttentionKind,
+  type RotationPolicy,
+} from './attention.ts';
+import {
   ok,
   reject,
   type Answer,
@@ -59,6 +68,9 @@ export class AuditionSession {
   /** 発表待ちのアイデア（先読みストック、ADR-0005 §3） */
   stock: IdeaDraft[] = [];
 
+  /** 下段の入れ替え方（アクターが設定する） */
+  rotationPolicy: RotationPolicy = DEFAULT_ROTATION_POLICY;
+
   private recentlyDeparted: number[] = [];
   private designLastUsedAt = new Map<number, number>();
 
@@ -107,7 +119,13 @@ export class AuditionSession {
     s.theme = state.theme;
     s.lowerSlots = [...state.lowerSlots];
     s.upper = state.upper.map((f) => ({ ...f, status: 'ready' }));
-    s.characters = new Map(state.characters.map((c) => [c.instanceId, { ...c }]));
+    s.characters = new Map(
+      state.characters.map((c) => [
+        c.instanceId,
+        // 注目度は後から追加した項目。古い保存データには無いので初期値を入れる。退場予告は取り消す
+        { ...c, attention: c.attention ?? newAttention(c.spawnedAt), leavingAt: null },
+      ]),
+    );
     s.ideas = new Map(state.ideas.map((i) => [i.ideaId, structuredClone(i)]));
     s.critiques = state.critiques.map((c) => ({ ...c }));
     s.answers = state.answers.map((a) => ({ ...a, answer: a.answer ?? '（サーバー再起動のため回答できませんでした）' }));
@@ -265,6 +283,8 @@ export class AuditionSession {
         location: 'lower',
         ideaId: idea.ideaId,
         spawnedAt: now,
+        attention: newAttention(now),
+        leavingAt: null,
       };
       this.ideas.set(idea.ideaId, idea);
       this.characters.set(character.instanceId, character);
@@ -294,6 +314,7 @@ export class AuditionSession {
     if (character.location !== 'lower' || slot < 0) return reject('NOT_IN_LOWER');
 
     character.location = 'archived';
+    character.leavingAt = null;
     this.lowerSlots[slot] = null;
     this.rememberDeparture(character.designId);
     this.ideaBox.push({
@@ -309,6 +330,69 @@ export class AuditionSession {
     ]);
   }
 
+  /* ---------------------------- 注目度と入れ替え ---------------------------- */
+
+  /** 触れられた（カーソル・詳細・つかむ・質問・会話）。退場予告中なら取り消す */
+  touch(instanceId: string, kind: AttentionKind): DomainEvent[] {
+    const c = this.characters.get(instanceId);
+    if (!c || c.location === 'archived') return [];
+    c.attention = addAttention(c.attention, kind, this.deps.clock.now(), this.rotationPolicy);
+    if (c.leavingAt === null) return [];
+    c.leavingAt = null;
+    return [{ type: 'CANDIDATE_STAYED', detail: { instanceId } }];
+  }
+
+  /** 見られている間（カーソルが乗っている・詳細を開いている）は「触れられていない時間」を進めない */
+  keepAlive(instanceId: string) {
+    const c = this.characters.get(instanceId);
+    if (c) c.attention = { ...c.attention, lastTouchAt: this.deps.clock.now() };
+  }
+
+  /**
+   * 発言の中でステージ上のどの案が取り上げられたかを調べ、注目度に加える。
+   * 名前で呼ばれた案、企画名の一部が出た案の順に強く数える。
+   */
+  registerUtterance(text: string): { events: DomainEvent[]; mentioned: string[] } {
+    const events: DomainEvent[] = [];
+    const mentioned: string[] = [];
+    const onStage = [...this.lowerSlots.filter((x): x is string => x !== null), ...this.upper.map((f) => f.instanceId)];
+    for (const id of onStage) {
+      const c = this.characters.get(id)!;
+      const design = CHARACTER_DESIGNS[c.designId]!;
+      const kind = detectMention(text, { ...design, title: this.currentRevision(c.ideaId).title }, this.theme);
+      if (!kind) continue;
+      mentioned.push(id);
+      events.push(...this.touch(id, kind === 'name' ? 'mentionName' : 'mentionTitle'));
+    }
+    return { events, mentioned };
+  }
+
+  /** 退場させる下段の案を選ぶ（attention.ts の方針） */
+  pickExitCandidate(protectedIds: ReadonlySet<string>, ignoreIdle = false): string | null {
+    const candidates = this.lowerSlots
+      .filter((id): id is string => id !== null)
+      .map((id) => this.characters.get(id)!)
+      .filter((c) => c.leavingAt === null);
+    return pickExitCandidate(candidates, this.deps.clock.now(), protectedIds, this.rotationPolicy, ignoreIdle);
+  }
+
+  /** 退場予告。warningMs 後に退場する（その間に触れられたら取り消し） */
+  beginLeaving(instanceId: string, warningMs: number): DomainEvent[] {
+    const c = this.characters.get(instanceId);
+    if (!c || c.location !== 'lower') return [];
+    c.leavingAt = this.deps.clock.now() + warningMs;
+    return [{ type: 'CANDIDATE_LEAVING', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
+  }
+
+  /** 退場予告中の案（あれば1つ） */
+  leavingCandidate(): { instanceId: string; leavingAt: number } | null {
+    for (const id of this.lowerSlots) {
+      const c = id ? this.characters.get(id) : undefined;
+      if (c?.leavingAt != null) return { instanceId: c.instanceId, leavingAt: c.leavingAt };
+    }
+    return null;
+  }
+
   /* ------------------------------ 昇格 ------------------------------ */
 
   /** キャラ本体のドラッグによる昇格（AC-05〜07, AC-31） */
@@ -322,6 +406,7 @@ export class AuditionSession {
 
     this.lowerSlots[slot] = null;
     character.location = 'upper';
+    character.leavingAt = null;
     this.upper.push({ instanceId, status: 'refining' });
     this.rememberDeparture(character.designId);
 

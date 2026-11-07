@@ -6,6 +6,7 @@ import type {
   SessionMode,
   SessionStatus,
 } from '@idea-audition/protocol';
+import type { Attention } from './attention.ts';
 
 /** Domain は React / Firebase / Gemini に依存しない（ADR-0002）。 */
 
@@ -56,6 +57,10 @@ export interface CharacterInstance {
   location: CharacterLocation;
   ideaId: string;
   spawnedAt: number;
+  /** 注目度（下段の入れ替えに使う、attention.ts） */
+  attention: Attention;
+  /** 退場予告中ならその時刻（この時刻に退場する） */
+  leavingAt: number | null;
 }
 
 export interface Finalist {

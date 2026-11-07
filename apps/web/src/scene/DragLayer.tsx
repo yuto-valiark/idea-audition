@@ -37,7 +37,8 @@ function FlightSprite({ flight }: { flight: Flight }) {
   const [to, setTo] = useState<Point | null>(null);
 
   useLayoutEffect(() => {
-    const anchor = flight.kind === 'upper' ? `upper:${flight.instanceId}` : `lower:${flight.instanceId}`;
+    const anchor =
+      flight.kind === 'upper' ? `upper:${flight.instanceId}` : flight.kind === 'box' ? 'ideabox' : `lower:${flight.instanceId}`;
     const target = anchorCenter(anchor);
     if (!target) {
       finish(flight.flightId);
@@ -48,8 +49,10 @@ function FlightSprite({ flight }: { flight: Flight }) {
 
   if (!to) return null;
   const from = flight.from;
-  const lift = flight.kind === 'upper' ? Math.min(140, Math.abs(from.y - to.y) * 0.5 + 40) : 30;
+  const lift = flight.kind === 'upper' ? Math.min(140, Math.abs(from.y - to.y) * 0.5 + 40) : flight.kind === 'box' ? 60 : 30;
   const mid = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - lift };
+  const scale =
+    flight.kind === 'upper' ? [1.05, 1.15, 0.85] : flight.kind === 'box' ? [1, 0.7, 0.18] : [1.05, 1, 1];
 
   return (
     <motion.div
@@ -59,9 +62,10 @@ function FlightSprite({ flight }: { flight: Flight }) {
       animate={{
         x: [from.x, mid.x, to.x],
         y: [from.y, mid.y, to.y],
-        scale: flight.kind === 'upper' ? [1.05, 1.15, 0.85] : [1.05, 1, 1],
+        scale,
+        opacity: flight.kind === 'box' ? [1, 0.9, 0.2] : 1,
       }}
-      transition={{ duration: flight.kind === 'upper' ? 0.75 : 0.4, ease: 'easeInOut' }}
+      transition={{ duration: flight.kind === 'return' ? 0.4 : 0.75, ease: 'easeInOut' }}
       onAnimationComplete={() => finish(flight.flightId)}
     >
       <Mascot designId={flight.designId} className={styles.flightMascot} />

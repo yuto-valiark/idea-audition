@@ -23,8 +23,8 @@ export interface Flight {
   instanceId: string;
   designId: number;
   from: Point;
-  /** 'upper'：上段の位置へ飛ぶ、'return'：元の下段へ戻る */
-  kind: 'upper' | 'return';
+  /** 'upper'：上段の位置へ飛ぶ、'return'：元の下段へ戻る、'box'：退場して Idea BOX へ入る */
+  kind: 'upper' | 'return' | 'box';
 }
 
 export interface RemoteCursor {
@@ -122,7 +122,7 @@ export const useDisplay = create<DisplayState>((set) => ({
       const arriving = new Set(s.arriving);
       const departing = new Set(s.departing);
       if (f.kind === 'upper') arriving.add(f.instanceId);
-      else departing.add(f.instanceId);
+      else if (f.kind === 'return') departing.add(f.instanceId);
       return { flights: [...s.flights, flight], arriving, departing };
     }),
   finishFlight: (flightId) =>

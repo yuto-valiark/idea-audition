@@ -7,6 +7,7 @@ import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, originalRevision, useMe } from '../shared/selectors.ts';
 import { onDropHover, registerDropZone } from './drag.ts';
+import { MentionBadge } from './LowerStage.tsx';
 import styles from './Stage.module.css';
 
 export function FinalStage() {
@@ -168,6 +169,7 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
       <div className={styles.podium} />
       <div className={styles.name}>
         <span /> {character.name} <small>FINALIST</small>
+        <MentionBadge count={character.mentions} />
       </div>
 
       {vote?.status === 'open' && !isSpectator && (

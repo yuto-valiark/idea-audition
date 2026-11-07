@@ -19,7 +19,7 @@ function deps(store: MemorySessionStore) {
       scheduler,
       clock: fakeClock(),
       ids: seqIds(),
-      config: { stockTarget: 3, lowerRotationMs: 0, critiqueIntervalMs: 100, persistDelayMs: 50 },
+      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 100, persistDelayMs: 50 },
     },
   };
 }

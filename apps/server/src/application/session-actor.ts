@@ -11,6 +11,7 @@ import {
   type ServerMessage,
 } from '@idea-audition/protocol';
 import { AuditionSession } from '../domain/session.ts';
+import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
 import type { IdeaGenerationPort, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
 import { toSnapshot } from './projection.ts';
@@ -23,17 +24,34 @@ export interface Connection {
 export interface ActorConfig {
   /** 発表待ちストックの目標件数（ADR-0005 §3） */
   stockTarget: number;
-  /** 下段の自動入れ替え間隔。0 で無効 */
-  lowerRotationMs: number;
+  /** 下段の自動入れ替え。null で無効（テスト用） */
+  rotation: RotationConfig | null;
   /** 相互批評の吹き出しを順に出す間隔（読める速さ、AC-27） */
   critiqueIntervalMs: number;
   /** 確定イベントをまとめて保存するまでの待ち時間 */
   persistDelayMs: number;
 }
 
+export interface RotationConfig {
+  /** 退場候補を確認する間隔 */
+  checkMs: number;
+  /** 退場予告から実際に退場するまで（この間に触れられたら取り消し） */
+  warningMs: number;
+  /** 退場と退場の最短間隔 */
+  minGapMs: number;
+  policy: RotationPolicy;
+}
+
+export const DEFAULT_ROTATION: RotationConfig = {
+  checkMs: 1_000,
+  warningMs: 4_000,
+  minGapMs: 6_000,
+  policy: DEFAULT_ROTATION_POLICY,
+};
+
 export const DEFAULT_ACTOR_CONFIG: ActorConfig = {
   stockTarget: 3,
-  lowerRotationMs: 30_000,
+  rotation: DEFAULT_ROTATION,
   critiqueIntervalMs: 2_200,
   persistDelayMs: 300,
 };
@@ -67,6 +85,9 @@ export class SessionActor {
   private connections = new Map<string, { conn: Connection; judgeId: string | null }>();
   private results = new Map<string, CommandResultMessage>();
   private held = new Map<string, string>(); // judgeId → instanceId（ドラッグ中）
+  private focus = new Map<string, { hover: string | null; detail: string | null }>(); // judgeId → 注目中のキャラ
+  private lastExitAt = 0;
+  private lastWarningAt = 0;
   private generating = false;
   private refineQueue: RefineTrigger[] = [];
   private refining = false;
@@ -132,6 +153,7 @@ export class SessionActor {
     const stillConnected = [...this.connections.values()].some((c) => c.judgeId === entry.judgeId);
     if (stillConnected) return;
     this.held.delete(entry.judgeId);
+    this.focus.delete(entry.judgeId);
     this.relay(conn, { hip: HIP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: null });
     const left = this.session.leave(entry.judgeId);
     if (left.ok) this.emit(left.events, { actorJudgeId: entry.judgeId });
@@ -150,8 +172,20 @@ export class SessionActor {
     const entry = this.connections.get(conn.id);
     if (!entry?.judgeId) return;
     if (msg.type === 'DRAG_PREVIEW') {
-      if (msg.payload.instanceId) this.held.set(entry.judgeId, msg.payload.instanceId);
-      else this.held.delete(entry.judgeId);
+      if (msg.payload.instanceId) {
+        this.held.set(entry.judgeId, msg.payload.instanceId);
+        this.emit(this.session.touch(msg.payload.instanceId, 'hold'), { actorJudgeId: entry.judgeId });
+      } else this.held.delete(entry.judgeId);
+    }
+    if (msg.type === 'FOCUS_CHANGED') {
+      const prev = this.focus.get(entry.judgeId);
+      const { hover, detail } = msg.payload;
+      this.focus.set(entry.judgeId, { hover, detail });
+      const events = [];
+      if (hover && hover !== prev?.hover) events.push(...this.session.touch(hover, 'hover'));
+      if (detail && detail !== prev?.detail) events.push(...this.session.touch(detail, 'detail'));
+      this.emit(events, { actorJudgeId: entry.judgeId });
+      return; // 注目の情報は他の人に中継しない（カーソルで十分伝わる）
     }
     this.relay(conn, msg);
   }
@@ -216,7 +250,11 @@ export class SessionActor {
         return { ok: true };
       }
       case 'NEXT_IDEA': {
-        const r = apply(s.rotate(cmd.payload.instanceId, this.heldIds()));
+        // 手動の「次のアイデア」：見られている案は残し、最も注目されていない案を入れ替える
+        const target = cmd.payload.instanceId ?? s.pickExitCandidate(this.protectedIds(), true);
+        if (!target) return { ok: true };
+        const r = apply(s.rotate(target));
+        if (r.ok) this.lastExitAt = this.deps.clock.now();
         this.ensureStock();
         return r;
       }
@@ -261,14 +299,28 @@ export class SessionActor {
     if (!s.judges.some((j) => j.judgeId === judgeId)) return { ok: false, reason: 'SPECTATOR' };
     const meta = { actorJudgeId: judgeId, correlationId: correlationId ?? this.deps.ids.next('utt') };
     const targetInstanceId = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
+    // 会話で取り上げられた案の注目度を上げる（名前・企画名）。宛先として話しかけた案も含める
+    const mentions = s.registerUtterance(text);
+    const mentionEvents = [...mentions.events];
+    if (targetInstanceId && !mentions.mentioned.includes(targetInstanceId)) {
+      mentionEvents.push(...s.touch(targetInstanceId, 'mentionName'));
+    }
     const isQuestion = QUESTION_PATTERN.test(text);
     const willRefine = !!targetInstanceId && !isQuestion && !!s.finalist(targetInstanceId) && s.status === 'audition_active';
     this.emit(
       [
         {
           type: 'JUDGE_UTTERANCE_RECEIVED',
-          detail: { judgeId, text, source, targetInstanceId, intent: targetInstanceId ? (willRefine ? 'instruction' : 'question') : 'comment' },
+          detail: {
+            judgeId,
+            text,
+            source,
+            targetInstanceId,
+            intent: targetInstanceId ? (willRefine ? 'instruction' : 'question') : 'comment',
+            mentioned: mentions.mentioned,
+          },
         },
+        ...mentionEvents,
       ],
       meta,
     );
@@ -316,7 +368,7 @@ export class SessionActor {
     const s = this.session;
     const r = s.ask(judgeId, instanceId, question);
     if (!r.ok) return r;
-    this.emit(r.events, meta);
+    this.emit([...r.events, ...s.touch(instanceId, 'question')], meta);
     const idea = s.ideaOf(instanceId)!;
     const rev = s.currentRevision(idea.ideaId);
     const epoch = this.epoch;
@@ -342,8 +394,13 @@ export class SessionActor {
     this.refining = false;
     this.ensureStock();
     this.stopRotation?.();
-    if (this.deps.config.lowerRotationMs > 0) {
-      this.stopRotation = this.deps.scheduler.setInterval(() => this.rotateOldest(), this.deps.config.lowerRotationMs);
+    this.stopRotation = null;
+    const rotation = this.deps.config.rotation;
+    if (rotation) {
+      this.session.rotationPolicy = rotation.policy;
+      this.lastExitAt = this.deps.clock.now();
+      this.lastWarningAt = 0;
+      this.stopRotation = this.deps.scheduler.setInterval(() => this.rotationTick(rotation), rotation.checkMs);
     }
   }
 
@@ -357,15 +414,52 @@ export class SessionActor {
     this.pendingTimers.clear();
   }
 
-  private rotateOldest() {
-    if (this.session.status !== 'audition_active') return;
-    const r = this.session.rotate(undefined, this.heldIds());
-    if (r.ok) this.emit(r.events, { actorJudgeId: null });
-    this.ensureStock();
+  /**
+   * 下段の入れ替え（約1秒ごと）。
+   * 1. 退場予告中の案があり、時刻が来たら退場させる
+   * 2. なければ、しばらく触れられていない案のうち最も注目度の低い案に退場予告を出す
+   * 見られている案（カーソル・詳細・つかみ中・回答待ち）は対象にしない。
+   */
+  private rotationTick(rotation: RotationConfig) {
+    const s = this.session;
+    if (s.status !== 'audition_active') return;
+    const now = this.deps.clock.now();
+    const protectedIds = this.protectedIds();
+    for (const id of protectedIds) s.keepAlive(id);
+
+    const leaving = s.leavingCandidate();
+    if (leaving) {
+      if (now < leaving.leavingAt) return;
+      if (protectedIds.has(leaving.instanceId)) {
+        this.emit(s.touch(leaving.instanceId, 'hover'), { actorJudgeId: null });
+        return;
+      }
+      if (s.stock.length === 0) return; // 次の案が届くまで待つ
+      const r = s.rotate(leaving.instanceId);
+      if (r.ok) {
+        this.lastExitAt = now;
+        this.emit(r.events, { actorJudgeId: null });
+      }
+      this.ensureStock();
+      return;
+    }
+    // 退場の後だけでなく、予告が取り消された後も間をあける（予告が次々に出ないように）
+    if (now - Math.max(this.lastExitAt, this.lastWarningAt) < rotation.minGapMs || s.stock.length === 0) return;
+    const target = s.pickExitCandidate(protectedIds);
+    if (!target) return;
+    this.lastWarningAt = now;
+    this.emit(s.beginLeaving(target, rotation.warningMs), { actorJudgeId: null });
   }
 
-  private heldIds() {
-    return new Set(this.held.values());
+  /** いま誰かが見ている・触っている案 */
+  private protectedIds() {
+    const ids = new Set(this.held.values());
+    for (const f of this.focus.values()) {
+      if (f.hover) ids.add(f.hover);
+      if (f.detail) ids.add(f.detail);
+    }
+    for (const a of this.session.answers) if (a.answer === null) ids.add(a.instanceId);
+    return ids;
   }
 
   /** 空き枠＋目標ストック件数になるまで先読み生成する（ADR-0005 §3） */

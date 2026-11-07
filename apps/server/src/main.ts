@@ -1,4 +1,4 @@
-import { DEFAULT_ACTOR_CONFIG, SessionActor } from './application/session-actor.ts';
+import { DEFAULT_ACTOR_CONFIG, DEFAULT_ROTATION, SessionActor } from './application/session-actor.ts';
 import type { IdeaGenerationPort, SessionStorePort, SpeechTranscriptionPort } from './application/ports.ts';
 import { FixtureGateway } from './infrastructure/fixture/fixture-gateway.ts';
 import { GeminiGateway } from './infrastructure/gemini/gemini-gateway.ts';
@@ -15,6 +15,10 @@ const log = (m: string, extra?: unknown) =>
   console.log(`[${new Date().toISOString()}] ${m}`, ...(extra === undefined ? [] : [extra]));
 
 const env = (key: string, fallback: string) => process.env[key] ?? fallback;
+const num = (key: string, fallback: number) => {
+  const v = Number(process.env[key]);
+  return Number.isFinite(v) && process.env[key] !== '' && process.env[key] !== undefined ? v : fallback;
+};
 
 function createGateway(): IdeaGenerationPort {
   const fixture = new FixtureGateway(Number(env('FIXTURE_LATENCY_MS', '900')));
@@ -54,7 +58,22 @@ const transcriber = createTranscriber();
 const store = createStore();
 const config = {
   ...DEFAULT_ACTOR_CONFIG,
-  lowerRotationMs: Number(env('LOWER_ROTATION_MS', String(DEFAULT_ACTOR_CONFIG.lowerRotationMs))),
+  // 下段の入れ替え（ROTATION=off で無効）。数値はすべてミリ秒
+  rotation:
+    env('ROTATION', 'on') === 'off'
+      ? null
+      : {
+          checkMs: num('ROTATION_CHECK_MS', DEFAULT_ROTATION.checkMs),
+          warningMs: num('ROTATION_WARNING_MS', DEFAULT_ROTATION.warningMs),
+          minGapMs: num('ROTATION_MIN_GAP_MS', DEFAULT_ROTATION.minGapMs),
+          policy: {
+            minStageMs: num('ROTATION_MIN_STAGE_MS', DEFAULT_ROTATION.policy.minStageMs),
+            baseIdleMs: num('ROTATION_IDLE_MS', DEFAULT_ROTATION.policy.baseIdleMs),
+            idlePerScoreMs: num('ROTATION_IDLE_PER_SCORE_MS', DEFAULT_ROTATION.policy.idlePerScoreMs),
+            maxIdleMs: num('ROTATION_MAX_IDLE_MS', DEFAULT_ROTATION.policy.maxIdleMs),
+            halfLifeMs: num('ROTATION_HALF_LIFE_MS', DEFAULT_ROTATION.policy.halfLifeMs),
+          },
+        },
 };
 const ids = randomIds();
 

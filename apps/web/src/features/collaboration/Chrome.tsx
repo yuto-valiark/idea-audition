@@ -76,7 +76,7 @@ export function Footer() {
       </div>
       <UtteranceInput />
       <div className={styles.actions}>
-        <button onClick={() => openBox(true)}>
+        <button onClick={() => openBox(true)} data-anchor="ideabox">
           <Layers size={16} /> アイデアBOX <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />
         </button>

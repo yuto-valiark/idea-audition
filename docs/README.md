@@ -28,6 +28,7 @@
 | [adr/ADR-0003-server-authority.md](adr/ADR-0003-server-authority.md) | サーバー権威：セッションアクター＋Firestore追記 | Accepted |
 | [adr/ADR-0004-hip-v1-minimum.md](adr/ADR-0004-hip-v1-minimum.md) | HIP v1最小仕様：Command/Event/Ephemeral/Snapshot | Accepted |
 | [adr/ADR-0005-ai-orchestration.md](adr/ADR-0005-ai-orchestration.md) | Gemini非同期オーケストレーション | Accepted |
+| [adr/ADR-0006-lower-stage-rotation.md](adr/ADR-0006-lower-stage-rotation.md) | 下段の入れ替え：注目度（会話での言及を含む）にもとづく退場 | Accepted |
 
 ## 運用ルール
 

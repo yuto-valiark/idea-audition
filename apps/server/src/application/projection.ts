@@ -25,6 +25,8 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
             accent: design.accent,
             location: c.location,
             ideaId: c.ideaId,
+            mentions: c.attention.mentions,
+            leavingAt: c.leavingAt === null ? null : iso(c.leavingAt),
           },
         ];
       }),

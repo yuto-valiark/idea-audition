@@ -24,6 +24,10 @@ export const CharacterView = z.object({
   accent: z.string(),
   location: CharacterLocation,
   ideaId: z.string(),
+  /** 会話で取り上げられた回数 */
+  mentions: z.number().int(),
+  /** 退場予告中ならその時刻（ISO）。この時刻に下段から退場する */
+  leavingAt: z.string().nullable(),
 });
 export type CharacterView = z.infer<typeof CharacterView>;
 

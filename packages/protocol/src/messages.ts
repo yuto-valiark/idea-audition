@@ -79,6 +79,8 @@ export const EphemeralPayloads = {
   /** 座標はアリーナ要素に対して 0〜1 に正規化（null はアリーナ外） */
   CURSOR_MOVED: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).nullable(),
   DRAG_PREVIEW: z.object({ instanceId: id.nullable() }),
+  /** 注目しているキャラ（カーソルが乗っている・詳細を開いている）。退場の判定に使う */
+  FOCUS_CHANGED: z.object({ hover: id.nullable(), detail: id.nullable() }),
   MIC_STATE_CHANGED: z.object({ on: z.boolean() }),
 } as const;
 export type EphemeralType = keyof typeof EphemeralPayloads;
@@ -95,6 +97,7 @@ const ephemeralEnvelope = <T extends EphemeralType>(type: T) =>
 export const EphemeralMessage = z.discriminatedUnion('type', [
   ephemeralEnvelope('CURSOR_MOVED'),
   ephemeralEnvelope('DRAG_PREVIEW'),
+  ephemeralEnvelope('FOCUS_CHANGED'),
   ephemeralEnvelope('MIC_STATE_CHANGED'),
 ]);
 export type EphemeralMessage = z.infer<typeof EphemeralMessage>;
@@ -114,6 +117,8 @@ export const EventType = z.enum([
   'HOST_CHANGED',
   'CANDIDATE_SPAWNED',
   'CANDIDATE_ARCHIVED',
+  'CANDIDATE_LEAVING',
+  'CANDIDATE_STAYED',
   'PROMOTION_CONFIRMED',
   'FINALIST_REFINEMENT_STARTED',
   'FINALIST_CRITIQUE_POSTED',

@@ -746,3 +746,82 @@
     box-shadow: 0 0 16px #ffc44e66;
   }
 }
+
+/* ------------------------- 退場予告・会話での言及 ------------------------- */
+
+.performer[data-leaving] .flip {
+  filter: saturate(0.45) brightness(0.75);
+  border-style: dashed;
+  transition: filter 0.4s;
+}
+
+.performer[data-leaving] .mascot {
+  animation: wobble 0.7s ease-in-out infinite alternate;
+  opacity: 0.8;
+}
+
+.leavingTag {
+  position: absolute;
+  top: 34%;
+  z-index: 7;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  border-radius: 7px;
+  background: #2a0f22ee;
+  border: 1px solid #ff7aa088;
+  color: #ffd0de;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  overflow: hidden;
+  box-shadow: 0 4px 14px #0008;
+}
+
+.leavingTag small {
+  font-size: 9px;
+  font-weight: 400;
+  color: #e7b4c6;
+}
+
+.leavingTag i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: #ff7aa0;
+  transform-origin: left;
+  animation: drain linear forwards;
+}
+
+.mentions {
+  margin-left: 4px;
+  font-size: 9px;
+  letter-spacing: 0;
+  color: #fde7bd;
+  background: #5a3a1888;
+  border: 1px solid #b2853c88;
+  border-radius: 8px;
+  padding: 0 5px;
+}
+
+@keyframes drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes wobble {
+  from {
+    rotate: -3deg;
+  }
+  to {
+    rotate: 3deg;
+  }
+}

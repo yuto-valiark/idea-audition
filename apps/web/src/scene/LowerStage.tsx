@@ -6,6 +6,8 @@ import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, judgeById, useMe } from '../shared/selectors.ts';
 import { startCharacterPointer } from './drag.ts';
+import { setHoverFocus } from './focus.ts';
+import { useEffect, useState } from 'react';
 import styles from './Stage.module.css';
 
 export function LowerStage() {
@@ -75,14 +77,19 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
   const select = useDisplay((s) => s.select);
   const bubble = useDisplay((s) => s.bubbles[instanceId]);
   const { isSpectator } = useMe();
+  const leavingIn = useCountdown(character?.leavingAt ?? null);
   if (!character || !revision) return null;
   const holder = holderId ? judgeById(snapshot, holderId) : null;
+  const leaving = character.leavingAt !== null;
 
   return (
     <motion.article
       className={styles.performer}
       data-dragging={isDragging || undefined}
       data-held={holder ? true : undefined}
+      data-leaving={leaving || undefined}
+      onPointerEnter={() => setHoverFocus(instanceId)}
+      onPointerLeave={() => setHoverFocus(null)}
       style={{ '--accent': character.accent, '--holder': holder?.color } as CSSProperties}
       initial={{ opacity: 0, y: 26, scale: 0.86 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -112,9 +119,41 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       <div className={styles.podium} />
       <div className={styles.name}>
         <span /> {character.name} <small>AI CREATOR</small>
+        <MentionBadge count={character.mentions} />
       </div>
       {holder && <span className={styles.heldTag}>{holder.label} がつかみ中</span>}
+      {leaving && !holder && (
+        <div className={styles.leavingTag} role="status">
+          まもなく退場{leavingIn > 0 ? `（${leavingIn}）` : ''}
+          <small>触れると残ります</small>
+          <i
+            key={character.leavingAt}
+            style={{ animationDuration: `${Math.max(0, Date.parse(character.leavingAt!) - Date.now())}ms` }}
+          />
+        </div>
+      )}
     </motion.article>
   );
 }
 
+
+/** 会話で取り上げられた回数 */
+export function MentionBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className={styles.mentions} title={`会話で${count}回取り上げられました`}>
+      💬{count}
+    </span>
+  );
+}
+
+/** 退場までの残り秒数（予告中のみ） */
+function useCountdown(leavingAt: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!leavingAt) return;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [leavingAt]);
+  return leavingAt ? Math.max(0, Math.ceil((Date.parse(leavingAt) - now) / 1000)) : 0;
+}
