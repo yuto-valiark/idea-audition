@@ -1,0 +1,266 @@
+.header {
+  position: relative;
+  z-index: 2;
+  height: 64px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 26px;
+  background: #0b071de6;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.brand > svg {
+  color: #ddb5ff;
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 0 5px #b250ff);
+}
+
+.brand strong {
+  font-size: 20px;
+  letter-spacing: 1.2px;
+  font-style: italic;
+}
+
+.brand strong span {
+  font-weight: 500;
+}
+
+.tag {
+  font-size: 12px;
+  color: #9a8ba9;
+  border-left: 1px solid #564163;
+  padding-left: 24px;
+}
+
+.right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: #c5b5d7;
+  letter-spacing: 0.5px;
+}
+
+.status,
+.statusWarn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.statusWarn {
+  color: var(--warn);
+}
+
+.wifi {
+  color: var(--ok);
+  opacity: 0.7;
+}
+
+.spectator {
+  border: 1px solid #67507f;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--ink-muted);
+}
+
+.onlineDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 7px #74efbd77;
+}
+
+.divider {
+  width: 1px;
+  height: 17px;
+  background: #4d3b5d;
+  margin: 0 8px;
+}
+
+.footer {
+  position: relative;
+  z-index: 3;
+  margin: 10px 32px 16px;
+  padding-top: 10px;
+  border-top: 1px solid #69438666;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  flex-shrink: 0;
+}
+
+.judges {
+  display: flex;
+  gap: 10px;
+}
+
+.judge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a1028ba;
+  border: 1px solid #5b3c7055;
+  border-radius: 7px;
+  padding: 6px 10px;
+  min-width: 140px;
+}
+
+.judge[data-you] {
+  border-color: var(--judge);
+}
+
+.judge[data-offline] {
+  opacity: 0.45;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #110a20;
+  background: var(--judge);
+}
+
+.judge strong {
+  font-size: 10px;
+  font-weight: 500;
+  display: block;
+}
+
+.judge small {
+  font-size: 9px;
+  color: #967ba4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.judge small > span {
+  height: 4px;
+  width: 4px;
+  border-radius: 50%;
+  background: #6edfb2;
+}
+
+.hostCrown {
+  margin-left: auto;
+  color: var(--gold);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.hint {
+  font-size: 9px;
+  color: #9d85af;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.actions button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #261536;
+  border: 1px solid #6f448e;
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 9px 10px;
+}
+
+.actions b {
+  background: #7a4ca2;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+}
+
+.toasts {
+  position: fixed;
+  top: 116px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 110;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  background: #2c183eee;
+  border: 1px solid #bd79eb;
+  border-radius: 7px;
+  padding: 11px 18px;
+  font-size: 12px;
+  box-shadow: 0 5px 25px #0006;
+  color: #eed8fc;
+  max-width: 90vw;
+  animation:
+    toastIn 0.25s ease-out,
+    toastOut 0.3s ease-in 3.4s forwards;
+}
+
+.toast[data-tone='warn'] {
+  border-color: #ff7aa0;
+  color: #ffd6e2;
+  background: #3a1428ee;
+}
+
+.toast[data-tone='gold'] {
+  border-color: #e6bc70;
+  color: #fde7bd;
+  background: #33210fee;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .tag,
+  .hint {
+    display: none;
+  }
+  .judge {
+    min-width: 110px;
+  }
+}

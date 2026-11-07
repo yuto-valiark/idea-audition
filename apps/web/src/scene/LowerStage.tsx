@@ -1,0 +1,120 @@
+import { AnimatePresence, motion } from 'motion/react';
+import { RotateCcw } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { useDisplay } from '../store/display-store.ts';
+import { useSession } from '../store/session-store.ts';
+import { Mascot } from '../shared/Mascot.tsx';
+import { EMPTY, currentRevision, judgeById, useMe } from '../shared/selectors.ts';
+import { startCharacterPointer } from './drag.ts';
+import styles from './Stage.module.css';
+
+export function LowerStage() {
+  const slots = useSession((s) => s.snapshot?.lowerSlots ?? EMPTY);
+  const status = useSession((s) => s.snapshot?.status);
+  const send = useSession((s) => s.send);
+  const { isSpectator } = useMe();
+
+  return (
+    <section
+      className={styles.ideaStage}
+      data-paused={status === 'champion_selection' || undefined}
+      aria-label="新規アイデア発表ステージ"
+    >
+      <div className={styles.heading}>
+        <div>
+          <span className={styles.purpleDot} />
+          <h2>
+            新規アイデア発表ステージ <span>IDEA STAGE</span>
+          </h2>
+          <span className={styles.count}>5 AI</span>
+        </div>
+        <button
+          className={styles.quietButton}
+          disabled={isSpectator || status !== 'audition_active'}
+          onClick={() => send('NEXT_IDEA', {})}
+        >
+          <RotateCcw size={13} /> 次のアイデア
+        </button>
+      </div>
+      <div className={styles.lineup}>
+        {slots.map((id, slot) => (
+          <div className={styles.lowerSlot} key={slot}>
+            <AnimatePresence mode="popLayout">
+              {id ? <LowerPerformer key={id} instanceId={id} /> : <PreparingSlot key={`prep-${slot}`} />}
+            </AnimatePresence>
+          </div>
+        ))}
+      </div>
+      <div className={`${styles.ring} ${styles.lowerRing}`} />
+      <div className={styles.wordmark}>IDEA AUDITION</div>
+    </section>
+  );
+}
+
+function PreparingSlot() {
+  return (
+    <motion.div
+      className={styles.preparing}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      aria-label="AIが次のアイデアを準備中"
+    >
+      <span className={styles.spinner} />
+      <p>AIが準備中…</p>
+    </motion.div>
+  );
+}
+
+function LowerPerformer({ instanceId }: { instanceId: string }) {
+  const snapshot = useSession((s) => s.snapshot)!;
+  const character = snapshot.characters[instanceId];
+  const revision = currentRevision(snapshot, instanceId);
+  const isDragging = useDisplay((s) => s.drag?.instanceId === instanceId || s.departing.has(instanceId));
+  const holderId = useDisplay((s) => Object.keys(s.heldBy).find((j) => s.heldBy[j] === instanceId) ?? null);
+  const select = useDisplay((s) => s.select);
+  const bubble = useDisplay((s) => s.bubbles[instanceId]);
+  const { isSpectator } = useMe();
+  if (!character || !revision) return null;
+  const holder = holderId ? judgeById(snapshot, holderId) : null;
+
+  return (
+    <motion.article
+      className={styles.performer}
+      data-dragging={isDragging || undefined}
+      data-held={holder ? true : undefined}
+      style={{ '--accent': character.accent, '--holder': holder?.color } as CSSProperties}
+      initial={{ opacity: 0, y: 26, scale: 0.86 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 18, scale: 0.9, transition: { duration: 0.25 } }}
+      transition={{ delay: 0.35, type: 'spring', stiffness: 260, damping: 20 }}
+    >
+      <div className={styles.spotlight} aria-hidden />
+      {bubble && <div className={styles.speech}>{bubble.text}</div>}
+      <button
+        className={styles.character}
+        data-anchor={`lower:${instanceId}`}
+        aria-label={`${character.name}：クリックで詳細、ドラッグで最終オーディションへ`}
+        disabled={isSpectator}
+        onPointerDown={(e) => startCharacterPointer(e, instanceId, character.designId)}
+        onClick={(e) => {
+          // キーボード操作（Enter / Space）のときだけ詳細を開く。マウスは pointerup で処理する
+          if (e.detail === 0) select(instanceId);
+        }}
+      >
+        <Mascot designId={character.designId} className={styles.mascot} />
+      </button>
+      <button className={styles.flip} onClick={() => select(instanceId)}>
+        <div className={styles.flipTitle}>{revision.title}</div>
+        <div className={styles.flipIcon}>{revision.icon}</div>
+        <p>{revision.summary}</p>
+      </button>
+      <div className={styles.podium} />
+      <div className={styles.name}>
+        <span /> {character.name} <small>AI CREATOR</small>
+      </div>
+      {holder && <span className={styles.heldTag}>{holder.label} がつかみ中</span>}
+    </motion.article>
+  );
+}
+

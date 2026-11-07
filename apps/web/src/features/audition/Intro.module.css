@@ -1,0 +1,260 @@
+.intro {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 49% 51%;
+  align-items: center;
+  padding: 32px 5% 90px;
+  max-width: 1700px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.copy {
+  z-index: 3;
+}
+
+.eyebrow {
+  color: #be9fe0;
+  font-size: 10px;
+  letter-spacing: 2.3px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.eyebrow > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--purple-soft);
+  box-shadow: 0 0 10px var(--purple);
+}
+
+.intro h1 {
+  font-size: clamp(30px, 3.3vw, 60px);
+  line-height: 1.55;
+  letter-spacing: -1px;
+  margin: 18px 0 12px;
+  font-weight: 900;
+}
+
+.intro h1 em {
+  font-style: normal;
+  background: linear-gradient(100deg, #fff 12%, #e6b4ff 75%, #bd82ff);
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: clamp(15px, 1.2vw, 19px);
+  line-height: 1.9;
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+}
+
+.sub b {
+  color: #f09aff;
+}
+
+.description {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 2;
+  margin-bottom: 22px;
+}
+
+.setup {
+  max-width: 480px;
+  border-top: 1px solid #75508b55;
+  padding-top: 20px;
+}
+
+.setup label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d7c5e9;
+  display: block;
+  margin-bottom: 9px;
+}
+
+.themeInput {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #100a24;
+  overflow: hidden;
+  height: 48px;
+  box-shadow: inset 0 1px 10px #6a299622;
+}
+
+.themeInput input {
+  width: 100%;
+  background: none;
+  border: 0;
+  color: #f0e7f7;
+  padding: 0 14px;
+  font-size: 14px;
+  outline: none;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.actions select {
+  background: #251537;
+  color: #e5d6f5;
+  border: 1px solid #694284;
+  border-radius: 7px;
+  font-size: 12px;
+  padding: 10px;
+}
+
+.primary {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(105deg, #9a45e8, #7736db);
+  border: 1px solid #c785ff;
+  border-radius: 7px;
+  box-shadow:
+    0 0 20px #a339e733,
+    inset 0 1px 0 #ead1ff44;
+  font-weight: 700;
+  padding: 14px 18px;
+  font-size: 13px;
+}
+
+.setup small {
+  font-size: 10px;
+  color: #8a7a9b;
+  display: block;
+  margin-top: 12px;
+}
+
+.stage {
+  position: relative;
+  min-height: 420px;
+  isolation: isolate;
+}
+
+.stage::before {
+  content: '';
+  position: absolute;
+  inset: 0 -15% -10%;
+  background: radial-gradient(ellipse, #7c2fc055, transparent 65%);
+  z-index: -1;
+}
+
+.stageTitle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  color: #d8a5ff;
+  font-size: 12px;
+  letter-spacing: 3px;
+  margin: 15px 0 10px;
+}
+
+.mascots {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 320px;
+  gap: 2%;
+}
+
+.mascotWrap {
+  width: 30%;
+  max-width: 240px;
+  animation: bob 3.4s ease-in-out infinite;
+}
+
+.mascotWrap:nth-child(1) {
+  rotate: -5deg;
+  animation-delay: -1s;
+}
+
+.mascotWrap:nth-child(2) {
+  translate: 0 -34px;
+  z-index: 2;
+}
+
+.mascotWrap:nth-child(3) {
+  rotate: 5deg;
+  animation-delay: -2s;
+}
+
+.mascot {
+  width: 100%;
+}
+
+.ring {
+  position: absolute;
+  left: -7%;
+  right: -7%;
+  height: 130px;
+  bottom: 34px;
+  border: 2px solid #ed9dff;
+  border-radius: 50%;
+  box-shadow:
+    0 0 9px #ba51ff,
+    0 7px 0 #381358,
+    0 13px 0 #29103d,
+    0 14px 1px #a65de9,
+    inset 0 0 32px #7020c277;
+  z-index: -1;
+  background: radial-gradient(ellipse, #7921cb22, #7020c211 60%, #bd5bff44);
+}
+
+.caption {
+  position: absolute;
+  bottom: -10px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+  color: #c2a4dc;
+  font-size: 12px;
+}
+
+.steps {
+  position: absolute;
+  bottom: 30px;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  border-top: 1px solid #77539055;
+  padding-top: 20px;
+  color: #bfaecc;
+  font-size: 12px;
+}
+
+.steps b {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #c185ec;
+  margin-right: 10px;
+}
+
+.steps > svg {
+  width: 13px;
+  color: #725583;
+}
+
+@keyframes bob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
