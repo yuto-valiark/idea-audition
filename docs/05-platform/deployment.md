@@ -30,10 +30,24 @@ export CLOUDSDK_ACTIVE_CONFIG_NAME=victory
 
 ## デプロイ
 
-リポジトリ直下で実行する（Cloud Build がビルドし、Cloud Run に出す。5〜10分）。
+リポジトリ直下で実行する。**ビルド → デプロイの2段階**で行う（`--source` で一度に行うと、ビルドの途中で CLI が先に終わることがあったため）。
+
+1. Cloud Build でイメージを作る（1〜2分）。タグはコミットの短いハッシュ：
 
 ```bash
-gcloud run deploy idea-audition --source . --project idea-audition --region asia-northeast1 --service-account idea-audition-run@idea-audition.iam.gserviceaccount.com --allow-unauthenticated --max-instances 1 --min-instances 0 --timeout 3600 --session-affinity --cpu 1 --memory 1Gi --cpu-boost --set-env-vars "AI_GATEWAY=gemini,GOOGLE_CLOUD_PROJECT=idea-audition,GOOGLE_CLOUD_LOCATION=global,PERSISTENCE=firestore" --set-secrets "ACCESS_CODE=idea-audition-access-code:latest" --quiet
+gcloud builds submit --project idea-audition --region asia-northeast1 --tag asia-northeast1-docker.pkg.dev/idea-audition/cloud-run-source-deploy/idea-audition:$(git rev-parse --short HEAD) --quiet .
+```
+
+2. そのイメージを Cloud Run に出す：
+
+```bash
+gcloud run deploy idea-audition --image asia-northeast1-docker.pkg.dev/idea-audition/cloud-run-source-deploy/idea-audition:$(git rev-parse --short HEAD) --project idea-audition --region asia-northeast1 --service-account idea-audition-run@idea-audition.iam.gserviceaccount.com --allow-unauthenticated --max-instances 1 --min-instances 0 --timeout 3600 --session-affinity --cpu 1 --memory 1Gi --cpu-boost --set-env-vars "AI_GATEWAY=gemini,GOOGLE_CLOUD_PROJECT=idea-audition,GOOGLE_CLOUD_LOCATION=global,PERSISTENCE=firestore" --set-secrets "ACCESS_CODE=idea-audition-access-code:latest" --quiet
+```
+
+3. 確認：`/health` が `ok` を返すこと、ログに `AI modes: gemini ..., fixture` と `access code: required` が出ること。
+
+```bash
+curl -s https://idea-audition-852280753109.asia-northeast1.run.app/health
 ```
 
 - URL の確認：
@@ -85,15 +99,7 @@ gcloud run services logs read idea-audition --project idea-audition --region asi
 ## 注意
 
 - ヘルスチェックは `/health`。Cloud Run は z で終わるパス（`/healthz` など）を予約しているので使わない。
-- `gcloud run deploy --source` は、ビルドの途中で CLI が先に終了することがある（2026-11-08 の初回デプロイで発生）。その場合は Cloud Build の完了を待ってから、できたイメージで出し直す：
-
-```bash
-gcloud builds list --project idea-audition --region asia-northeast1 --limit 1 --format='value(id,status,results.images[0].name,results.images[0].digest)'
-```
-
-```bash
-gcloud run deploy idea-audition --image <イメージ名>@<digest> --project idea-audition --region asia-northeast1 （以降は上と同じオプション）
-```
+- 以前は `gcloud run deploy --source .` で一度にデプロイしていたが、ビルドの途中で CLI が先に終わることがあったため、上の2段階に変えた（2026-11-08）。
 
 - **最大1台が前提**（セッションの正本はメモリのアクター、ADR-0003）。台数を増やすとセッションが分かれるので増やさない。
 - デプロイやインスタンスの入れ替えで接続が切れても、画面は自動で再接続し、Firestore から状態を戻す。
