@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HIP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
+import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
 import { StubAi, fakeClock, fakeConnection, manualScheduler, seqIds } from './helpers.ts';
 
 let cid = 0;
@@ -15,11 +16,11 @@ async function setup() {
   const ai = new StubAi();
   const actor = new SessionActor('demo', {
     ai,
-    eventLog: { append() {} },
+    store: new MemorySessionStore(),
     scheduler,
     clock: fakeClock(),
     ids: seqIds(),
-    config: { stockTarget: 3, lowerRotationMs: 0, critiqueIntervalMs: 1000 },
+    config: { stockTarget: 3, lowerRotationMs: 0, critiqueIntervalMs: 1000, persistDelayMs: 50 },
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');

@@ -125,6 +125,20 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       break;
     case 'CANDIDATE_ANSWERED':
       break;
+    case 'JUDGE_UTTERANCE_RECEIVED':
+      if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
+        display.addCaption({
+          judgeId: d.judgeId,
+          text: d.text,
+          source: d.source === 'live' ? 'live' : 'text',
+          intent: d.intent === 'instruction' || d.intent === 'question' ? d.intent : 'comment',
+          targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
+        });
+        if (d.intent === 'question' && typeof d.targetInstanceId === 'string' && d.judgeId === myJudgeId) {
+          display.select(d.targetInstanceId); // 回答が見えるよう詳細を開く
+        }
+      }
+      break;
     case 'CHAMPION_VOTE_STARTED':
       display.setMyVote(null);
       display.toast('最終投票が始まりました。推したい1案に投票してください', 'gold');
@@ -154,6 +168,7 @@ function handleEphemeral(m: EphemeralMessage) {
       display.setHeld(m.senderId, m.payload.instanceId);
       break;
     case 'MIC_STATE_CHANGED':
+      display.setMic(m.senderId, m.payload.on);
       break;
   }
 }

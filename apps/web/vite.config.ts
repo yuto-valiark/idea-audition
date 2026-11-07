@@ -8,6 +8,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/hip': { target: 'ws://localhost:8787', ws: true },
+      '/voice': { target: 'ws://localhost:8787', ws: true },
     },
   },
 });

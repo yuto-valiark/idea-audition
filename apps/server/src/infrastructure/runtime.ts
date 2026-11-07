@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { Clock, IdProvider } from '../domain/types.ts';
-import type { EventLogPort, Scheduler } from '../application/ports.ts';
+import type { Scheduler } from '../application/ports.ts';
 
 export const systemClock: Clock = { now: () => Date.now() };
 
@@ -21,5 +21,3 @@ export const nodeScheduler: Scheduler = {
   },
 };
 
-/** Day 2 で Firestore 実装に置き換える（ADR-0003） */
-export const noopEventLog: EventLogPort = { append() {} };

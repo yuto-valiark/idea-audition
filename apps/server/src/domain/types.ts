@@ -124,3 +124,24 @@ export const reject = (reason: RejectReason): { ok: false; reason: RejectReason 
 });
 
 export type { SessionMode, SessionStatus };
+
+/** 永続化用のセッション状態（Map を配列にしたもの）。schemaVersion を変えたら移行処理を書く */
+export interface SessionState {
+  schemaVersion: 1;
+  status: SessionStatus;
+  mode: SessionMode;
+  theme: string;
+  lowerSlots: (string | null)[];
+  upper: Finalist[];
+  characters: CharacterInstance[];
+  ideas: Idea[];
+  critiques: Critique[];
+  answers: Answer[];
+  ideaBox: ArchivedIdea[];
+  judges: Judge[];
+  vote: (Omit<Vote, 'ballots'> & { ballots: [string, string][] }) | null;
+  champion: { instanceId: string; ideaId: string; revisionId: string } | null;
+  stock: IdeaDraft[];
+  recentlyDeparted: number[];
+  designLastUsedAt: [number, number][];
+}

@@ -6,6 +6,8 @@
 export interface CharacterDesign {
   designId: number;
   name: string;
+  /** 音声で呼びかけるときの読み（音声入力の宛先判定に使う） */
+  readings: string[];
   accent: string;
   /** スプライト上の位置 */
   sprite: { sheet: string; col: number; row: number; cols: number; rows: number };
@@ -13,19 +15,22 @@ export interface CharacterDesign {
 
 const SHEET = '/assets/characters/mascots.png';
 
-export const CHARACTER_DESIGNS: readonly CharacterDesign[] = [
-  ['MOMO', '#f367ff'],
-  ['SPROUT', '#56e8ca'],
-  ['LUNA', '#748aff'],
-  ['POPO', '#ffa46d'],
-  ['NOVA', '#76dfff'],
-  ['RIO', '#50baff'],
-  ['LEO', '#ffc85c'],
-  ['MIST', '#bc85ff'],
-].map(([name, accent], i) => ({
+const DESIGN_ROWS: [string, string, string[]][] = [
+  ['MOMO', '#f367ff', ['モモ', 'もも']],
+  ['SPROUT', '#56e8ca', ['スプラウト', 'スプラ']],
+  ['LUNA', '#748aff', ['ルナ', 'るな']],
+  ['POPO', '#ffa46d', ['ポポ', 'ぽぽ']],
+  ['NOVA', '#76dfff', ['ノヴァ', 'ノバ', 'のば']],
+  ['RIO', '#50baff', ['リオ', 'りお']],
+  ['LEO', '#ffc85c', ['レオ', 'れお']],
+  ['MIST', '#bc85ff', ['ミスト', 'みすと']],
+];
+
+export const CHARACTER_DESIGNS: readonly CharacterDesign[] = DESIGN_ROWS.map(([name, accent, readings], i) => ({
   designId: i,
-  name: name!,
-  accent: accent!,
+  name,
+  readings,
+  accent,
   sprite: { sheet: SHEET, col: i % 4, row: Math.floor(i / 4), cols: 4, rows: 2 },
 }));
 

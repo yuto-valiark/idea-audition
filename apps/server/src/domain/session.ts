@@ -24,6 +24,7 @@ import {
   type Judge,
   type Revision,
   type RevisionDraft,
+  type SessionState,
   type Vote,
 } from './types.ts';
 
@@ -65,6 +66,60 @@ export class AuditionSession {
     readonly sessionId: string,
     private readonly deps: { ids: IdProvider; clock: Clock },
   ) {}
+
+  /* --------------------------- 保存と復元 --------------------------- */
+
+  /** 永続化用の状態（JSONにできる形）。復元は fromState。 */
+  toState(): SessionState {
+    return {
+      schemaVersion: 1,
+      status: this.status,
+      mode: this.mode,
+      theme: this.theme,
+      lowerSlots: [...this.lowerSlots],
+      upper: this.upper.map((f) => ({ ...f })),
+      characters: [...this.characters.values()].map((c) => ({ ...c })),
+      ideas: [...this.ideas.values()].map((i) => structuredClone(i)),
+      critiques: this.critiques.map((c) => ({ ...c })),
+      answers: this.answers.map((a) => ({ ...a })),
+      ideaBox: this.ideaBox.map((a) => ({ ...a })),
+      judges: this.judges.map((j) => ({ ...j })),
+      vote: this.vote ? { ...this.vote, ballots: [...this.vote.ballots.entries()] } : null,
+      champion: this.champion ? { ...this.champion } : null,
+      stock: this.stock.map((d) => ({ ...d })),
+      recentlyDeparted: [...this.recentlyDeparted],
+      designLastUsedAt: [...this.designLastUsedAt.entries()],
+    };
+  }
+
+  /**
+   * 保存した状態から復元する。サーバー再起動後は全員が切断した扱いにし、
+   * 途中だった改良（処理中のAI呼び出しは失われている）は「準備完了」に戻す。
+   */
+  static fromState(
+    sessionId: string,
+    state: SessionState,
+    deps: { ids: IdProvider; clock: Clock },
+  ): AuditionSession {
+    const s = new AuditionSession(sessionId, deps);
+    s.status = state.status;
+    s.mode = state.mode;
+    s.theme = state.theme;
+    s.lowerSlots = [...state.lowerSlots];
+    s.upper = state.upper.map((f) => ({ ...f, status: 'ready' }));
+    s.characters = new Map(state.characters.map((c) => [c.instanceId, { ...c }]));
+    s.ideas = new Map(state.ideas.map((i) => [i.ideaId, structuredClone(i)]));
+    s.critiques = state.critiques.map((c) => ({ ...c }));
+    s.answers = state.answers.map((a) => ({ ...a, answer: a.answer ?? '（サーバー再起動のため回答できませんでした）' }));
+    s.ideaBox = state.ideaBox.map((a) => ({ ...a }));
+    s.judges = state.judges.map((j) => ({ ...j, connected: false, isHost: false }));
+    s.vote = state.vote ? { ...state.vote, ballots: new Map(state.vote.ballots) } : null;
+    s.champion = state.champion ? { ...state.champion } : null;
+    s.stock = state.stock.map((d) => ({ ...d }));
+    s.recentlyDeparted = [...state.recentlyDeparted];
+    s.designLastUsedAt = new Map(state.designLastUsedAt);
+    return s;
+  }
 
   /* ------------------------------ 参加者 ------------------------------ */
 

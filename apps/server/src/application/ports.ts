@@ -1,5 +1,5 @@
 import type { EventMessage } from '@idea-audition/protocol';
-import type { IdeaDraft, RevisionDraft } from '../domain/types.ts';
+import type { IdeaDraft, RevisionDraft, SessionState } from '../domain/types.ts';
 
 /** AI 生成のポート（ADR-0005 §1）。GeminiGateway と FixtureGateway が実装する。 */
 export interface IdeaGenerationPort {
@@ -40,9 +40,41 @@ export interface RefineOutput {
   revisions: Record<string, RevisionDraft>;
 }
 
-/** 確定イベントの永続化（Day 2 で Firestore 実装を追加） */
-export interface EventLogPort {
-  append(sessionId: string, event: EventMessage): void;
+/** 確定イベントの記録（1件分） */
+export interface StoredEvent {
+  seq: number;
+  type: EventMessage['type'];
+  detail: Record<string, unknown>;
+  actorJudgeId: string | null;
+  correlationId: string | null;
+  at: string;
+}
+
+/**
+ * セッションの永続化（ADR-0003）。正本はメモリのアクターで、これは控え。
+ * サーバー再起動時に load で復元する。
+ */
+export interface SessionStorePort {
+  readonly name: string;
+  load(sessionId: string): Promise<{ seq: number; state: SessionState } | null>;
+  /** 確定イベントと、その時点のセッション状態をまとめて書く */
+  commit(sessionId: string, seq: number, state: SessionState, events: StoredEvent[]): Promise<void>;
+}
+
+/** 音声の文字起こし（Gemini Live）。開いている間だけ音声を受け付ける */
+export interface SpeechTranscriptionPort {
+  readonly name: string;
+  open(callbacks: {
+    onInterim(text: string): void;
+    onFinal(text: string): void;
+    onClose(reason: string): void;
+  }): Promise<TranscriptionStream>;
+}
+
+export interface TranscriptionStream {
+  /** 16kHz・モノラル・16bit PCM */
+  sendAudio(pcm: Buffer): void;
+  close(): void;
 }
 
 export interface Scheduler {

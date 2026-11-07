@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
+import { Captions, MicButton, MicIndicator, UtteranceInput } from '../voice/VoiceControls.tsx';
 import styles from './Chrome.module.css';
 
 export function Header() {
@@ -48,6 +49,7 @@ export function Footer() {
   if (!snapshot) return null;
   return (
     <footer className={styles.footer}>
+      <Captions />
       <div className={styles.judges}>
         {snapshot.judges.map((j) => (
           <div
@@ -68,13 +70,12 @@ export function Footer() {
               </small>
             </div>
             {j.isHost && <Crown size={13} className={styles.hostCrown} aria-label="ホスト" />}
+            {j.judgeId === judgeId ? <MicButton /> : <MicIndicator judgeId={j.judgeId} />}
           </div>
         ))}
       </div>
+      <UtteranceInput />
       <div className={styles.actions}>
-        <span className={styles.hint}>
-          <span className={styles.onlineDot} /> みんなのセンスが、リアルタイムに。
-        </span>
         <button onClick={() => openBox(true)}>
           <Layers size={16} /> アイデアBOX <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />

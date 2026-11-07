@@ -1,37 +1,20 @@
-import { GoogleGenAI, type GoogleGenAIOptions } from '@google/genai';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { OAuth2Client } from 'google-auth-library';
+import { GoogleGenAI } from '@google/genai';
+import { localAuthClient } from '../gcp-auth.ts';
 import type { GeminiConfig } from './gemini-gateway.ts';
 
 /**
- * Vertex AI 用のクライアント。
- * - Cloud Run：サービスアカウントの認証（ADC）を自動で使う。APIキーは持たない
- * - ローカル（開発専用）：LOCAL_GCLOUD_CONFIG に gcloud の設定名（例 victory）を入れると、
- *   その設定のログインで `gcloud auth print-access-token` を実行してトークンを取得・更新する。
- *   マシン全体の ADC を上書きせず、トークンをファイルにも残さない
- * - GOOGLE_OAUTH_ACCESS_TOKEN：一時的に直接トークンを渡す場合（約1時間で切れる）
+ * Vertex AI 用のクライアント。APIキーは使わない。
+ * 認証は gcp-auth.ts を参照（Cloud Run ではサービスアカウント、ローカルでは gcloud の設定）。
  */
-export function createVertexClient(env: NodeJS.ProcessEnv) {
+export function createVertexClient(env: NodeJS.ProcessEnv, location = env.GOOGLE_CLOUD_LOCATION ?? 'global') {
   const project = env.GOOGLE_CLOUD_PROJECT;
   if (!project) throw new Error('GOOGLE_CLOUD_PROJECT が未設定です');
-  const accessToken = env.GOOGLE_OAUTH_ACCESS_TOKEN;
-  const gcloudConfig = env.LOCAL_GCLOUD_CONFIG;
-  let googleAuthOptions: GoogleGenAIOptions['googleAuthOptions'];
-  if (gcloudConfig) {
-    const authClient = new OAuth2Client();
-    authClient.refreshHandler = () => gcloudAccessToken(gcloudConfig);
-    googleAuthOptions = { authClient, projectId: project };
-  } else if (accessToken) {
-    const authClient = new OAuth2Client();
-    authClient.setCredentials({ access_token: accessToken });
-    googleAuthOptions = { authClient, projectId: project };
-  }
+  const authClient = localAuthClient(env);
   return new GoogleGenAI({
     vertexai: true,
     project,
-    location: env.GOOGLE_CLOUD_LOCATION ?? 'global',
-    ...(googleAuthOptions ? { googleAuthOptions } : {}),
+    location,
+    ...(authClient ? { googleAuthOptions: { authClient, projectId: project } } : {}),
   });
 }
 
@@ -48,14 +31,4 @@ export function geminiConfigFromEnv(env: NodeJS.ProcessEnv): GeminiConfig {
       timeoutMs: Number(env.GEMINI_TIMEOUT_REFINE_MS ?? 25_000),
     },
   };
-}
-
-const run = promisify(execFile);
-
-async function gcloudAccessToken(configName: string) {
-  const { stdout } = await run('gcloud', ['auth', 'print-access-token'], {
-    env: { ...process.env, CLOUDSDK_ACTIVE_CONFIG_NAME: configName },
-  });
-  // gcloud のトークンは約60分有効。余裕を見て50分で更新する
-  return { access_token: stdout.trim(), expiry_date: Date.now() + 50 * 60_000 };
 }

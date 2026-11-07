@@ -4,7 +4,7 @@
 - Owner: TBD
 - Updated: 2026-11-07
 
-「Day 2」と書いた部分は未実装。それ以外は `795e8bb` 時点で実装済み（ローカルで動作確認済み）。
+「Day 2」と書いた部分は未実装（デプロイ関連）。それ以外は実装済みで、ローカルで動作確認済み（2026-11-07）。
 
 ## 全体図
 
@@ -16,9 +16,9 @@
  │  │   ├ サーバーから届いた状態の写し（判定はしない）       │
  │  │   └ 表示用の状態（ドラッグ中・移動演出・吹き出し）     │
  │  ├ 通信：HIPクライアント（再接続・未確定の操作の再送）    │
- │  └ 音声：マイク → Gemini Live（Day 2）                   │
+ │  └ 音声：マイク → 16kHz PCM（AudioWorklet）→ /voice       │
  └──────┬──────────────────────────────┬──────────────────┘
-        │ 画面ファイル（HTML/JS/画像）  │ WebSocket（HIP v1）
+        │ 画面ファイル（HTML/JS/画像）  │ WebSocket：/hip（操作）・/voice（音声）
         ▼                              │  ・操作要求 / 結果通知（全員へ）
  ┌──────────────────┐                  │  ・カーソル（保存しない）
  │ Firebase Hosting │                  │  ・発言（文字にしたもの）
@@ -26,7 +26,7 @@
  └──────────────────┘   ┌────────────────────────────────────┐
                         │ Cloud Run（Node.js + TS、インスタンス1台）│
                         │  ┌──────────────────────────────┐  │
-                        │  │ WebSocket の窓口（形式チェックのみ）│  │
+                        │  │ WebSocket の窓口（/hip・/voice）  │  │
                         │  └──────────────┬───────────────┘  │
                         │  ┌──────────────▼───────────────┐  │
                         │  │ セッションアクター（セッションごと）│  │
@@ -41,9 +41,9 @@
                         └──────┼──────────────────┼──────────┘
                                ▼                  ▼
                    ┌────────────────────┐ ┌──────────────────────┐
-                   │ Gemini（Vertex AI） │ │ Firestore（Day 2）     │
+                   │ Gemini（Vertex AI） │ │ Firestore（東京）       │
                    │ 案の生成・改良・批評  │ │ 確定イベントの記録      │
-                   │ 回答・意図の判定      │ │ 定期スナップショット    │
+                   │ 回答・Live 文字起こし  │ │ 最新のセッション状態    │
                    └────────────────────┘ └──────────────────────┘
                    APIキーは持たない（Cloud Run のサービスアカウントで Vertex AI を認証）
 ```
@@ -61,6 +61,8 @@
 | ステージのルール | `apps/server/src/domain/` |
 | 差し替え口（ポート） | `apps/server/src/application/ports.ts` |
 | 固定データのAI | `apps/server/src/infrastructure/fixture/` |
+| 音声の中継・文字起こし | `apps/server/src/presentation/voice-server.ts`、`apps/server/src/infrastructure/gemini/live-transcriber.ts`、`apps/web/src/features/voice/` |
+| Firestore への保存 | `apps/server/src/infrastructure/persistence/` |
 | Gemini のAI・失敗時の切り替え | `apps/server/src/infrastructure/gemini/`、`apps/server/src/infrastructure/resilient-gateway.ts` |
 
 ## 技術スタック
@@ -74,8 +76,8 @@
 | 実行環境 | Cloud Run（インスタンス最大1台・常時1台起動） | Day 2 |
 | 画面の配信 | Firebase Hosting | Day 2 |
 | AI | Gemini（Vertex AI 経由。gemini-3.5-flash / gemini-3.8-flash、構造化出力）。失敗時は固定データ | 実装済み（ローカルで確認） |
-| 音声 | Gemini Live（テキスト入力に切り替えられる） | Day 2 |
-| 永続化 | Firestore | Day 2 |
+| 音声 | Gemini Live（gemini-3.5-transcribe-live、サーバー中継）。テキスト入力を常に併設 | 実装済み（合成音声で確認、実マイクは未確認） |
+| 永続化 | Firestore（asia-northeast1）。セッション状態と確定イベント | 実装済み（再起動からの復元を確認） |
 | 認証・秘密情報 | Vertex AI はサービスアカウント認証で APIキー不要。その他の秘密情報が出たら Secret Manager | Gemini 分は実装済み |
 | テスト | Vitest（ドメイン・通信の型・アクター）、Playwright（2ブラウザ同時操作） | Vitest のみ実装済み |
 
@@ -92,7 +94,7 @@
 | ブラウザ | 自分の審査員ID（sessionStorage） | 再読み込みしても同じ審査員として戻る | 実装済み |
 | Firebase Hosting の CDN | 画面のファイルとキャラ画像 | 初回表示を速くする（ハッシュ付きファイル名で長期キャッシュ） | Day 2 |
 | Gemini のコンテキストキャッシュ | テーマ・役割の指示など毎回同じ前置き | 待ち時間と料金を減らす | 候補（効果は要検証） |
-| Firestore | 確定イベントと定期スナップショット | サーバー再起動からの復元 | Day 2 |
+| Firestore | 確定イベントと最新のセッション状態 | サーバー再起動からの復元 | 実装済み |
 
 **Redis（Memorystore）と Pub/Sub を検討する条件**：Cloud Run を2台以上に増やすとき。セッション状態をインスタンス間で共有する必要が出るため（ADR-0003）。
 
