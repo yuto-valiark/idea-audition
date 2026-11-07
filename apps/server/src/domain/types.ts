@@ -7,6 +7,15 @@ import type {
   SessionStatus,
 } from '@idea-audition/protocol';
 import type { Attention } from './attention.ts';
+import type { Ledger } from './consensus.ts';
+import type { ProposalContent } from '@idea-audition/protocol';
+
+export interface Proposal {
+  status: 'generating' | 'ready' | 'failed';
+  content: ProposalContent | null;
+  generatedAt: number | null;
+  generatedBy: string | null;
+}
 
 /** Domain は React / Firebase / Gemini に依存しない（ADR-0002）。 */
 
@@ -18,10 +27,21 @@ export interface IdProvider {
   next(prefix: string): string;
 }
 
+/** その案がどの合意・発言を受けて作られたか（系譜、ADR-0007） */
+export interface Inspiration {
+  /** 論点のラベル（C1 など） */
+  claimLabels: string[];
+  /** 何を受けたかの短い説明 */
+  note: string;
+}
+
 export interface IdeaDraft {
   title: string;
   summary: string;
   icon: string;
+  /** 生成に使った合意台帳の版。作り置きが古くなったかの判定に使う */
+  basedOnConsensus?: number;
+  inspiredBy?: Inspiration | null;
 }
 
 export interface RevisionDraft {
@@ -31,6 +51,27 @@ export interface RevisionDraft {
   keepStrengths: string[];
   improvementPoints: string[];
   reason: string;
+  inspiredBy?: Inspiration | null;
+}
+
+/** 審査員の発言の記録（合意台帳の材料、時系列） */
+export interface UtteranceRecord {
+  seq: number;
+  judgeId: string;
+  text: string;
+  source: 'live' | 'text';
+  targetInstanceId: string | null;
+  intent: string;
+  at: number;
+}
+
+/** 審査員の行動（発言より強い意思表示として合意の材料にする） */
+export interface DecisionRecord {
+  kind: 'promoted' | 'rejected' | 'timed_out' | 'voted' | 'champion';
+  instanceId: string;
+  title: string;
+  judgeId: string | null;
+  at: number;
 }
 
 export interface Revision {
@@ -44,6 +85,8 @@ export interface Revision {
   basedOnRevisionId: string | null;
   reason: string | null;
   createdAt: number;
+  basedOnConsensus?: number | null;
+  inspiredBy?: Inspiration | null;
 }
 
 export interface Idea {
@@ -96,7 +139,7 @@ export interface ArchivedIdea {
   ideaId: string;
   instanceId: string;
   designId: number;
-  reason: 'rotated' | 'replaced';
+  reason: 'rotated' | 'replaced' | 'rejected';
   archivedAt: number;
 }
 
@@ -149,4 +192,11 @@ export interface SessionState {
   stock: IdeaDraft[];
   recentlyDeparted: number[];
   designLastUsedAt: [number, number][];
+  /** 以下は ADR-0007 で追加（古い保存データには無い） */
+  ledger?: Ledger;
+  utterances?: UtteranceRecord[];
+  decisions?: DecisionRecord[];
+  ledgerCursor?: number;
+  proposal?: Proposal | null;
+  startedAt?: number | null;
 }

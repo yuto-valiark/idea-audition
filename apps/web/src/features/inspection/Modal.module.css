@@ -197,6 +197,21 @@
   font-size: 14px;
 }
 
+.secondary {
+  width: 100%;
+  margin-top: 16px;
+  padding: 11px 14px;
+  font-size: 12px;
+  color: #ffc9d8;
+  border: 1px solid #ff7aa066;
+  border-radius: 7px;
+  background: #3a142833;
+}
+
+.secondary + .primary {
+  margin-top: 10px;
+}
+
 .primary[data-tone='gold'] {
   background: linear-gradient(105deg, #c98b2b, #a5641c);
   border-color: #ffd98a;

@@ -63,6 +63,7 @@
 | 固定データのAI | `apps/server/src/infrastructure/fixture/` |
 | 音声の中継・文字起こし | `apps/server/src/presentation/voice-server.ts`、`apps/server/src/infrastructure/gemini/live-transcriber.ts`、`apps/web/src/features/voice/` |
 | Firestore への保存 | `apps/server/src/infrastructure/persistence/` |
+| 合意台帳（ADR-0007） | `apps/server/src/domain/consensus.ts`、`apps/server/src/application/consensus-context.ts`、`apps/web/src/features/consensus/` |
 | Gemini のAI・失敗時の切り替え | `apps/server/src/infrastructure/gemini/`、`apps/server/src/infrastructure/resilient-gateway.ts` |
 
 ## 技術スタック
@@ -93,7 +94,7 @@
 | サーバーのメモリ | 全員が抜けたあとのセッション（30分） | 一時的な切断から同じ状態に戻れる | 実装済み |
 | ブラウザ | 自分の審査員ID（sessionStorage） | 再読み込みしても同じ審査員として戻る | 実装済み |
 | Firebase Hosting の CDN | 画面のファイルとキャラ画像 | 初回表示を速くする（ハッシュ付きファイル名で長期キャッシュ） | Day 2 |
-| Gemini のコンテキストキャッシュ | テーマ・役割の指示など毎回同じ前置き | 待ち時間と料金を減らす | 候補（効果は要検証） |
+| Gemini のコンテキストキャッシュ | 役割の指示と審査の文脈（合意台帳）を前半に固定順で置く | 待ち時間と料金を減らす | 形は実装済み。プロンプトが短く、実測ではまだ効いていない（ADR-0007） |
 | Firestore | 確定イベントと最新のセッション状態 | サーバー再起動からの復元 | 実装済み |
 
 **Redis（Memorystore）と Pub/Sub を検討する条件**：Cloud Run を2台以上に増やすとき。セッション状態をインスタンス間で共有する必要が出るため（ADR-0003）。

@@ -66,6 +66,7 @@ const config = {
           checkMs: num('ROTATION_CHECK_MS', DEFAULT_ROTATION.checkMs),
           warningMs: num('ROTATION_WARNING_MS', DEFAULT_ROTATION.warningMs),
           minGapMs: num('ROTATION_MIN_GAP_MS', DEFAULT_ROTATION.minGapMs),
+          maxConcurrentLeaving: num('ROTATION_MAX_CONCURRENT', DEFAULT_ROTATION.maxConcurrentLeaving),
           policy: {
             minStageMs: num('ROTATION_MIN_STAGE_MS', DEFAULT_ROTATION.policy.minStageMs),
             baseIdleMs: num('ROTATION_IDLE_MS', DEFAULT_ROTATION.policy.baseIdleMs),

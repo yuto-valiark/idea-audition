@@ -8,6 +8,7 @@ import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, originalRevision, useMe } from '../shared/selectors.ts';
 import { onDropHover, registerDropZone } from './drag.ts';
 import { MentionBadge } from './LowerStage.tsx';
+import { InspiredBy } from '../features/consensus/ConsensusMemo.tsx';
 import styles from './Stage.module.css';
 
 export function FinalStage() {
@@ -144,6 +145,7 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
           >
             <div className={styles.flipTitle}>{revision.title}</div>
             <p>{revision.summary}</p>
+            {revision.inspiredBy && <InspiredBy note={revision.inspiredBy.note} labels={revision.inspiredBy.claimLabels} />}
             {evolved && (
               <ul className={styles.points}>
                 {revision.keepStrengths.slice(0, 1).map((t) => (

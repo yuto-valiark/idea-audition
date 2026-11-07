@@ -25,7 +25,7 @@ describe('発言の宛先と意図（AC-14）', () => {
       scheduler,
       clock: fakeClock(),
       ids: seqIds(),
-      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 10, persistDelayMs: 10 },
+      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 10, persistDelayMs: 10, consensus: null },
     });
     const a = fakeConnection('a');
     actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'v' });

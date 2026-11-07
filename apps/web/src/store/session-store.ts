@@ -110,6 +110,11 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
 
   apply(e.snapshot);
 
+  if (e.type === 'CANDIDATE_ARCHIVED' && d.reason === 'rejected') {
+    const by = typeof d.byJudgeId === 'string' ? e.snapshot.judges.find((j) => j.judgeId === d.byJudgeId)?.label : null;
+    display.toast(`${nameOf(e.snapshot, d.instanceId)} の案を見送りました${by ? `（${by}）` : ''}。次の人と交代します`);
+  }
+
   switch (e.type) {
     case 'PROMOTION_CONFIRMED':
       display.toast(`${nameOf(e.snapshot, d.instanceId)} が最終オーディションへ！`, 'gold');
@@ -138,7 +143,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
           judgeId: d.judgeId,
           text: d.text,
           source: d.source === 'live' ? 'live' : 'text',
-          intent: d.intent === 'instruction' || d.intent === 'question' ? d.intent : 'comment',
+          intent: d.intent === 'instruction' || d.intent === 'question' || d.intent === 'reject' ? d.intent : 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
         });
         if (d.intent === 'question' && typeof d.targetInstanceId === 'string' && d.judgeId === myJudgeId) {
@@ -146,6 +151,15 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
         }
       }
       break;
+    case 'CONSENSUS_UPDATED': {
+      const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
+      for (const c of changes) {
+        if (c.to === 'agreed') display.toast(`合意：${c.label}「${c.text}」`, 'gold');
+        else if (c.to === 'rejected') display.toast(`却下：${c.label}「${c.text}」`);
+        else if (c.to === 'proposed' && !('from' in c && c.from)) display.toast(`新しい論点：${c.label}「${c.text}」`);
+      }
+      break;
+    }
     case 'CHAMPION_VOTE_STARTED':
       display.setMyVote(null);
       display.toast('最終投票が始まりました。推したい1案に投票してください', 'gold');

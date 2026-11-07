@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProposalView } from './proposal.ts';
 
 /** ステージ定員（acceptance-criteria AC-01, AC-04） */
 export const LOWER_SLOT_COUNT = 5;
@@ -42,6 +43,10 @@ export const RevisionView = z.object({
   basedOnRevisionId: z.string().nullable(),
   reason: z.string().nullable(),
   createdAt: z.string(),
+  /** 生成に使った合意台帳の版（ADR-0007） */
+  basedOnConsensus: z.number().int().nullable(),
+  /** どの論点を受けて作られたか（系譜） */
+  inspiredBy: z.object({ claimLabels: z.array(z.string()), note: z.string() }).nullable(),
 });
 export type RevisionView = z.infer<typeof RevisionView>;
 
@@ -90,7 +95,7 @@ export const ArchivedIdeaView = z.object({
   ideaId: z.string(),
   designId: z.number().int(),
   characterName: z.string(),
-  reason: z.enum(['rotated', 'replaced']),
+  reason: z.enum(['rotated', 'replaced', 'rejected']),
   archivedAt: z.string(),
 });
 export type ArchivedIdeaView = z.infer<typeof ArchivedIdeaView>;
@@ -104,6 +109,22 @@ export const AnswerView = z.object({
   askedAt: z.string(),
 });
 export type AnswerView = z.infer<typeof AnswerView>;
+
+export const ClaimView = z.object({
+  label: z.string(),
+  text: z.string(),
+  status: z.enum(['proposed', 'agreed', 'rejected', 'superseded']),
+  pinned: z.boolean(),
+  /** judgeId → 最新の賛否 */
+  stances: z.record(z.string(), z.enum(['support', 'oppose'])),
+  /** 賛否の時系列（誰がいつ） */
+  history: z.array(z.object({ judgeId: z.string(), stance: z.enum(['support', 'oppose']), at: z.string() })),
+  supersededBy: z.string().nullable(),
+  createdBy: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type ClaimView = z.infer<typeof ClaimView>;
 
 /**
  * セッションの投影（クライアントが持つのはこれだけ）。
@@ -129,5 +150,11 @@ export const SessionSnapshot = z.object({
   champion: z
     .object({ instanceId: z.string(), ideaId: z.string(), revisionId: z.string() })
     .nullable(),
+  /** 合意台帳（ADR-0007） */
+  consensus: z.object({ version: z.number().int(), claims: z.array(ClaimView) }),
+  /** 優勝案の企画書（優勝が決まると自動で作り始める） */
+  proposal: ProposalView.nullable(),
+  /** セッション開始時刻（審査レポート用） */
+  startedAt: z.string().nullable(),
 });
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>;

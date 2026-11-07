@@ -1,5 +1,14 @@
 import type { IdeaDraft, RevisionDraft } from '../../domain/types.ts';
-import type { IdeaGenerationPort, RefineInput, RefineOutput } from '../../application/ports.ts';
+import type {
+  ConsensusContext,
+  ConsensusOpDraft,
+  ConsensusUpdateInput,
+  IdeaGenerationPort,
+  ProposalInput,
+  RefineInput,
+  RefineOutput,
+} from '../../application/ports.ts';
+import type { ProposalContent } from '@idea-audition/protocol';
 
 /**
  * 外部 API なしで通しデモをするための固定データ（AC-33、ADR-0005 §1）。
@@ -60,13 +69,22 @@ const SUMMARY_SUFFIX = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const AGREE = /賛成|いいね|それで(いこう|行こう)|同意|わかる|確かに|それな|ありだね|アリ/;
+const DISAGREE = /反対|微妙|違う|それは(ない|ちょっと)|いや[、,]|ナシ|やめよう/;
+const WISH = /したい|がいい|にして|べき|ほしい|欲しい|低め|安く|重視|優先|絞ろう|にしよう/;
+
 export class FixtureGateway implements IdeaGenerationPort {
   readonly name = 'fixture';
   private cursor = 0;
 
   constructor(private readonly latencyMs = 900) {}
 
-  async generateIdeas(input: { theme: string; count: number; avoidTitles: string[] }): Promise<IdeaDraft[]> {
+  async generateIdeas(input: {
+    theme: string;
+    count: number;
+    avoidTitles: string[];
+    context?: ConsensusContext;
+  }): Promise<IdeaDraft[]> {
     await sleep(this.latencyMs * 0.5);
     const pool = /学食|食堂|ランチ/.test(input.theme) ? CAFETERIA_IDEAS : this.generic(input.theme);
     const out: IdeaDraft[] = [];
@@ -74,7 +92,76 @@ export class FixtureGateway implements IdeaGenerationPort {
       const idea = pool[this.cursor++ % pool.length]!;
       if (!input.avoidTitles.includes(idea.title) || tries >= pool.length) out.push({ ...idea });
     }
+    // 固定データでも合意を受けたことが見えるよう、半分に「どの論点を受けたか」を付ける
+    const agreed = input.context?.agreed ?? [];
+    if (agreed.length > 0) {
+      out.forEach((d, i) => {
+        if (i % 2 === 0) {
+          const c = agreed[i % agreed.length]!;
+          d.inspiredBy = { claimLabels: [c.label], note: `合意「${c.text}」を反映` };
+        }
+      });
+    }
     return out;
+  }
+
+  /** 固定データ用の企画書（テンプレートに審査の記録を流し込む） */
+  async generateProposal(input: ProposalInput): Promise<ProposalContent> {
+    await sleep(this.latencyMs * 1.5);
+    const final = input.champion.revisions.at(-1)!;
+    const first = input.champion.revisions[0]!;
+    const agreed = input.context.agreed.map((c) => c.text);
+    const lines = final.summary.split('\n');
+    return {
+      title: final.title,
+      catchphrase: lines[0] ?? final.title,
+      background: `テーマ「${input.theme}」について、審査員とAIキャラクターが案を出し合い、${input.champion.revisions.length}回の改良を経てこの案に決まりました。`,
+      problem: `${input.theme}にあたって、参加のきっかけが少なく、続けて使いたくなる仕組みがない。`,
+      target: '学内の学生（まずは1つの学部・1つの場所から）',
+      value: lines[1] ?? final.summary,
+      overview: `「${first.title}」を出発点に、${final.improvementPoints.join('、') || '審査員の指摘'}を取り入れた企画です。${agreed.length ? `審査で合意した方針（${agreed.join('、')}）に沿っています。` : ''}`,
+      features: [
+        ...final.keepStrengths.map((k) => ({ name: '残した強み', detail: k })),
+        ...final.improvementPoints.map((p) => ({ name: '改善した点', detail: p })),
+      ].slice(0, 4),
+      plan: [
+        { phase: '準備', period: '1〜2週目', tasks: '関係者への相談、小さく試す場所と期間を決める' },
+        { phase: '試行', period: '3〜4週目', tasks: '1か所で2週間試し、参加者の反応を集める' },
+        { phase: '振り返り', period: '5週目', tasks: '結果をもとに続けるか・広げるかを決める' },
+      ],
+      resources: '企画メンバー2〜3名、協力してくれる運営側の担当者',
+      budget: '小さく試す範囲で数万円程度（要検証）',
+      risks: [
+        { risk: '参加者が集まらない', mitigation: '最初は知り合いのサークルに声をかけて始める' },
+        { risk: '運営の手間が増える', mitigation: '週1回の更新だけで回る形にする' },
+      ],
+      kpis: ['試行期間の参加者数', '2回目以上の参加率', '参加者アンケートの満足度'],
+      nextActions: ['運営側の担当者に企画を共有する', '試行の場所と日程を決める', '告知の文面を作る'],
+      assumptions: ['予算と期間は審査では確かめていない目安です', '運営側の協力が得られる前提です'],
+    };
+  }
+
+  /**
+   * 固定データ用の簡易な合意抽出（Gemini が使えないときの代わり）。
+   * 賛成・反対の言葉は直前の論点（または返答先）への賛否、要望らしい発言は新しい論点にする。
+   */
+  async updateConsensus(input: ConsensusUpdateInput): Promise<ConsensusOpDraft[]> {
+    const ops: ConsensusOpDraft[] = [];
+    const open = input.claims.filter((c) => c.status === 'proposed' || c.status === 'agreed').map((c) => c.label);
+    let latest: string | null = open.at(-1) ?? null;
+    let added = input.nextClaimNumber - 1;
+    for (const u of input.utterances) {
+      const target = u.replyToClaim ?? latest;
+      if (AGREE.test(u.text) && target) {
+        ops.push({ op: 'set_stance', label: target, judge: u.judge, stance: 'support', seq: u.seq });
+      } else if (DISAGREE.test(u.text) && target) {
+        ops.push({ op: 'set_stance', label: target, judge: u.judge, stance: 'oppose', seq: u.seq });
+      } else if (WISH.test(u.text) && !/[?？]\s*$/.test(u.text)) {
+        ops.push({ op: 'add_claim', text: u.text.replace(/^[^、,]{1,8}[、,]\s*/, '').slice(0, 40), judge: u.judge, stance: 'support', seq: u.seq });
+        latest = `C${++added}`;
+      }
+    }
+    return ops;
   }
 
   async refine(input: RefineInput): Promise<RefineOutput> {
@@ -102,6 +189,9 @@ export class FixtureGateway implements IdeaGenerationPort {
         improvementPoints: input.instruction
           ? [input.instruction, IMPROVEMENTS[k % IMPROVEMENTS.length]![0]!]
           : [...IMPROVEMENTS[k % IMPROVEMENTS.length]!],
+        inspiredBy: input.context?.agreed.length
+          ? { claimLabels: input.context.agreed.slice(0, 2).map((c) => c.label), note: `合意「${input.context.agreed[0]!.text}」を守って改良` }
+          : null,
         reason: input.instruction
           ? `審査員の指示「${input.instruction}」を反映`
           : input.trigger === 'arrival'

@@ -40,8 +40,8 @@ export interface RotationPolicy {
 }
 
 export const DEFAULT_ROTATION_POLICY: RotationPolicy = {
-  minStageMs: 15_000,
-  baseIdleMs: 8_000,
+  minStageMs: 10_000,
+  baseIdleMs: 6_000,
   idlePerScoreMs: 4_000,
   maxIdleMs: 30_000,
   halfLifeMs: 30_000,

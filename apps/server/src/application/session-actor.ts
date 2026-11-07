@@ -15,6 +15,7 @@ import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attentio
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
 import type { IdeaGenerationPort, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
 import { toSnapshot } from './projection.ts';
+import { buildConsensusContext, buildConsensusUpdateInput, toLedgerOps } from './consensus-context.ts';
 
 export interface Connection {
   readonly id: string;
@@ -30,6 +31,8 @@ export interface ActorConfig {
   critiqueIntervalMs: number;
   /** 確定イベントをまとめて保存するまでの待ち時間 */
   persistDelayMs: number;
+  /** 合意台帳を更新するまでの待ち時間（発言のあと／行動のあと）。null で無効（テスト用） */
+  consensus: { afterUtteranceMs: number; afterDecisionMs: number; flushAfterUtterances: number } | null;
 }
 
 export interface RotationConfig {
@@ -37,15 +40,18 @@ export interface RotationConfig {
   checkMs: number;
   /** 退場予告から実際に退場するまで（この間に触れられたら取り消し） */
   warningMs: number;
-  /** 退場と退場の最短間隔 */
+  /** 退場予告と退場予告の最短間隔 */
   minGapMs: number;
+  /** 同時に退場予告を出せる案の数（予告を長くしても入れ替えの速さを保つため） */
+  maxConcurrentLeaving: number;
   policy: RotationPolicy;
 }
 
 export const DEFAULT_ROTATION: RotationConfig = {
   checkMs: 1_000,
-  warningMs: 4_000,
+  warningMs: 10_000,
   minGapMs: 6_000,
+  maxConcurrentLeaving: 2,
   policy: DEFAULT_ROTATION_POLICY,
 };
 
@@ -54,6 +60,7 @@ export const DEFAULT_ACTOR_CONFIG: ActorConfig = {
   rotation: DEFAULT_ROTATION,
   critiqueIntervalMs: 2_200,
   persistDelayMs: 300,
+  consensus: { afterUtteranceMs: 2_500, afterDecisionMs: 1_200, flushAfterUtterances: 4 },
 };
 
 interface Deps {
@@ -71,6 +78,9 @@ type RefineTrigger =
   | { kind: 'instruction'; instanceId: string; text: string };
 
 const QUESTION_PATTERN = /[?？]\s*$|どう|なぜ|なに|何|どれ|いくら|ですか|ますか|できる/;
+/** 見送りの言い方。名前を呼んだ下段の案にだけ使う（「少ないな」などで誤作動しないよう、はっきりした語に限る） */
+const REJECT_PATTERN =
+  /却下|ボツ|[はも]パス|パスで|パス[。！!]*\s*$|いらない|要らない|交代|退場|見送|次の人|[はも](ナシ|なし)|ないわ|ないな[ぁあ。！!]*\s*$/;
 const RESULT_CACHE_LIMIT = 500;
 const PERSIST_RETRY_MS = 5_000;
 
@@ -86,7 +96,6 @@ export class SessionActor {
   private results = new Map<string, CommandResultMessage>();
   private held = new Map<string, string>(); // judgeId → instanceId（ドラッグ中）
   private focus = new Map<string, { hover: string | null; detail: string | null }>(); // judgeId → 注目中のキャラ
-  private lastExitAt = 0;
   private lastWarningAt = 0;
   private generating = false;
   private refineQueue: RefineTrigger[] = [];
@@ -96,6 +105,11 @@ export class SessionActor {
   /** start / reset のたびに増やし、古い非同期結果を捨てる */
   private epoch = 0;
   private unsaved: StoredEvent[] = [];
+  // 合意台帳の更新（ADR-0007）
+  private consensusRunning = false;
+  private consensusTimer: (() => void) | null = null;
+  private consensusDecisionsSince = 0;
+  private replyTo = new Map<number, string>(); // 発言 seq → 返答先の論点ラベル
   private saving = false;
   private saveScheduled = false;
 
@@ -128,6 +142,8 @@ export class SessionActor {
     if (restored) {
       deps.log?.(`session restored: ${sessionId} seq=${restored.seq} status=${restored.state.status}`);
       if (actor.session.status === 'audition_active') actor.onStarted();
+      // 再起動で企画書の作成が途切れていたら作り直す
+      if (actor.session.proposal?.status === 'generating') actor.runProposal();
     }
     return actor;
   }
@@ -140,6 +156,7 @@ export class SessionActor {
 
   attach(conn: Connection, hello: HelloMessage) {
     const joined = this.session.join(hello.judgeId);
+    this.session.refreshLedgerStatuses();
     const judgeId = joined.ok ? joined.value.judgeId : null;
     this.connections.set(conn.id, { conn, judgeId });
     conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq) });
@@ -243,7 +260,9 @@ export class SessionActor {
       case 'REQUEST_PROMOTION': {
         const r = s.promote(cmd.payload.instanceId);
         if (!r.ok) return r;
+        s.recordDecision('promoted', cmd.payload.instanceId, judgeId);
         this.emit(r.events, meta);
+        this.scheduleConsensus('decision');
         this.held.forEach((id, j) => id === cmd.payload.instanceId && this.held.delete(j));
         this.enqueueRefinement({ kind: 'promotion', instanceId: cmd.payload.instanceId });
         this.ensureStock();
@@ -254,9 +273,24 @@ export class SessionActor {
         const target = cmd.payload.instanceId ?? s.pickExitCandidate(this.protectedIds(), true);
         if (!target) return { ok: true };
         const r = apply(s.rotate(target));
-        if (r.ok) this.lastExitAt = this.deps.clock.now();
         this.ensureStock();
         return r;
+      }
+      case 'REJECT_CANDIDATE': {
+        s.recordDecision('rejected', cmd.payload.instanceId, judgeId);
+        const r = apply(s.rejectCandidate(judgeId, cmd.payload.instanceId));
+        if (r.ok) this.scheduleConsensus('decision');
+        this.ensureStock();
+        return r;
+      }
+      case 'PIN_CLAIM':
+      case 'UNPIN_CLAIM': {
+        const op = cmd.type === 'PIN_CLAIM' ? 'pin' : 'unpin';
+        const result = s.applyLedgerOps([{ op, label: cmd.payload.label, judgeId }], null);
+        if (result.applied.length === 0) return { ok: false, reason: 'STALE_VERSION' };
+        this.emit(result.events, meta);
+        this.onConsensusChanged(result.statusChanges.length > 0);
+        return { ok: true };
       }
       case 'ASK_CANDIDATE':
         return this.ask(judgeId, cmd.payload.instanceId, cmd.payload.text, meta);
@@ -267,12 +301,18 @@ export class SessionActor {
         return { ok: true };
       }
       case 'SUBMIT_UTTERANCE': {
-        const { text, source, targetInstanceId } = cmd.payload;
-        return this.receiveUtterance(judgeId, text, source, targetInstanceId ?? null, cmd.commandId);
+        const { text, source, targetInstanceId, replyToClaim } = cmd.payload;
+        return this.receiveUtterance(judgeId, text, source, targetInstanceId ?? null, cmd.commandId, replyToClaim ?? null);
+      }
+      case 'REGENERATE_PROPOSAL': {
+        const r = apply(s.restartProposal());
+        if (r.ok) this.runProposal();
+        return r;
       }
       case 'START_CHAMPION_VOTE':
         return apply(s.startVote(judgeId));
       case 'CAST_VOTE':
+        s.recordDecision('voted', cmd.payload.instanceId, judgeId);
         return this.afterFinal(apply(s.castVote(judgeId, cmd.payload.instanceId)));
       case 'CLOSE_VOTE':
         return this.afterFinal(apply(s.closeVote(judgeId)));
@@ -294,6 +334,7 @@ export class SessionActor {
     source: 'live' | 'text',
     fallbackTargetId: string | null,
     correlationId?: string,
+    replyToClaim: string | null = null,
   ): { ok: true } | { ok: false; reason: RejectReason } {
     const s = this.session;
     if (!s.judges.some((j) => j.judgeId === judgeId)) return { ok: false, reason: 'SPECTATOR' };
@@ -307,6 +348,14 @@ export class SessionActor {
     }
     const isQuestion = QUESTION_PATTERN.test(text);
     const willRefine = !!targetInstanceId && !isQuestion && !!s.finalist(targetInstanceId) && s.status === 'audition_active';
+    // 「ルナは却下」「MOMOはパス」：名前を呼んだ下段の案を見送る
+    const willReject =
+      !!targetInstanceId &&
+      !isQuestion &&
+      REJECT_PATTERN.test(text) &&
+      s.characters.get(targetInstanceId)?.location === 'lower' &&
+      s.status === 'audition_active';
+    const utteranceSeq = this.seq + 1; // 次に emit する最初のイベントがこの発言
     this.emit(
       [
         {
@@ -316,7 +365,7 @@ export class SessionActor {
             text,
             source,
             targetInstanceId,
-            intent: targetInstanceId ? (willRefine ? 'instruction' : 'question') : 'comment',
+            intent: !targetInstanceId ? 'comment' : willReject ? 'reject' : willRefine ? 'instruction' : 'question',
             mentioned: mentions.mentioned,
           },
         },
@@ -324,7 +373,26 @@ export class SessionActor {
       ],
       meta,
     );
+    // 合意台帳の材料として時系列で記録し、少し待ってからまとめて台帳を更新する（ADR-0007）
+    s.recordUtterance({
+      seq: utteranceSeq,
+      judgeId,
+      text,
+      source,
+      targetInstanceId,
+      intent: !targetInstanceId ? 'comment' : willReject ? 'reject' : willRefine ? 'instruction' : 'question',
+      at: this.deps.clock.now(),
+    });
+    if (replyToClaim) this.replyTo.set(utteranceSeq, replyToClaim);
+    this.scheduleConsensus('utterance');
     if (!targetInstanceId) return { ok: true };
+    if (willReject) {
+      s.recordDecision('rejected', targetInstanceId, judgeId);
+      const r = s.rejectCandidate(judgeId, targetInstanceId);
+      if (r.ok) this.emit(r.events, meta);
+      this.ensureStock();
+      return r.ok ? { ok: true } : r;
+    }
     if (willRefine) {
       this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text });
       return { ok: true };
@@ -355,8 +423,60 @@ export class SessionActor {
   }
 
   private afterFinal<R extends { ok: boolean }>(r: R): R {
-    if (this.session.status === 'completed') this.onStopped();
+    if (this.session.status === 'completed') {
+      this.onStopped();
+      // 優勝が決まったら、すぐ企画書を作り始める（優勝画面にダウンロードボタンが出る）
+      if (this.session.proposal?.status === 'generating') this.runProposal();
+    }
     return r;
+  }
+
+  /** 優勝案の企画書を AI に作らせる。審査の記録を材料として渡す */
+  private runProposal() {
+    const s = this.session;
+    const champion = s.champion;
+    if (!champion) return;
+    const character = s.characters.get(champion.instanceId)!;
+    const idea = s.ideas.get(champion.ideaId)!;
+    const nameOf = (id: string) => this.characterName(id);
+    const input = {
+      theme: s.theme,
+      context: buildConsensusContext(s),
+      champion: {
+        characterName: CHARACTER_DESIGNS[character.designId]?.name ?? 'AI',
+        revisions: idea.revisions.map((r) => ({
+          version: r.version,
+          title: r.title,
+          summary: r.summary,
+          keepStrengths: r.keepStrengths,
+          improvementPoints: r.improvementPoints,
+          reason: r.reason,
+        })),
+      },
+      critiques: s.critiques
+        .filter((c) => c.fromInstanceId === champion.instanceId || c.toInstanceId === champion.instanceId)
+        .map((c) => `${nameOf(c.fromInstanceId)} → ${nameOf(c.toInstanceId)}：${c.text}`),
+      qa: s.answers
+        .filter((a) => a.instanceId === champion.instanceId && a.answer)
+        .map((a) => ({ question: a.question, answer: a.answer! })),
+      otherFinalists: s.upper
+        .filter((f) => f.instanceId !== champion.instanceId)
+        .map((f) => s.currentRevision(s.characters.get(f.instanceId)!.ideaId).title),
+    };
+    const epoch = this.epoch;
+    const started = this.deps.clock.now();
+    this.deps.ai.generateProposal(input).then(
+      (content) => {
+        if (epoch !== this.epoch || s.champion?.ideaId !== champion.ideaId) return;
+        this.deps.log?.(`[proposal] ready ${this.deps.clock.now() - started}ms (${this.deps.ai.name})`);
+        this.emit(s.finishProposal(content, this.deps.ai.name), { actorJudgeId: null });
+      },
+      (e) => {
+        this.deps.log?.('generateProposal failed', e);
+        if (epoch !== this.epoch) return;
+        this.emit(s.failProposal(), { actorJudgeId: null });
+      },
+    );
   }
 
   private ask(
@@ -374,7 +494,13 @@ export class SessionActor {
     const epoch = this.epoch;
     const name = this.characterName(instanceId);
     this.deps.ai
-      .answer({ theme: s.theme, idea: { title: rev.title, summary: rev.summary }, characterName: name, question })
+      .answer({
+        theme: s.theme,
+        idea: { title: rev.title, summary: rev.summary },
+        characterName: name,
+        question,
+        context: buildConsensusContext(s),
+      })
       .catch((e) => {
         this.deps.log?.('answer failed', e);
         return 'ごめんなさい、いまうまく答えられませんでした。もう一度聞いてください。';
@@ -398,14 +524,16 @@ export class SessionActor {
     const rotation = this.deps.config.rotation;
     if (rotation) {
       this.session.rotationPolicy = rotation.policy;
-      this.lastExitAt = this.deps.clock.now();
-      this.lastWarningAt = 0;
+      this.lastWarningAt = this.deps.clock.now();
       this.stopRotation = this.deps.scheduler.setInterval(() => this.rotationTick(rotation), rotation.checkMs);
     }
   }
 
   private onStopped() {
     this.epoch++;
+    this.consensusTimer?.();
+    this.consensusTimer = null;
+    this.replyTo.clear();
     this.stopRotation?.();
     this.stopRotation = null;
     this.refineQueue = [];
@@ -416,8 +544,8 @@ export class SessionActor {
 
   /**
    * 下段の入れ替え（約1秒ごと）。
-   * 1. 退場予告中の案があり、時刻が来たら退場させる
-   * 2. なければ、しばらく触れられていない案のうち最も注目度の低い案に退場予告を出す
+   * 1. 退場予告の時刻が来た案を退場させる
+   * 2. しばらく触れられていない案のうち最も注目度の低い案に退場予告を出す（同時に最大2件）
    * 見られている案（カーソル・詳細・つかみ中・回答待ち）は対象にしない。
    */
   private rotationTick(rotation: RotationConfig) {
@@ -427,24 +555,24 @@ export class SessionActor {
     const protectedIds = this.protectedIds();
     for (const id of protectedIds) s.keepAlive(id);
 
-    const leaving = s.leavingCandidate();
-    if (leaving) {
-      if (now < leaving.leavingAt) return;
-      if (protectedIds.has(leaving.instanceId)) {
-        this.emit(s.touch(leaving.instanceId, 'hover'), { actorJudgeId: null });
-        return;
+    // 1. 予告の時刻が来た案を退場させる（見られていたら取り消し）
+    const leaving = s.leavingCandidates();
+    for (const l of leaving) {
+      if (protectedIds.has(l.instanceId)) {
+        this.emit(s.touch(l.instanceId, 'hover'), { actorJudgeId: null });
+        continue;
       }
-      if (s.stock.length === 0) return; // 次の案が届くまで待つ
-      const r = s.rotate(leaving.instanceId);
-      if (r.ok) {
-        this.lastExitAt = now;
-        this.emit(r.events, { actorJudgeId: null });
-      }
-      this.ensureStock();
-      return;
+      if (now < l.leavingAt || s.stock.length === 0) continue; // 次の案が届くまで待つ
+      s.recordDecision('timed_out', l.instanceId, null);
+      const r = s.rotate(l.instanceId);
+      if (r.ok) this.emit(r.events, { actorJudgeId: null });
     }
-    // 退場の後だけでなく、予告が取り消された後も間をあける（予告が次々に出ないように）
-    if (now - Math.max(this.lastExitAt, this.lastWarningAt) < rotation.minGapMs || s.stock.length === 0) return;
+    if (leaving.length > 0) this.ensureStock();
+
+    // 2. 新しい退場予告。予告どうしの間隔をあけ、同時に予告する数も抑える
+    const stillLeaving = s.leavingCandidates().length;
+    if (stillLeaving >= rotation.maxConcurrentLeaving) return;
+    if (now - this.lastWarningAt < rotation.minGapMs || s.stock.length === 0) return;
     const target = s.pickExitCandidate(protectedIds);
     if (!target) return;
     this.lastWarningAt = now;
@@ -472,11 +600,13 @@ export class SessionActor {
     this.generating = true;
     const epoch = this.epoch;
     const avoidTitles = [...s.ideas.values()].map((i) => i.revisions[0]!.title).concat(s.stock.map((d) => d.title));
+    const context = buildConsensusContext(s);
     this.deps.ai
-      .generateIdeas({ theme: s.theme, count: Math.min(need, LOWER_SLOT_COUNT + 3), avoidTitles })
+      .generateIdeas({ theme: s.theme, count: Math.min(need, LOWER_SLOT_COUNT + 3), avoidTitles, context })
       .then((drafts) => {
         if (epoch !== this.epoch) return;
-        s.addToStock(drafts);
+        // どの版の合意をもとに作ったかを付けておく（古くなったら作り直す）
+        s.addToStock(drafts.map((d) => ({ ...d, basedOnConsensus: context.version })));
         this.emit(s.fillEmptySlots(), { actorJudgeId: null });
       })
       .catch((e) => this.deps.log?.('generateIdeas failed', e))
@@ -528,6 +658,7 @@ export class SessionActor {
         targets: participantIds,
         rounds,
         instruction: trigger.kind === 'instruction' ? trigger.text : null,
+        context: buildConsensusContext(s),
       })
       .then(
         (out) => epoch === this.epoch && this.presentRefinement(participantIds, base, out),
@@ -575,6 +706,70 @@ export class SessionActor {
   private finishRefinement() {
     this.refining = false;
     this.pumpRefinement();
+  }
+
+  /* --------------------------- 合意台帳（ADR-0007） --------------------------- */
+
+  /**
+   * 台帳の更新を予約する。発言のたびには呼ばず、無音が少し続いたとき・行動の直後・
+   * 発言が数件たまったときにまとめて LLM に差分を作らせる。実行中は1件だけ。
+   */
+  private scheduleConsensus(reason: 'utterance' | 'decision') {
+    const cfg = this.deps.config.consensus;
+    if (!cfg || this.session.status === 'lobby') return;
+    const pending = this.session.pendingUtterances().length;
+    const delay =
+      reason === 'decision' ? cfg.afterDecisionMs : pending >= cfg.flushAfterUtterances ? 200 : cfg.afterUtteranceMs;
+    this.consensusTimer?.();
+    this.consensusTimer = this.deps.scheduler.setTimeout(() => {
+      this.consensusTimer = null;
+      void this.runConsensus();
+    }, delay);
+  }
+
+  private async runConsensus() {
+    const s = this.session;
+    if (this.consensusRunning) {
+      this.scheduleConsensus('utterance');
+      return;
+    }
+    const input = buildConsensusUpdateInput(s, this.consensusDecisionsSince, this.replyTo);
+    if (input.utterances.length === 0 && input.decisions.length === 0) return;
+    const uptoSeq = input.utterances.at(-1)?.seq ?? null;
+    const startedAt = this.deps.clock.now();
+    const epoch = this.epoch;
+    this.consensusRunning = true;
+    try {
+      const drafts = await this.deps.ai.updateConsensus(input);
+      if (epoch !== this.epoch) return;
+      const result = s.applyLedgerOps(toLedgerOps(s, drafts), uptoSeq);
+      this.consensusDecisionsSince = startedAt;
+      for (const seq of [...this.replyTo.keys()]) if (uptoSeq !== null && seq <= uptoSeq) this.replyTo.delete(seq);
+      this.emit(result.events, { actorJudgeId: null });
+      const significant =
+        result.applied.some((o) => o.op === 'add_claim' || o.op === 'supersede') || result.statusChanges.length > 0;
+      this.onConsensusChanged(significant);
+    } catch (e) {
+      this.deps.log?.('updateConsensus failed', e);
+    } finally {
+      this.consensusRunning = false;
+      if (epoch === this.epoch && s.pendingUtterances().length > 0) this.scheduleConsensus('utterance');
+    }
+  }
+
+  /**
+   * 合意が大きく動いたら、古い合意で作った作り置きを捨てて作り直す。
+   * すぐ補充できるよう1件だけは残す（ADR-0007 ④）。
+   */
+  private onConsensusChanged(significant: boolean) {
+    if (!significant) return;
+    const s = this.session;
+    const version = s.ledger.version;
+    const fresh = s.stock.filter((d) => (d.basedOnConsensus ?? 0) >= version);
+    const stale = s.stock.filter((d) => (d.basedOnConsensus ?? 0) < version);
+    s.stock = [...fresh, ...stale.slice(0, fresh.length > 0 ? 0 : 1)];
+    if (stale.length > 0) this.deps.log?.(`[consensus] v${version}: dropped ${stale.length - (fresh.length > 0 ? 0 : 1)} stale ideas`);
+    this.ensureStock();
   }
 
   /* ------------------------------ 共通 ------------------------------ */

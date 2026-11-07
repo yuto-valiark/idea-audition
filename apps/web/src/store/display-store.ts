@@ -44,7 +44,7 @@ export interface Caption {
   judgeId: string;
   text: string;
   source: 'live' | 'text';
-  intent: 'question' | 'instruction' | 'comment';
+  intent: 'question' | 'instruction' | 'reject' | 'comment';
   targetInstanceId: string | null;
 }
 
@@ -67,6 +67,8 @@ interface DisplayState {
   toasts: Toast[];
   selected: string | null;
   ideaBoxOpen: boolean;
+  consensusOpen: boolean;
+  setConsensusOpen(open: boolean): void;
   justUpdated: Record<string, number>; // instanceId → 改良版が公開された時刻
   /** 他の審査員のマイク状態（Ephemeral） */
   micOn: Record<string, boolean>;
@@ -106,6 +108,8 @@ export const useDisplay = create<DisplayState>((set) => ({
   toasts: [],
   selected: null,
   ideaBoxOpen: false,
+  consensusOpen: false,
+  setConsensusOpen: (consensusOpen) => set({ consensusOpen }),
   justUpdated: {},
   micOn: {},
   setMic: (judgeId, on) => set((s) => ({ micOn: { ...s.micOn, [judgeId]: on } })),

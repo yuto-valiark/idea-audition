@@ -1,4 +1,5 @@
 import {
+  type ProposalContent,
   CHARACTER_DESIGNS,
   LOWER_SLOT_COUNT,
   MAX_JUDGES,
@@ -7,6 +8,7 @@ import {
   type SessionStatus,
 } from '@idea-audition/protocol';
 import { pickDesign } from './character-allocation.ts';
+import { applyOps, emptyLedger, recomputeStatuses, type ApplyResult, type Ledger, type LedgerOp } from './consensus.ts';
 import {
   DEFAULT_ROTATION_POLICY,
   addAttention,
@@ -33,11 +35,16 @@ import {
   type Judge,
   type Revision,
   type RevisionDraft,
+  type DecisionRecord,
+  type UtteranceRecord,
   type SessionState,
+  type Proposal,
   type Vote,
 } from './types.ts';
 
 const RECENT_DESIGN_MEMORY = 3;
+const MAX_UTTERANCES_KEPT = 200;
+const MAX_DECISIONS_KEPT = 100;
 const MAX_CRITIQUES_KEPT = 24;
 const MAX_ANSWERS_KEPT = 30;
 
@@ -67,6 +74,16 @@ export class AuditionSession {
   champion: { instanceId: string; ideaId: string; revisionId: string } | null = null;
   /** 発表待ちのアイデア（先読みストック、ADR-0005 §3） */
   stock: IdeaDraft[] = [];
+
+  /** 合意台帳と、その材料（発言・行動）。ADR-0007 */
+  ledger: Ledger = emptyLedger();
+  utterances: UtteranceRecord[] = [];
+  decisions: DecisionRecord[] = [];
+  /** 台帳に反映済みの最後の発言 seq */
+  ledgerCursor = 0;
+  /** 優勝案の企画書（優勝が決まると作り始める） */
+  proposal: Proposal | null = null;
+  startedAt: number | null = null;
 
   /** 下段の入れ替え方（アクターが設定する） */
   rotationPolicy: RotationPolicy = DEFAULT_ROTATION_POLICY;
@@ -101,6 +118,12 @@ export class AuditionSession {
       stock: this.stock.map((d) => ({ ...d })),
       recentlyDeparted: [...this.recentlyDeparted],
       designLastUsedAt: [...this.designLastUsedAt.entries()],
+      ledger: structuredClone(this.ledger),
+      utterances: this.utterances.map((u) => ({ ...u })),
+      decisions: this.decisions.map((d) => ({ ...d })),
+      ledgerCursor: this.ledgerCursor,
+      proposal: this.proposal ? structuredClone(this.proposal) : null,
+      startedAt: this.startedAt,
     };
   }
 
@@ -136,6 +159,12 @@ export class AuditionSession {
     s.stock = state.stock.map((d) => ({ ...d }));
     s.recentlyDeparted = [...state.recentlyDeparted];
     s.designLastUsedAt = new Map(state.designLastUsedAt);
+    s.ledger = state.ledger ? structuredClone(state.ledger) : emptyLedger();
+    s.utterances = state.utterances?.map((u) => ({ ...u })) ?? [];
+    s.decisions = state.decisions?.map((d) => ({ ...d })) ?? [];
+    s.ledgerCursor = state.ledgerCursor ?? 0;
+    s.proposal = state.proposal ? structuredClone(state.proposal) : null;
+    s.startedAt = state.startedAt ?? null;
     return s;
   }
 
@@ -208,6 +237,7 @@ export class AuditionSession {
     this.theme = theme;
     this.mode = mode;
     this.status = 'audition_active';
+    this.startedAt = this.deps.clock.now();
     return ok([{ type: 'SESSION_STARTED', detail: { theme, mode } }]);
   }
 
@@ -232,6 +262,12 @@ export class AuditionSession {
     this.stock = [];
     this.recentlyDeparted = [];
     this.designLastUsedAt.clear();
+    this.ledger = emptyLedger();
+    this.utterances = [];
+    this.decisions = [];
+    this.ledgerCursor = 0;
+    this.proposal = null;
+    this.startedAt = null;
   }
 
   /* ------------------------------ 下段 ------------------------------ */
@@ -274,6 +310,8 @@ export class AuditionSession {
             basedOnRevisionId: null,
             reason: null,
             createdAt: now,
+            basedOnConsensus: draft.basedOnConsensus ?? null,
+            inspiredBy: draft.inspiredBy ?? null,
           },
         ],
       };
@@ -299,9 +337,14 @@ export class AuditionSession {
   }
 
   /** 下段の1体を退場させ、案を Idea BOX へ保存して入れ替える */
-  rotate(instanceId?: string, exclude: ReadonlySet<string> = new Set()): DomainResult {
+  rotate(
+    instanceId?: string,
+    exclude: ReadonlySet<string> = new Set(),
+    opts: { reason?: 'rotated' | 'rejected'; byJudgeId?: string | null; allowEmpty?: boolean } = {},
+  ): DomainResult {
     if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
-    if (this.stock.length === 0) return ok([]);
+    // 自動の入れ替えは次の案が無いと行わない。見送りは空き枠（準備中）になっても退場させる
+    if (this.stock.length === 0 && !opts.allowEmpty) return ok([]);
     const targetId =
       instanceId ??
       this.lowerSlots
@@ -321,11 +364,14 @@ export class AuditionSession {
       ideaId: character.ideaId,
       instanceId: character.instanceId,
       designId: character.designId,
-      reason: 'rotated',
+      reason: opts.reason ?? 'rotated',
       archivedAt: this.deps.clock.now(),
     });
     return ok([
-      { type: 'CANDIDATE_ARCHIVED', detail: { instanceId: targetId, slot } },
+      {
+        type: 'CANDIDATE_ARCHIVED',
+        detail: { instanceId: targetId, slot, reason: opts.reason ?? 'rotated', byJudgeId: opts.byJudgeId ?? null },
+      },
       ...this.fillEmptySlots(),
     ]);
   }
@@ -384,13 +430,93 @@ export class AuditionSession {
     return [{ type: 'CANDIDATE_LEAVING', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
   }
 
-  /** 退場予告中の案（あれば1つ） */
-  leavingCandidate(): { instanceId: string; leavingAt: number } | null {
-    for (const id of this.lowerSlots) {
-      const c = id ? this.characters.get(id) : undefined;
-      if (c?.leavingAt != null) return { instanceId: c.instanceId, leavingAt: c.leavingAt };
-    }
-    return null;
+  /** 退場予告中の案（複数同時にあり得る） */
+  leavingCandidates(): { instanceId: string; leavingAt: number }[] {
+    return this.lowerSlots
+      .map((id) => (id ? this.characters.get(id) : undefined))
+      .filter((c): c is CharacterInstance => c?.leavingAt != null)
+      .map((c) => ({ instanceId: c.instanceId, leavingAt: c.leavingAt! }));
+  }
+
+  /** 審査員による「見送り」：下段の案をすぐ退場させ、次のキャラと交代する */
+  rejectCandidate(judgeId: string, instanceId: string): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const c = this.characters.get(instanceId);
+    if (!c) return reject('UNKNOWN_CHARACTER');
+    if (c.location !== 'lower') return reject('NOT_IN_LOWER');
+    return this.rotate(instanceId, new Set(), { reason: 'rejected', byJudgeId: judgeId, allowEmpty: true });
+  }
+
+  /* ---------------------------- 合意台帳（ADR-0007） ---------------------------- */
+
+  recordUtterance(u: UtteranceRecord) {
+    this.utterances = [...this.utterances, u].slice(-MAX_UTTERANCES_KEPT);
+  }
+
+  recordDecision(kind: DecisionRecord['kind'], instanceId: string, judgeId: string | null) {
+    const c = this.characters.get(instanceId);
+    if (!c) return;
+    const title = this.currentRevision(c.ideaId).title;
+    this.decisions = [...this.decisions, { kind, instanceId, title, judgeId, at: this.deps.clock.now() }].slice(
+      -MAX_DECISIONS_KEPT,
+    );
+  }
+
+  /** まだ台帳に反映していない発言 */
+  pendingUtterances(): UtteranceRecord[] {
+    return this.utterances.filter((u) => u.seq > this.ledgerCursor);
+  }
+
+  /**
+   * 台帳に op を当てはめる。合意の母数は「参加した審査員の数」（切断で状態が揺れないように）。
+   * uptoSeq：今回の材料にした最後の発言（次回はそれより後だけを渡す）
+   */
+  applyLedgerOps(ops: LedgerOp[], uptoSeq: number | null): ApplyResult & { events: DomainEvent[] } {
+    const result = applyOps(this.ledger, ops, {
+      now: this.deps.clock.now(),
+      connectedJudges: Math.max(1, this.judges.length),
+      newId: () => this.deps.ids.next('claim'),
+      validJudgeIds: new Set(this.judges.map((j) => j.judgeId)),
+    });
+    this.ledger = result.ledger;
+    if (uptoSeq !== null) this.ledgerCursor = Math.max(this.ledgerCursor, uptoSeq);
+    const events: DomainEvent[] =
+      result.applied.length > 0
+        ? [
+            {
+              type: 'CONSENSUS_UPDATED',
+              detail: { version: this.ledger.version, ops: result.applied.map((o) => o.op), statusChanges: result.statusChanges },
+            },
+          ]
+        : [];
+    return { ...result, events };
+  }
+
+  /** 審査員が増減したら合意の母数が変わるので状態を計算し直す */
+  refreshLedgerStatuses() {
+    this.ledger = recomputeStatuses(this.ledger, Math.max(1, this.judges.length));
+  }
+
+  /* ------------------------------ 企画書 ------------------------------ */
+
+  finishProposal(content: ProposalContent, generatedBy: string): DomainEvent[] {
+    if (!this.champion || !this.proposal) return [];
+    this.proposal = { status: 'ready', content, generatedAt: this.deps.clock.now(), generatedBy };
+    return [{ type: 'PROPOSAL_UPDATED', detail: { status: 'ready' } }];
+  }
+
+  failProposal(): DomainEvent[] {
+    if (!this.proposal) return [];
+    this.proposal = { ...this.proposal, status: 'failed' };
+    return [{ type: 'PROPOSAL_UPDATED', detail: { status: 'failed' } }];
+  }
+
+  /** 作り直し（失敗したとき、または作り直したいとき） */
+  restartProposal(): DomainResult {
+    if (!this.champion || this.status !== 'completed') return reject('SESSION_NOT_ACTIVE');
+    if (this.proposal?.status === 'generating') return ok([]);
+    this.proposal = { status: 'generating', content: null, generatedAt: null, generatedBy: null };
+    return ok([{ type: 'PROPOSAL_UPDATED', detail: { status: 'generating' } }]);
   }
 
   /* ------------------------------ 昇格 ------------------------------ */
@@ -489,6 +615,8 @@ export class AuditionSession {
       basedOnRevisionId: current.revisionId,
       reason: draft.reason,
       createdAt: this.deps.clock.now(),
+      basedOnConsensus: this.ledger.version,
+      inspiredBy: draft.inspiredBy ?? null,
     };
     idea.revisions.push(revision);
     return ok([
@@ -595,6 +723,12 @@ export class AuditionSession {
     if (this.vote) this.vote.status = 'closed';
     this.status = 'completed';
     this.stock = [];
+    // 企画書は優勝と同時に作り始める（アクターが AI を呼ぶ）
+    this.proposal = { status: 'generating', content: null, generatedAt: null, generatedBy: null };
+    this.decisions = [
+      ...this.decisions,
+      { kind: 'champion', instanceId, title: revision.title, judgeId: null, at: this.deps.clock.now() },
+    ];
     return [{ type: 'CHAMPION_SELECTED', detail: { instanceId, how, tally: this.vote?.tally ?? null } }];
   }
 }

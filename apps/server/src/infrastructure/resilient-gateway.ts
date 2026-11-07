@@ -1,4 +1,4 @@
-import type { IdeaGenerationPort, RefineInput } from '../application/ports.ts';
+import type { ConsensusUpdateInput, IdeaGenerationPort, ProposalInput, RefineInput } from '../application/ports.ts';
 
 /**
  * 本命のゲートウェイが失敗したら、代わりのゲートウェイ（固定データ）で応答する。
@@ -15,12 +15,20 @@ export class ResilientGateway implements IdeaGenerationPort {
     this.name = `${primary.name}(fallback:${fallback.name})`;
   }
 
-  generateIdeas(input: { theme: string; count: number; avoidTitles: string[] }) {
+  generateIdeas(input: Parameters<IdeaGenerationPort['generateIdeas']>[0]) {
     return this.withFallback('generateIdeas', () => this.primary.generateIdeas(input), () => this.fallback.generateIdeas(input));
   }
 
   refine(input: RefineInput) {
     return this.withFallback('refine', () => this.primary.refine(input), () => this.fallback.refine(input));
+  }
+
+  generateProposal(input: ProposalInput) {
+    return this.withFallback('generateProposal', () => this.primary.generateProposal(input), () => this.fallback.generateProposal(input));
+  }
+
+  updateConsensus(input: ConsensusUpdateInput) {
+    return this.withFallback('updateConsensus', () => this.primary.updateConsensus(input), () => this.fallback.updateConsensus(input));
   }
 
   answer(input: Parameters<IdeaGenerationPort['answer']>[0]) {

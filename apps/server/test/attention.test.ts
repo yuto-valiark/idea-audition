@@ -90,8 +90,8 @@ describe('アクターの入れ替え', () => {
       config: {
         stockTarget: 3,
         critiqueIntervalMs: 10,
-        persistDelayMs: 10,
-        rotation: { checkMs: 500, warningMs: 2_000, minGapMs: 3_000, policy },
+        persistDelayMs: 10, consensus: null,
+        rotation: { checkMs: 500, warningMs: 2_000, minGapMs: 3_000, maxConcurrentLeaving: 1, policy },
       },
     });
     const a = fakeConnection('a');
@@ -149,5 +149,92 @@ describe('アクターの入れ替え', () => {
     await tick(12_000);
     const leftFirst = events().find((e) => e.type === 'CANDIDATE_LEAVING')!.detail.instanceId;
     expect(leftFirst).not.toBe(talkedAbout);
+  });
+});
+
+describe('見送り（審査員がこの案はないと判断）', () => {
+  let cid = 0;
+  const cmd = (type: CommandMessage['type'], payload: object) =>
+    ({ hip: HIP_VERSION, kind: 'command', type, commandId: `j${++cid}`, sentAt: '', payload }) as CommandMessage;
+
+  async function setup(rotation: { maxConcurrentLeaving: number } | null = null) {
+    const { scheduler, advance } = manualScheduler();
+    let t = 1_700_000_000_000;
+    const actor = await SessionActor.open('j', {
+      ai: new StubAi(),
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: { now: () => t },
+      ids: seqIds(),
+      config: {
+        stockTarget: 3,
+        critiqueIntervalMs: 10,
+        persistDelayMs: 10, consensus: null,
+        rotation: rotation ? { checkMs: 500, warningMs: 10_000, minGapMs: 3_000, ...rotation, policy } : null,
+      },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'j' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: 'テーマ', mode: 'team' }));
+    await advance(0);
+    const tick = async (ms: number) => {
+      for (let i = 0; i < ms / 500; i++) {
+        t += 500;
+        await advance(500);
+      }
+    };
+    const events = () => a.received.filter((m): m is EventMessage => m.kind === 'event');
+    return { actor, a, events, tick, judgeId: actor.session.judges[0]!.judgeId };
+  }
+  const reading = (actor: SessionActor, id: string) =>
+    CHARACTER_DESIGNS[actor.session.characters.get(id)!.designId]!.readings[0]!;
+
+  it('ボタンの見送りで、すぐ退場して Idea BOX に「見送り」で入り、次のキャラが入る', async () => {
+    const { actor, a, events } = await setup();
+    const target = actor.session.lowerSlots[2]!;
+    actor.receiveCommand(a.conn, cmd('REJECT_CANDIDATE', { instanceId: target }));
+    const archived = events().find((e) => e.type === 'CANDIDATE_ARCHIVED')!;
+    expect(archived.detail).toMatchObject({ instanceId: target, reason: 'rejected' });
+    expect(archived.snapshot.ideaBox.at(-1)).toMatchObject({ reason: 'rejected' });
+    expect(actor.session.lowerSlots[2]).not.toBe(target);
+    expect(actor.session.lowerSlots[2]).not.toBeNull();
+  });
+
+  it('上段の案は見送れない', async () => {
+    const { actor, a } = await setup();
+    const id = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+    actor.receiveCommand(a.conn, cmd('REJECT_CANDIDATE', { instanceId: id }));
+    expect(a.received.filter((m) => m.kind === 'result').at(-1)).toMatchObject({ ok: false, reason: 'NOT_IN_LOWER' });
+  });
+
+  it('「（名前）は却下」と言うと見送りになる', async () => {
+    const { actor, events, judgeId } = await setup();
+    const id = actor.session.lowerSlots[1]!;
+    actor.receiveUtterance(judgeId, `${reading(actor, id)}は却下で`, 'live', null);
+    expect(events().find((e) => e.type === 'JUDGE_UTTERANCE_RECEIVED')!.detail.intent).toBe('reject');
+    expect(actor.session.characters.get(id)!.location).toBe('archived');
+  });
+
+  it('見送りの語を含んでも、意味が違う言い方では見送らない', async () => {
+    const { actor, judgeId } = await setup();
+    const id = actor.session.lowerSlots[1]!;
+    const name = reading(actor, id);
+    for (const text of [`${name}、キャンパス全体でやろう`, `${name}の案、人数が少ないなと思う理由は？`, `${name}は没入感がある`]) {
+      actor.receiveUtterance(judgeId, text, 'live', null);
+    }
+    expect(actor.session.characters.get(id)!.location).toBe('lower');
+  });
+
+  it('カウントダウンは同時に最大2件まで（予告を長くしても入れ替えの速さを保つ）', async () => {
+    const { events, tick } = await setup({ maxConcurrentLeaving: 2 });
+    await tick(16_000);
+    const warned = events().filter((e) => e.type === 'CANDIDATE_LEAVING');
+    const archived = events().filter((e) => e.type === 'CANDIDATE_ARCHIVED');
+    expect(warned.length).toBe(2); // 10s と 13s。3件目は同時2件の上限で待つ
+    expect(archived.length).toBe(0); // 最初の予告は 20s に退場
+    await tick(5_000);
+    expect(events().filter((e) => e.type === 'CANDIDATE_ARCHIVED').length).toBe(1);
+    expect(events().filter((e) => e.type === 'CANDIDATE_LEAVING').length).toBe(3); // 1件退場したので次の予告
   });
 });

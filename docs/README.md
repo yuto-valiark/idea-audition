@@ -22,12 +22,15 @@
 | [00-product/acceptance-criteria.md](00-product/acceptance-criteria.md) | 確定仕様から抽出した受け入れ条件・ドメイン不変条件 | Accepted（第22章由来）|
 | [02-architecture/overview.md](02-architecture/overview.md) | 全体図・技術スタック・キャッシュ・データの流れ | Accepted |
 | [open-questions.md](open-questions.md) | 未決事項と暫定推奨 | — |
+| [backlog/README.md](backlog/README.md) | 今後やるタスク（バックログ） | — |
 | [implementation-plan.md](implementation-plan.md) | P0の実装計画（範囲・日程・担当・作るファイル）と進捗 | 実装中（M2相当まで完了） |
 | [adr/ADR-0001-rendering-approach.md](adr/ADR-0001-rendering-approach.md) | 描画方式：DOM/CSS/SVG＋レイヤード素材 | Accepted |
 | [adr/ADR-0002-repository-structure.md](adr/ADR-0002-repository-structure.md) | リポジトリ構成：縮小モノレポ | Accepted |
 | [adr/ADR-0003-server-authority.md](adr/ADR-0003-server-authority.md) | サーバー権威：セッションアクター＋Firestore追記 | Accepted |
 | [adr/ADR-0004-hip-v1-minimum.md](adr/ADR-0004-hip-v1-minimum.md) | HIP v1最小仕様：Command/Event/Ephemeral/Snapshot | Accepted |
 | [adr/ADR-0005-ai-orchestration.md](adr/ADR-0005-ai-orchestration.md) | Gemini非同期オーケストレーション | Accepted |
+| [adr/ADR-0008-proposal-pdf.md](adr/ADR-0008-proposal-pdf.md) | 優勝案の企画書と審査レポートを PDF で渡す | Accepted |
+| [adr/ADR-0007-consensus-ledger.md](adr/ADR-0007-consensus-ledger.md) | 合意台帳：会話の一貫性と時系列の合意を新しい案・改良・回答に反映 | Accepted |
 | [adr/ADR-0006-lower-stage-rotation.md](adr/ADR-0006-lower-stage-rotation.md) | 下段の入れ替え：注目度（会話での言及を含む）にもとづく退場 | Accepted |
 
 ## 運用ルール

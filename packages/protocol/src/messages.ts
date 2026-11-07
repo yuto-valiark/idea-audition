@@ -15,12 +15,19 @@ export const CommandPayloads = {
   START_AUDITION: z.object({ theme: text, mode: SessionMode }),
   REQUEST_PROMOTION: z.object({ instanceId: id }),
   NEXT_IDEA: z.object({ instanceId: id.optional() }),
+  /** 審査員の「見送り」：この案はないと判断して、すぐ次のキャラと交代させる */
+  REJECT_CANDIDATE: z.object({ instanceId: id }),
+  /** 合意台帳の論点を人が「これで決まり」と確定する／取り消す（ADR-0007） */
+  PIN_CLAIM: z.object({ label: z.string().regex(/^C\d+$/) }),
+  UNPIN_CLAIM: z.object({ label: z.string().regex(/^C\d+$/) }),
   ASK_CANDIDATE: z.object({ instanceId: id, text }),
   REQUEST_REFINEMENT: z.object({ instanceId: id, text }),
   SUBMIT_UTTERANCE: z.object({
     text,
     source: z.enum(['live', 'text']),
     targetInstanceId: id.optional(),
+    /** 合意メモの論点への返答（例：C3 に対して「賛成」） */
+    replyToClaim: z.string().regex(/^C\d+$/).optional(),
   }),
   START_CHAMPION_VOTE: z.object({}),
   CAST_VOTE: z.object({ instanceId: id }),
@@ -28,6 +35,8 @@ export const CommandPayloads = {
   RESOLVE_TIE: z.object({ instanceId: id }),
   SELECT_CHAMPION: z.object({ instanceId: id }),
   RESET_SESSION: z.object({}),
+  /** 企画書の作成に失敗したときの作り直し */
+  REGENERATE_PROPOSAL: z.object({}),
 } as const;
 export type CommandType = keyof typeof CommandPayloads;
 export type CommandPayload<T extends CommandType> = z.infer<(typeof CommandPayloads)[T]>;
@@ -46,6 +55,9 @@ export const CommandMessage = z.discriminatedUnion('type', [
   commandEnvelope('START_AUDITION'),
   commandEnvelope('REQUEST_PROMOTION'),
   commandEnvelope('NEXT_IDEA'),
+  commandEnvelope('REJECT_CANDIDATE'),
+  commandEnvelope('PIN_CLAIM'),
+  commandEnvelope('UNPIN_CLAIM'),
   commandEnvelope('ASK_CANDIDATE'),
   commandEnvelope('REQUEST_REFINEMENT'),
   commandEnvelope('SUBMIT_UTTERANCE'),
@@ -55,6 +67,7 @@ export const CommandMessage = z.discriminatedUnion('type', [
   commandEnvelope('RESOLVE_TIE'),
   commandEnvelope('SELECT_CHAMPION'),
   commandEnvelope('RESET_SESSION'),
+  commandEnvelope('REGENERATE_PROPOSAL'),
 ]);
 export type CommandMessage = z.infer<typeof CommandMessage>;
 
@@ -119,6 +132,8 @@ export const EventType = z.enum([
   'CANDIDATE_ARCHIVED',
   'CANDIDATE_LEAVING',
   'CANDIDATE_STAYED',
+  'CONSENSUS_UPDATED',
+  'PROPOSAL_UPDATED',
   'PROMOTION_CONFIRMED',
   'FINALIST_REFINEMENT_STARTED',
   'FINALIST_CRITIQUE_POSTED',

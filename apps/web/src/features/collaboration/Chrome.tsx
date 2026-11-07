@@ -4,6 +4,7 @@ import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import { Captions, MicButton, MicIndicator, UtteranceInput } from '../voice/VoiceControls.tsx';
+import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
 import styles from './Chrome.module.css';
 
 export function Header() {
@@ -45,6 +46,8 @@ export function Footer() {
   const snapshot = useSession((s) => s.snapshot);
   const send = useSession((s) => s.send);
   const openBox = useDisplay((s) => s.setIdeaBoxOpen);
+  const consensusOpen = useDisplay((s) => s.consensusOpen);
+  const setConsensusOpen = useDisplay((s) => s.setConsensusOpen);
   const { judgeId, isHost } = useMe();
   if (!snapshot) return null;
   return (
@@ -76,6 +79,10 @@ export function Footer() {
       </div>
       <UtteranceInput />
       <div className={styles.actions}>
+        <ConsensusMemo />
+        <button onClick={() => setConsensusOpen(!consensusOpen)} aria-expanded={consensusOpen}>
+          🤝 合意メモ <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
+        </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">
           <Layers size={16} /> アイデアBOX <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />

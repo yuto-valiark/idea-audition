@@ -174,6 +174,17 @@ export function DetailModal() {
 
         {character.location === 'lower' && (
           <button
+            className={styles.secondary}
+            disabled={busy || isSpectator || !active}
+            onClick={() =>
+              void run(() => send('REJECT_CANDIDATE', { instanceId: selected })).then((r) => r.ok && select(null))
+            }
+          >
+            この案は見送る（次の人と交代）
+          </button>
+        )}
+        {character.location === 'lower' && (
+          <button
             className={styles.primary}
             disabled={busy || isSpectator || !active || upperFull}
             onClick={() =>
@@ -237,7 +248,9 @@ export function IdeaBoxModal() {
                 <Mascot designId={x.designId} className={styles.boxMascot} />
                 <span>
                   <b>{rev?.title}</b>
-                  <small>{x.characterName}</small>
+                  <small>
+                    {x.characterName} · {x.reason === 'rejected' ? '見送り' : x.reason === 'replaced' ? '入れ替え' : '時間切れ'}
+                  </small>
                 </span>
               </button>
             );

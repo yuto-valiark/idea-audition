@@ -36,7 +36,12 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
         i.ideaId,
         {
           ideaId: i.ideaId,
-          revisions: i.revisions.map((r) => ({ ...r, createdAt: iso(r.createdAt) })),
+          revisions: i.revisions.map((r) => ({
+            ...r,
+            createdAt: iso(r.createdAt),
+            basedOnConsensus: r.basedOnConsensus ?? null,
+            inspiredBy: r.inspiredBy ?? null,
+          })),
         },
       ]),
     ),
@@ -69,5 +74,32 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
         }
       : null,
     champion: s.champion,
+    proposal: s.proposal
+      ? {
+          status: s.proposal.status,
+          content: s.proposal.content,
+          generatedAt: s.proposal.generatedAt === null ? null : iso(s.proposal.generatedAt),
+          generatedBy: s.proposal.generatedBy,
+        }
+      : null,
+    startedAt: s.startedAt === null ? null : iso(s.startedAt),
+    consensus: {
+      version: s.ledger.version,
+      claims: s.ledger.claims.map((c) => {
+        const labelOf = new Map(s.ledger.claims.map((x) => [x.claimId, x.label]));
+        return {
+          label: c.label,
+          text: c.text,
+          status: c.status,
+          pinned: c.pinned,
+          stances: Object.fromEntries(Object.entries(c.stances).map(([j, st]) => [j, st.stance])),
+          history: c.history.map((h) => ({ judgeId: h.judgeId, stance: h.stance, at: iso(h.at) })),
+          supersededBy: c.supersededBy ? (labelOf.get(c.supersededBy) ?? null) : null,
+          createdBy: c.createdBy,
+          createdAt: iso(c.createdAt),
+          updatedAt: iso(c.updatedAt),
+        };
+      }),
+    },
   };
 }

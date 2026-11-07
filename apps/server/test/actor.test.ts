@@ -20,7 +20,7 @@ async function setup() {
     scheduler,
     clock: fakeClock(),
     ids: seqIds(),
-    config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50 },
+    config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');

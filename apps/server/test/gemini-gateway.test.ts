@@ -33,14 +33,14 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { title: 'ガチャ学食', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', icon: '☆' },
-          { title: '郷土の味', summary: '全国の味を\n週替わりで', icon: '◎' },
+          { title: 'ガチャ学食', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', icon: '☆', inspiredBy: [], note: '' },
+          { title: '郷土の味', summary: '全国の味を\n週替わりで', icon: '◎', inspiredBy: [], note: '' },
         ],
       }),
     ]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
-    expect(ideas).toEqual([{ title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆' }]);
+    expect(ideas).toEqual([{ title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null }]);
     expect(calls[0]!.model).toBe('fast-model');
     expect(calls[0]!.config.responseMimeType).toBe('application/json');
   });
@@ -53,9 +53,9 @@ describe('GeminiGateway', () => {
           { round: 2, text: '対象を絞ったら？' },
         ],
         revisions: [
-          { participant: 'P2', title: '案B+', summary: 'x\ny', keepStrengths: ['強み'], improvementPoints: ['改善1', '改善2'], reason: '指摘を反映' },
-          { participant: 'P9', title: '不明', summary: 'z', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c' },
-          { participant: 'P1', title: '案A+', summary: 'p\nq', keepStrengths: ['強み'], improvementPoints: ['改善'], reason: '反映' },
+          { participant: 'P2', title: '案B+', summary: 'x\ny', keepStrengths: ['強み'], improvementPoints: ['改善1', '改善2'], reason: '指摘を反映', inspiredBy: [] },
+          { participant: 'P9', title: '不明', summary: 'z', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] },
+          { participant: 'P1', title: '案A+', summary: 'p\nq', keepStrengths: ['強み'], improvementPoints: ['改善'], reason: '反映', inspiredBy: [] },
         ],
       }),
     ]);
@@ -74,7 +74,7 @@ describe('GeminiGateway', () => {
   });
 
   it('不正な出力は1回やり直す', async () => {
-    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ title: 'T', summary: 'S', icon: '♡' }] })]);
+    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ title: 'T', summary: 'S', icon: '♡', inspiredBy: [], note: '' }] })]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     expect(ideas).toHaveLength(1);
@@ -93,7 +93,7 @@ describe('GeminiGateway', () => {
 
   it('使える改良版が1つもなければ例外（固定データに切り替えさせる）', async () => {
     const { client } = fakeClient([
-      JSON.stringify({ critiques: [], revisions: [{ participant: 'P7', title: 'x', summary: 'y', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c' }] }),
+      JSON.stringify({ critiques: [], revisions: [{ participant: 'P7', title: 'x', summary: 'y', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] }] }),
     ]);
     const g = new GeminiGateway(client, config);
     await expect(

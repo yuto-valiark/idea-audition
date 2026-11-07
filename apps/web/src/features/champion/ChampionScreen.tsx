@@ -1,4 +1,7 @@
-import { Check, Crown, RotateCcw } from 'lucide-react';
+import { Check, Crown, FileDown, Loader2, RotateCcw } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useState } from 'react';
+import { downloadProposalPdf } from './proposal-pdf.tsx';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { useSession } from '../../store/session-store.ts';
 import { useDisplay } from '../../store/display-store.ts';
@@ -54,6 +57,7 @@ export function ChampionScreen() {
         {character.name} · Ver.{rev.version}（全{idea.revisions.length}版）
         {tally ? ` · 得票 ${tally[champ.instanceId] ?? 0}` : ''}
       </span>
+      <ProposalButton />
       <div className={styles.actions}>
         {isHost || snapshot.mode === 'solo' ? (
           <button className={styles.primary} onClick={() => void send('RESET_SESSION', {})}>
@@ -76,5 +80,62 @@ export function ChampionScreen() {
         </button>
       </div>
     </section>
+  );
+}
+
+/** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする */
+function ProposalButton() {
+  const snapshot = useSession((s) => s.snapshot)!;
+  const send = useSession((s) => s.send);
+  const toast = useDisplay((s) => s.toast);
+  const [saving, setSaving] = useState(false);
+  const proposal = snapshot.proposal;
+  if (!proposal) return null;
+
+  if (proposal.status === 'generating') {
+    return (
+      <div className={styles.proposal} data-state="generating" role="status">
+        <Loader2 size={18} className={styles.spin} /> 企画書と審査レポートを作成中…
+        <small>決まった案と、ここまでの審査の流れをまとめています</small>
+      </div>
+    );
+  }
+  if (proposal.status === 'failed') {
+    return (
+      <div className={styles.proposal} data-state="failed">
+        企画書を作れませんでした
+        <button onClick={() => void send('REGENERATE_PROPOSAL', {})}>もう一度作る</button>
+      </div>
+    );
+  }
+  return (
+    <motion.div
+      className={styles.proposal}
+      data-state="ready"
+      initial={{ opacity: 0, y: 12, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+    >
+      <button
+        className={styles.download}
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          try {
+            await downloadProposalPdf(snapshot);
+            toast('企画書をダウンロードしました', 'gold');
+          } catch (e) {
+            console.error(e);
+            toast('PDFを作れませんでした。もう一度お試しください', 'warn');
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        {saving ? <Loader2 size={18} className={styles.spin} /> : <FileDown size={18} />}
+        {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
+      </button>
+      <small>企画書（AI作成）＋ 審査レポート（合意の経緯・改良の流れ・批評・質疑・投票）</small>
+    </motion.div>
   );
 }

@@ -1,4 +1,13 @@
-import type { IdeaGenerationPort, RefineInput, RefineOutput, Scheduler } from '../src/application/ports.ts';
+import type {
+  ConsensusContext,
+  ConsensusOpDraft,
+  ConsensusUpdateInput,
+  IdeaGenerationPort,
+  ProposalInput,
+  RefineInput,
+  RefineOutput,
+  Scheduler,
+} from '../src/application/ports.ts';
 import type { IdeaDraft } from '../src/domain/types.ts';
 import type { Connection } from '../src/application/session-actor.ts';
 import type { ServerMessage } from '@idea-audition/protocol';
@@ -61,7 +70,8 @@ export class StubAi implements IdeaGenerationPort {
   readonly name = 'stub';
   refineCalls: RefineInput[] = [];
   private n = 0;
-  async generateIdeas(input: { count: number }) {
+  async generateIdeas(input: { count: number; context?: ConsensusContext }) {
+    this.generateCalls.push({ context: input.context });
     return drafts(input.count, `生成${++this.n}-`);
   }
   async refine(input: RefineInput): Promise<RefineOutput> {
@@ -79,6 +89,26 @@ export class StubAi implements IdeaGenerationPort {
       ]),
     );
     return { critiques, revisions };
+  }
+  proposalCalls: ProposalInput[] = [];
+  failProposal = false;
+  async generateProposal(input: ProposalInput) {
+    this.proposalCalls.push(input);
+    if (this.failProposal) throw new Error('proposal failed');
+    const t = input.champion.revisions.at(-1)!.title;
+    return {
+      title: t, catchphrase: 'c', background: 'b', problem: 'p', target: 't', value: 'v', overview: 'o',
+      features: [], plan: [], resources: 'r', budget: 'b', risks: [], kpis: [], nextActions: [], assumptions: [],
+    };
+  }
+  consensusCalls: ConsensusUpdateInput[] = [];
+  nextConsensusOps: ConsensusOpDraft[] = [];
+  generateCalls: { context?: ConsensusContext }[] = [];
+  async updateConsensus(input: ConsensusUpdateInput) {
+    this.consensusCalls.push(input);
+    const ops = this.nextConsensusOps;
+    this.nextConsensusOps = [];
+    return ops;
   }
   async answer(input: { question: string }) {
     return `回答:${input.question}`;

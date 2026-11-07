@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useDisplay } from '../store/display-store.ts';
 import { useSession } from '../store/session-store.ts';
@@ -7,6 +7,7 @@ import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, judgeById, useMe } from '../shared/selectors.ts';
 import { startCharacterPointer } from './drag.ts';
 import { setHoverFocus } from './focus.ts';
+import { InspiredBy } from '../features/consensus/ConsensusMemo.tsx';
 import { useEffect, useState } from 'react';
 import styles from './Stage.module.css';
 
@@ -76,6 +77,7 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
   const holderId = useDisplay((s) => Object.keys(s.heldBy).find((j) => s.heldBy[j] === instanceId) ?? null);
   const select = useDisplay((s) => s.select);
   const bubble = useDisplay((s) => s.bubbles[instanceId]);
+  const send = useSession((s) => s.send);
   const { isSpectator } = useMe();
   const leavingIn = useCountdown(character?.leavingAt ?? null);
   if (!character || !revision) return null;
@@ -111,10 +113,21 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       >
         <Mascot designId={character.designId} className={styles.mascot} />
       </button>
+      {!isSpectator && (
+        <button
+          className={styles.rejectButton}
+          title="この案は見送る（次の人と交代）"
+          aria-label={`${character.name}の案を見送って、次の人と交代する`}
+          onClick={() => void send('REJECT_CANDIDATE', { instanceId })}
+        >
+          <X size={13} />
+        </button>
+      )}
       <button className={styles.flip} onClick={() => select(instanceId)}>
         <div className={styles.flipTitle}>{revision.title}</div>
         <div className={styles.flipIcon}>{revision.icon}</div>
         <p>{revision.summary}</p>
+        {revision.inspiredBy && <InspiredBy note={revision.inspiredBy.note} labels={revision.inspiredBy.claimLabels} />}
       </button>
       <div className={styles.podium} />
       <div className={styles.name}>
@@ -124,7 +137,13 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       {holder && <span className={styles.heldTag}>{holder.label} がつかみ中</span>}
       {leaving && !holder && (
         <div className={styles.leavingTag} role="status">
-          まもなく退場{leavingIn > 0 ? `（${leavingIn}）` : ''}
+          {leavingIn > 0 ? (
+            <span>
+              あと<b>{leavingIn}</b>秒で退場
+            </span>
+          ) : (
+            <span>退場します</span>
+          )}
           <small>触れると残ります</small>
           <i
             key={character.leavingAt}

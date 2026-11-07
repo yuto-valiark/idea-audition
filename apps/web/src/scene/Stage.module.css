@@ -825,3 +825,48 @@
     rotate: 3deg;
   }
 }
+
+/* ------------------------------- 見送り ------------------------------- */
+
+.rejectButton {
+  position: absolute;
+  z-index: 6;
+  top: calc(clamp(64px, 10vh, 150px) - 9px);
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #ffd0de;
+  background: #3a1428f0;
+  border: 1px solid #ff7aa099;
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 0.15s,
+    scale 0.15s;
+}
+
+.performer:hover .rejectButton,
+.rejectButton:focus-visible,
+.performer[data-leaving] .rejectButton {
+  opacity: 1;
+  scale: 1;
+}
+
+.rejectButton:hover {
+  background: #ff5c8a;
+  color: #1a0710;
+}
+
+.leavingTag span {
+  font-size: 11px;
+}
+
+.leavingTag b {
+  font-size: 17px;
+  margin: 0 2px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
