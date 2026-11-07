@@ -20,6 +20,7 @@
 | 文書 | 内容 | Status |
 |---|---|---|
 | [00-product/acceptance-criteria.md](00-product/acceptance-criteria.md) | 確定仕様から抽出した受け入れ条件・ドメイン不変条件 | Accepted（第22章由来）|
+| [02-architecture/overview.md](02-architecture/overview.md) | 全体図・技術スタック・キャッシュ・データの流れ | Accepted |
 | [open-questions.md](open-questions.md) | 未決事項と暫定推奨 | — |
 | [implementation-plan.md](implementation-plan.md) | P0の実装計画（範囲・日程・担当・作るファイル）と進捗 | 実装中（M2相当まで完了） |
 | [adr/ADR-0001-rendering-approach.md](adr/ADR-0001-rendering-approach.md) | 描画方式：DOM/CSS/SVG＋レイヤード素材 | Accepted |

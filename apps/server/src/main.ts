@@ -1,6 +1,9 @@
 import { DEFAULT_ACTOR_CONFIG, SessionActor } from './application/session-actor.ts';
 import type { IdeaGenerationPort } from './application/ports.ts';
 import { FixtureGateway } from './infrastructure/fixture/fixture-gateway.ts';
+import { GeminiGateway } from './infrastructure/gemini/gemini-gateway.ts';
+import { createVertexClient, geminiConfigFromEnv } from './infrastructure/gemini/client.ts';
+import { ResilientGateway } from './infrastructure/resilient-gateway.ts';
 import { noopEventLog, nodeScheduler, randomIds, systemClock } from './infrastructure/runtime.ts';
 import { startServer, type ActorRegistry } from './presentation/ws-server.ts';
 
@@ -10,9 +13,17 @@ const log = (m: string, extra?: unknown) =>
 const env = (key: string, fallback: string) => process.env[key] ?? fallback;
 
 function createGateway(): IdeaGenerationPort {
+  const fixture = new FixtureGateway(Number(env('FIXTURE_LATENCY_MS', '900')));
   const kind = env('AI_GATEWAY', 'fixture');
-  if (kind !== 'fixture') log(`AI_GATEWAY=${kind} はまだ実装されていません（Day 2）。fixture を使います。`);
-  return new FixtureGateway(Number(env('FIXTURE_LATENCY_MS', '900')));
+  if (kind === 'fixture') return fixture;
+  if (kind !== 'gemini') {
+    log(`AI_GATEWAY=${kind} は不明です。fixture を使います。`);
+    return fixture;
+  }
+  const config = geminiConfigFromEnv(process.env);
+  log(`AI: gemini (fast=${config.fast.model}/${config.fast.thinkingLevel}, refine=${config.refine.model}/${config.refine.thinkingLevel}), fallback=fixture`);
+  // 失敗したら固定データで応答し、デモを止めない
+  return new ResilientGateway(new GeminiGateway(createVertexClient(process.env), config, log), fixture, log);
 }
 
 const ai = createGateway();
