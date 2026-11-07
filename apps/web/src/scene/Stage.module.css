@@ -761,36 +761,33 @@
 }
 
 .leavingTag {
+  /* フリップの右上（上端の枠の上）に小さく出す。企画名・説明には重ねない。右端は × ボタンの分あける */
   position: absolute;
-  top: 34%;
+  top: calc(clamp(64px, 10vh, 150px) - 22px);
+  right: 20px;
   z-index: 7;
-  display: grid;
-  justify-items: center;
+  display: flex;
+  align-items: baseline;
   gap: 2px;
-  padding: 6px 10px 8px;
-  border-radius: 7px;
-  background: #2a0f22ee;
-  border: 1px solid #ff7aa088;
+  padding: 2px 8px 4px;
+  border-radius: 10px;
+  background: #2a0f22f2;
+  border: 1px solid #ff7aa0aa;
   color: #ffd0de;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
   overflow: hidden;
-  box-shadow: 0 4px 14px #0008;
-}
-
-.leavingTag small {
-  font-size: 9px;
-  font-weight: 400;
-  color: #e7b4c6;
+  box-shadow: 0 2px 8px #0008;
 }
 
 .leavingTag i {
   position: absolute;
   left: 0;
   bottom: 0;
-  height: 3px;
+  height: 2px;
   width: 100%;
   background: #ff7aa0;
   transform-origin: left;
@@ -860,13 +857,9 @@
   color: #1a0710;
 }
 
-.leavingTag span {
-  font-size: 11px;
-}
-
 .leavingTag b {
-  font-size: 17px;
-  margin: 0 2px;
+  font-size: 12px;
+  margin: 0 1px;
   color: #fff;
   font-variant-numeric: tabular-nums;
 }

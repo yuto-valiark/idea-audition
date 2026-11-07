@@ -136,15 +136,13 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       </div>
       {holder && <span className={styles.heldTag}>{holder.label} がつかみ中</span>}
       {leaving && !holder && (
-        <div className={styles.leavingTag} role="status">
-          {leavingIn > 0 ? (
-            <span>
-              あと<b>{leavingIn}</b>秒で退場
-            </span>
-          ) : (
-            <span>退場します</span>
-          )}
-          <small>触れると残ります</small>
+        <div
+          className={styles.leavingTag}
+          role="status"
+          title="カーソルを乗せる・クリックするなど、触れると残ります"
+          aria-label={`あと${leavingIn}秒で交代。触れると残ります`}
+        >
+          ⏳ {leavingIn > 0 ? <>あと<b>{leavingIn}</b>秒で交代</> : '交代します'}
           <i
             key={character.leavingAt}
             style={{ animationDuration: `${Math.max(0, Date.parse(character.leavingAt!) - Date.now())}ms` }}
