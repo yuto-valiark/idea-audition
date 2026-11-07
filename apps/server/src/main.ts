@@ -127,9 +127,15 @@ process.on('SIGTERM', async () => {
 });
 
 // Cloud Run は PORT を渡す。開発時は HIP_PORT で固定する（PORT が別用途で設定されていても衝突しない）
+// 公開環境では合言葉を必須にする（Secret Manager から環境変数 ACCESS_CODE として渡す）
+const accessCode = process.env.ACCESS_CODE?.trim() || null;
+log(`access code: ${accessCode ? 'required' : 'not required'}`);
+
 startServer({
   port: Number(process.env.HIP_PORT ?? env('PORT', '8787')),
   registry,
-  voice: createVoiceServer({ registry, transcriber, log }),
+  voice: createVoiceServer({ registry, transcriber, accessCode, log }),
+  accessCode,
+  staticDir: process.env.STATIC_DIR ?? null,
   log,
 });

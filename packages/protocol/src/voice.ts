@@ -8,7 +8,12 @@ import { z } from 'zod';
 export const VOICE_SAMPLE_RATE = 16_000;
 
 export const VoiceClientMessage = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('voice_hello'), sessionId: z.string().min(1).max(80), judgeId: z.string().min(1).max(80) }),
+  z.object({
+    kind: z.literal('voice_hello'),
+    sessionId: z.string().min(1).max(80),
+    judgeId: z.string().min(1).max(80),
+    accessCode: z.string().max(100).optional(),
+  }),
   /** 話しかける相手（詳細を開いているキャラ）。名前を言った場合はそちらを優先する */
   z.object({ kind: z.literal('voice_target'), instanceId: z.string().max(80).nullable() }),
 ]);

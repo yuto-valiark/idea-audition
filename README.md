@@ -23,7 +23,7 @@ pnpm dev
 ```
 
 - Web: http://localhost:5173 （`/hip` を Vite が server の 8787 番へプロキシ）
-- Server: ws://localhost:8787/hip、ヘルスチェック http://localhost:8787/healthz
+- Server: ws://localhost:8787/hip、ヘルスチェック http://localhost:8787/health
 - 同じセッションに入るには同じ URL を開きます。`?s=<セッション名>` で別のセッションになります（省略時は `demo`）
 - 審査員は1つのセッションに4人まで。5人目以降は観覧モード
 

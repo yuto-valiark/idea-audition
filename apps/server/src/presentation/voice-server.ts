@@ -2,6 +2,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { VoiceClientMessage, type VoiceServerMessage } from '@idea-audition/protocol';
 import type { SpeechTranscriptionPort, TranscriptionStream } from '../application/ports.ts';
 import type { ActorRegistry } from './ws-server.ts';
+import { checkAccess } from './access.ts';
 
 const MAX_FRAME_BYTES = 32 * 1024; // 16kHz・16bit なら約1秒分
 const MAX_UTTERANCE_CHARS = 400;
@@ -14,6 +15,7 @@ const MAX_UTTERANCE_CHARS = 400;
 export function createVoiceServer(opts: {
   registry: ActorRegistry;
   transcriber: SpeechTranscriptionPort | null;
+  accessCode: string | null;
   log: (m: string) => void;
 }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES * 2 });
@@ -86,6 +88,11 @@ export function createVoiceServer(opts: {
         return;
       }
       if (identity) return;
+      if (checkAccess(opts.accessCode, msg.accessCode) !== 'ok') {
+        send({ kind: 'voice_unavailable', reason: '合言葉が確認できないため、音声入力は使えません' });
+        ws.close(4401);
+        return;
+      }
       void opts.registry.get(msg.sessionId).then((actor) => {
         if (!actor.isJudge(msg.judgeId)) {
           send({ kind: 'voice_unavailable', reason: '審査員として参加していないため、音声入力は使えません' });

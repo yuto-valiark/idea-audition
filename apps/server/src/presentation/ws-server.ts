@@ -6,6 +6,8 @@ import {
   type ServerMessage,
 } from '@idea-audition/protocol';
 import type { Connection, SessionActor } from '../application/session-actor.ts';
+import { checkAccess } from './access.ts';
+import { createStaticHandler } from './static-files.ts';
 
 const HEARTBEAT_MS = 25_000;
 
@@ -23,13 +25,20 @@ export function startServer(opts: {
   port: number;
   registry: ActorRegistry;
   voice: WebSocketServer | null;
+  /** 公開環境の合言葉（null なら不要） */
+  accessCode: string | null;
+  /** 本番で画面のファイルを配るディレクトリ（null なら配らない。開発時は Vite が配る） */
+  staticDir: string | null;
   log: (m: string) => void;
 }) {
-  const http = createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (req.url === '/healthz') {
+  const serveStatic = opts.staticDir ? createStaticHandler(opts.staticDir) : null;
+  const http = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.url === '/health') {
+      // Cloud Run は z で終わるパス（/healthz など）を予約しているため /health にする
       res.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
       return;
     }
+    if (serveStatic && (await serveStatic(req, res))) return;
     res.writeHead(404).end();
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
@@ -81,6 +90,12 @@ export function startServer(opts: {
       const msg = parsed.data;
       if (msg.kind === 'hello') {
         if (actorReady) return;
+        const access = checkAccess(opts.accessCode, msg.accessCode);
+        if (access !== 'ok') {
+          conn.send({ hip: HIP_VERSION, kind: 'access_denied', reason: access });
+          ws.close(4401, 'access denied');
+          return;
+        }
         sessionId = msg.sessionId;
         actorReady = opts.registry.get(sessionId).then(
           (actor) => {

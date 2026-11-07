@@ -18,11 +18,33 @@ interface SessionState {
   snapshot: SessionSnapshot | null;
   connection: ConnectionState;
   client: HipClient | null;
+  /** 合言葉が必要・違うとき（公開環境） */
+  accessDenied: 'required' | 'invalid' | null;
   connect(sessionId: string): void;
+  submitAccessCode(code: string): void;
   send<T extends CommandType>(type: T, payload: CommandPayload<T>): Promise<CommandOutcome>;
 }
 
 const storageKey = (sessionId: string) => `idea-audition:judge:${sessionId}`;
+const ACCESS_KEY = 'idea-audition:access-code';
+
+/** 合言葉はこの端末に覚えておく（毎回入れなくてよいように）。読めない環境では毎回聞く */
+export function readAccessCode() {
+  try {
+    return localStorage.getItem(ACCESS_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+function writeAccessCode(code: string | null) {
+  try {
+    if (code) localStorage.setItem(ACCESS_KEY, code);
+    else localStorage.removeItem(ACCESS_KEY);
+  } catch {
+    /* 保存できなくても続行 */
+  }
+}
+let sessionAccessCode: string | undefined;
 
 function readJudgeId(sessionId: string) {
   try {
@@ -46,24 +68,37 @@ export const useSession = create<SessionState>((set, get) => ({
   snapshot: null,
   connection: 'connecting',
   client: null,
+  accessDenied: null,
 
   connect(sessionId) {
     get().client?.close();
     const client = new HipClient(
       sessionId,
       {
+        onAccessDenied: (reason) => {
+          if (reason === 'invalid') writeAccessCode(null);
+          set({ accessDenied: reason });
+        },
         onWelcome: (m) => {
           if (m.judgeId) writeJudgeId(sessionId, m.judgeId);
-          set({ judgeId: m.judgeId, snapshot: m.snapshot });
+          set({ judgeId: m.judgeId, snapshot: m.snapshot, accessDenied: null });
         },
         onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
         onEphemeral: handleEphemeral,
         onState: (connection) => set({ connection }),
       },
       readJudgeId(sessionId),
+      sessionAccessCode ?? readAccessCode(),
     );
     set({ sessionId, client });
     client.connect();
+  },
+
+  submitAccessCode(code) {
+    sessionAccessCode = code.trim();
+    writeAccessCode(sessionAccessCode);
+    set({ accessDenied: null, connection: 'connecting' });
+    get().connect(get().sessionId);
   },
 
   async send(type, payload) {

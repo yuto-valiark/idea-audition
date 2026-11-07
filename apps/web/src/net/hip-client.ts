@@ -17,6 +17,7 @@ export type ConnectionState = 'connecting' | 'open' | 'reconnecting';
 export type CommandOutcome = { ok: true } | { ok: false; reason: RejectReason | 'TIMEOUT' };
 
 interface Handlers {
+  onAccessDenied(reason: 'required' | 'invalid'): void;
   onWelcome(m: WelcomeMessage): void;
   onEvent(m: EventMessage): void;
   onEphemeral(m: EphemeralMessage): void;
@@ -56,6 +57,7 @@ export class HipClient {
     private readonly sessionId: string,
     private readonly handlers: Handlers,
     initialJudgeId?: string,
+    private readonly accessCode?: string,
   ) {
     this.judgeId = initialJudgeId;
   }
@@ -74,6 +76,7 @@ export class HipClient {
           sessionId: this.sessionId,
           judgeId: this.judgeId,
           lastSeq: this.lastSeq,
+          accessCode: this.accessCode,
         }),
       );
     };
@@ -137,6 +140,11 @@ export class HipClient {
     }
     const m = parsed.data;
     switch (m.kind) {
+      case 'access_denied':
+        // 合言葉が無い・違う：再接続せず、画面で合言葉を聞く
+        this.closed = true;
+        this.handlers.onAccessDenied(m.reason);
+        break;
       case 'welcome':
         this.judgeId = m.judgeId ?? this.judgeId;
         this.lastSeq = m.snapshot.seq;

@@ -81,6 +81,8 @@ export const HelloMessage = z.object({
   sessionId: id,
   judgeId: id.optional(),
   lastSeq: z.number().int().optional(),
+  /** 公開環境の合言葉（サーバーに ACCESS_CODE が設定されているときだけ必要） */
+  accessCode: z.string().max(100).optional(),
 });
 export type HelloMessage = z.infer<typeof HelloMessage>;
 
@@ -185,7 +187,16 @@ export const CommandResultMessage = z.object({
 });
 export type CommandResultMessage = z.infer<typeof CommandResultMessage>;
 
+/** 合言葉が無い・違うときに返し、接続を閉じる */
+export const AccessDeniedMessage = z.object({
+  hip: z.literal(HIP_VERSION),
+  kind: z.literal('access_denied'),
+  reason: z.enum(['required', 'invalid']),
+});
+export type AccessDeniedMessage = z.infer<typeof AccessDeniedMessage>;
+
 export const ServerMessage = z.union([
+  AccessDeniedMessage,
   WelcomeMessage,
   EventMessage,
   CommandResultMessage,

@@ -6,6 +6,7 @@ import { ChampionScreen } from './features/champion/ChampionScreen.tsx';
 import { Footer, Header, Toasts } from './features/collaboration/Chrome.tsx';
 import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx';
 import { DragLayer } from './scene/DragLayer.tsx';
+import { AccessGate } from './features/audition/AccessGate.tsx';
 import styles from './App.module.css';
 
 function sessionIdFromUrl() {
@@ -45,6 +46,7 @@ export function App() {
       <IdeaBoxModal />
       <DragLayer />
       <Toasts />
+      <AccessGate />
     </main>
   );
 }
