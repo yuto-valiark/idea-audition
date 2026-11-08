@@ -289,8 +289,7 @@
   cursor: default;
 }
 
-.invite,
-.line {
+.invite {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -310,11 +309,6 @@
   color: white;
 }
 
-.line {
-  border: 1px solid #06c755;
-  background: #06c755;
-  color: white;
-}
 
 .status,
 .right > span {
