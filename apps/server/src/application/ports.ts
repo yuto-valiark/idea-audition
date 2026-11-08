@@ -158,11 +158,15 @@ export interface SessionStorePort {
 /** 音声の文字起こし（Gemini Live）。開いている間だけ音声を受け付ける */
 export interface SpeechTranscriptionPort {
   readonly name: string;
-  open(callbacks: {
-    onInterim(text: string): void;
-    onFinal(text: string): void;
-    onClose(reason: string): void;
-  }): Promise<TranscriptionStream>;
+  open(
+    callbacks: {
+      onInterim(text: string): void;
+      onFinal(text: string): void;
+      onClose(reason: string): void;
+    },
+    /** 聞き取りを寄せる言葉（キャラ名・企画名など） */
+    options?: { vocabulary?: string[] },
+  ): Promise<TranscriptionStream>;
 }
 
 export interface TranscriptionStream {

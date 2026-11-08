@@ -15,15 +15,20 @@ export class GeminiLiveTranscriber implements SpeechTranscriptionPort {
     private readonly model: string,
     private readonly log: (msg: string) => void = () => {},
     private readonly silenceMs = 1200,
+    /** 認識する言語（BCP-47）。指定しないと自動判定になり、日本語がスペイン語などに化けることがある */
+    private readonly languageCodes: string[] = ['ja-JP'],
   ) {
     this.name = `gemini-live(${model})`;
   }
 
-  async open(callbacks: {
-    onInterim(text: string): void;
-    onFinal(text: string): void;
-    onClose(reason: string): void;
-  }): Promise<TranscriptionStream> {
+  async open(
+    callbacks: {
+      onInterim(text: string): void;
+      onFinal(text: string): void;
+      onClose(reason: string): void;
+    },
+    options: { vocabulary?: string[] } = {},
+  ): Promise<TranscriptionStream> {
     const started = Date.now();
     const assembler = new UtteranceAssembler(
       { onInterim: callbacks.onInterim, onFinal: callbacks.onFinal },
@@ -33,7 +38,10 @@ export class GeminiLiveTranscriber implements SpeechTranscriptionPort {
       model: this.model,
       config: {
         responseModalities: [Modality.TEXT],
-        inputAudioTranscription: {},
+        inputAudioTranscription: {
+          ...(this.languageCodes.length ? { languageCodes: this.languageCodes } : {}),
+          ...(options.vocabulary?.length ? { customVocabulary: options.vocabulary } : {}),
+        },
       },
       callbacks: {
         onmessage: (m) => {
@@ -51,7 +59,9 @@ export class GeminiLiveTranscriber implements SpeechTranscriptionPort {
         },
       },
     });
-    this.log(`[voice] live session opened ${Date.now() - started}ms model=${this.model}`);
+    this.log(
+      `[voice] live session opened ${Date.now() - started}ms model=${this.model} lang=${this.languageCodes.join(',') || 'auto'} vocab=${options.vocabulary?.length ?? 0}`,
+    );
     const mimeType = `audio/pcm;rate=${VOICE_SAMPLE_RATE}`;
     return {
       sendAudio: (pcm) => session.sendRealtimeInput({ audio: { data: pcm.toString('base64'), mimeType } }),

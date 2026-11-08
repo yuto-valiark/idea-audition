@@ -67,7 +67,8 @@ function createTranscriber(): SpeechTranscriptionPort | null {
   const model = env('GEMINI_LIVE_MODEL', 'gemini-3.5-transcribe-live');
   const location = env('GEMINI_LIVE_LOCATION', 'global');
   log(`voice: ${model} @ ${location}`);
-  return new GeminiLiveTranscriber(createVertexClient(process.env, location), model, log);
+  const languages = env('GEMINI_LIVE_LANGUAGES', 'ja-JP').split(',').map((x) => x.trim()).filter(Boolean);
+  return new GeminiLiveTranscriber(createVertexClient(process.env, location), model, log, 1200, languages);
 }
 
 const aiModes = createGateways();

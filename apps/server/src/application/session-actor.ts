@@ -22,6 +22,7 @@ import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
 import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
 import { localEmbedding } from '../infrastructure/local-taste.ts';
+import { speechVocabulary } from './speech-vocabulary.ts';
 import { toSnapshot } from './projection.ts';
 import { buildConsensusContext, buildConsensusUpdateInput, toLedgerOps } from './consensus-context.ts';
 
@@ -163,6 +164,11 @@ export class SessionActor {
     // 空いた枠に何を出すかは、そのときの好みで選ぶ
     this.session.slotChooser = (stock) =>
       chooseFromStock(this.session, this.planner, stock, (t) => this.embeddings.get(t) ?? null, this.deps.clock.now(), this.deps.rng ?? Math.random);
+  }
+
+  /** 音声認識に渡す語彙（キャラ名・テーマ・企画名など） */
+  speechVocabulary(): string[] {
+    return speechVocabulary(this.session);
   }
 
   private get embedder(): EmbeddingPort | null {

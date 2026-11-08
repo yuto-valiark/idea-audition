@@ -39,6 +39,8 @@ export function createVoiceServer(opts: {
       opening = true;
       const { sessionId, judgeId } = identity;
       try {
+        // いまのキャラ名・企画名を語彙として渡す（Live のセッションが切れて開き直すたびに新しくなる）
+        const vocabulary = await opts.registry.get(sessionId).then((a) => a.speechVocabulary()).catch(() => []);
         stream = await transcriber.open({
           onInterim: (text) => send({ kind: 'voice_interim', text }),
           onFinal: (text) => {
@@ -52,7 +54,7 @@ export function createVoiceServer(opts: {
             // Live のセッションは時間制限で切れることがある。マイクが ON のままなら次の音声で開き直す
             if (!closed) opts.log(`[voice] live closed (${reason}); will reopen on next audio`);
           },
-        });
+        }, { vocabulary });
         if (closed) stream.close();
         else send({ kind: 'voice_ready' });
       } catch (e) {

@@ -81,10 +81,12 @@ export class VoiceClient {
       }
     };
 
-    this.ctx = new AudioContext();
+    // ブラウザに 16kHz へ変換させる（区間平均の間引きより、きちんとした低域通過フィルタがかかる）。
+    // Firefox などマイクと違う周波数の AudioContext に繋げないブラウザでは、既定の周波数に戻して自前で間引く
+    const { ctx, source } = this.createSource(this.stream);
+    this.ctx = ctx;
     await this.ctx.audioWorklet.addModule(workletUrl);
     if (!this.active || !this.stream) return;
-    const source = this.ctx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.ctx, 'pcm-downsampler');
     const hum = new HumDetector((ev) => this.handlers.onHum?.(ev));
     this.node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
@@ -92,6 +94,21 @@ export class VoiceClient {
       if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(e.data);
     };
     source.connect(this.node);
+  }
+
+  private createSource(stream: MediaStream) {
+    try {
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      try {
+        return { ctx, source: ctx.createMediaStreamSource(stream) };
+      } catch {
+        void ctx.close();
+      }
+    } catch {
+      /* sampleRate の指定に対応していない */
+    }
+    const ctx = new AudioContext();
+    return { ctx, source: ctx.createMediaStreamSource(stream) };
   }
 
   setTarget(instanceId: string | null) {
