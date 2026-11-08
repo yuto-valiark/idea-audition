@@ -44,6 +44,8 @@ export class CallClient {
   private localAnalyser: AnalyserNode | null = null;
   private meter: ReturnType<typeof setInterval> | null = null;
   private muted = false;
+  /** マイクが使えず、聞くだけで参加している */
+  listenOnly = false;
 
   constructor(
     private readonly transport: CallTransport,
@@ -65,9 +67,12 @@ export class CallClient {
       this.local = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      this.listenOnly = false;
     } catch {
-      this.events.onError('マイクを使えませんでした。ブラウザのマイクの許可を確かめてください');
-      return;
+      // マイクが使えなくても、ほかの人の声は聞こえるようにする（聞くだけで参加）
+      this.local = new MediaStream();
+      this.listenOnly = true;
+      this.events.onError('マイクが使えないため、聞くだけで参加しています。話すにはブラウザでマイクを許可して、マイクのボタンを押してください');
     }
     this.audioCtx = new AudioContext();
     this.localAnalyser = this.analyse(this.local);
@@ -91,6 +96,17 @@ export class CallClient {
     this.transport.sendState(false);
     this.events.onSpeaking({});
     this.events.onPeers([]);
+  }
+
+  /** ブラウザが音を止めているか（ページで一度もクリックしていないと、音を鳴らせない） */
+  get audioBlocked() {
+    return this.audioCtx?.state === 'suspended';
+  }
+
+  /** クリックのあとに呼ぶ：止められていた音を鳴らし始める */
+  async resume() {
+    await this.audioCtx?.resume().catch(() => {});
+    for (const p of this.peers.values()) void p.audio.play().catch(() => {});
   }
 
   setMuted(muted: boolean) {
@@ -154,7 +170,10 @@ export class CallClient {
     const peer: Peer = { pc, audio, pendingIce: [], analyser: null };
     this.peers.set(id, peer);
     this.events.onPeers([...this.peers.keys()]);
-    for (const t of this.local!.getTracks()) pc.addTrack(t, this.local!);
+    const tracks = this.local!.getTracks();
+    for (const t of tracks) pc.addTrack(t, this.local!);
+    // 聞くだけのときも、相手の声を受け取る枠は作る
+    if (tracks.length === 0) pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.ontrack = (e) => {
       const stream = e.streams[0] ?? new MediaStream([e.track]);
       audio.srcObject = stream;

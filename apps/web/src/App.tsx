@@ -8,6 +8,8 @@ import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx
 import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import { NameGate } from './features/audition/NameGate.tsx';
+import { useCall } from './features/call/call-store.ts';
+import { useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
 
 /** URL の /a/<部屋 ID> から部屋を読む（Google Meet と同じく、リンクを開いた人がその部屋に入る） */
@@ -36,6 +38,15 @@ export function App() {
     window.addEventListener('popstate', follow);
     return () => window.removeEventListener('popstate', follow);
   }, [connect, leaveRoom]);
+
+  // 部屋に入って名前が決まったら、自動で通話に入る（みんなの声が聞こえる。ミュートはマイクのボタン）
+  const room = useSession((s) => s.room);
+  const connection = useSession((s) => s.connection);
+  const { me, isSpectator } = useMe();
+  const named = !!me?.name;
+  useEffect(() => {
+    if (room === 'active' && connection === 'open' && named && !isSpectator) void useCall.getState().join();
+  }, [room, connection, named, isSpectator]);
 
   const screen =
     status === 'audition_active' || status === 'champion_selection'

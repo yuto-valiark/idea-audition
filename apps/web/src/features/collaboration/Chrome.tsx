@@ -1,11 +1,11 @@
 import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
-import { CallBadge, CallControls } from '../call/CallControls.tsx';
+import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
-import { Captions, MicButton, MicIndicator, UtteranceInput } from '../voice/VoiceControls.tsx';
+import { Captions, MicButton, UtteranceInput } from '../voice/VoiceControls.tsx';
 import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
 import { TastePanel } from '../taste/TasteRadar.tsx';
 import styles from './Chrome.module.css';
@@ -15,6 +15,7 @@ export function Header() {
   const connection = useSession((s) => s.connection);
   const room = useSession((s) => s.room);
   const judges = useSession((s) => s.snapshot?.judges ?? EMPTY);
+  const lobby = useSession((s) => s.snapshot?.status === 'lobby');
   const connected = judges.filter((j) => j.connected).length;
   const { isSpectator } = useMe();
   return (
@@ -43,6 +44,7 @@ export function Header() {
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
         <AiModeBadge />
         <CallControls />
+        {lobby && <CallMicButton />}
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>
@@ -92,7 +94,7 @@ export function Footer() {
             </div>
             {j.isHost && <Crown size={13} className={styles.hostCrown} aria-label="ホスト" />}
             <CallBadge judgeId={j.judgeId} />
-            {j.judgeId === judgeId ? <MicButton /> : <MicIndicator judgeId={j.judgeId} />}
+            {j.judgeId === judgeId ? <MicButton /> : null}
           </div>
         ))}
       </div>

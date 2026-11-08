@@ -1,12 +1,21 @@
 import { create } from 'zustand';
 import { useDisplay } from '../../store/display-store.ts';
-import { useSession } from '../../store/session-store.ts';
+import { onEphemeral, useSession } from '../../store/session-store.ts';
 import { CallClient, type CallSignal } from './call-client.ts';
+import { useVoice } from '../voice/voice-store.ts';
 
 interface CallStore {
   inCall: boolean;
   joining: boolean;
+  /** マイクのミュート。既定はオフ（声が届く）。ミュート中は通話にも文字起こしにも声を送らない */
   muted: boolean;
+  /** ブラウザが音を止めている（ページでまだクリックしていない）。クリックすれば鳴る */
+  blocked: boolean;
+  /** マイクが使えず、聞くだけで参加している */
+  listenOnly: boolean;
+  /** マイクの許可を取り直して、話せる状態でつなぎ直す */
+  retryMic(): Promise<void>;
+  unlock(): Promise<void>;
   /** 声がつながっている相手 */
   peers: string[];
   /** いま話している人（自分を含む） */
@@ -68,6 +77,22 @@ export const useCall = create<CallStore>((set, get) => {
     inCall: false,
     joining: false,
     muted: false,
+    blocked: false,
+    listenOnly: false,
+    async retryMic() {
+      client?.leave();
+      set({ inCall: false, peers: [], speaking: {}, muted: false });
+      await get().join();
+    },
+    async unlock() {
+      await client?.resume();
+      set({ blocked: !!client?.audioBlocked });
+      // 文字起こしの AudioContext もクリックのあとでないと動かないので、ここで始め直す
+      if (get().inCall && !get().muted) {
+        useVoice.getState().setActive(false);
+        useVoice.getState().setActive(true);
+      }
+    },
     peers: [],
     speaking: {},
     inCallOthers: {},
@@ -77,26 +102,41 @@ export const useCall = create<CallStore>((set, get) => {
       startSync();
       const c = getClient();
       await c.join();
-      set({ joining: false, inCall: c.inCall });
+      c.setMuted(get().muted);
+      set({ joining: false, inCall: c.inCall, blocked: c.audioBlocked, listenOnly: c.listenOnly });
+      if (!c.inCall) return;
+      // 声は既定で届く。ミュートでなければ文字起こしも一緒に始める（聞くだけのときは始めない）
+      if (!get().muted && !c.listenOnly) useVoice.getState().setActive(true);
+      // まだクリックしていないページでは音が鳴らない。最初のクリックで鳴らし始める
+      if (c.audioBlocked) {
+        const once = () => void get().unlock();
+        window.addEventListener('pointerdown', once, { once: true });
+        window.addEventListener('keydown', once, { once: true });
+      }
     },
     leave() {
       client?.leave();
+      useVoice.getState().setActive(false);
       set({ inCall: false, peers: [], speaking: {} });
     },
     toggleMute() {
       const muted = !get().muted;
       client?.setMuted(muted);
       set({ muted });
+      useVoice.getState().setActive(!muted && get().inCall);
     },
   };
 });
 
-/** CAMP の Ephemeral から呼ぶ（session-store の handleEphemeral） */
-export function onCallState(from: string, on: boolean) {
+/** CAMP の Ephemeral から呼ぶ */
+function onCallState(from: string, on: boolean) {
   useCall.setState((s) => ({ inCallOthers: { ...s.inCallOthers, [from]: on } }));
   client?.onState(from, on);
 }
 
-export function onCallSignal(from: string, signal: CallSignal) {
+function onCallSignal(from: string, signal: CallSignal) {
   void client?.onSignal(from, signal).catch(() => {});
 }
+
+onEphemeral('CALL_STATE', (from, payload) => onCallState(from, (payload as { on: boolean }).on));
+onEphemeral('RTC_SIGNAL', (from, payload) => onCallSignal(from, payload as CallSignal));

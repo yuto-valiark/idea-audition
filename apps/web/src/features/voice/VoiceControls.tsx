@@ -4,21 +4,41 @@ import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { judgeById, useMe } from '../../shared/selectors.ts';
 import { useVoice } from './voice-store.ts';
+import { useCall } from '../call/call-store.ts';
 import styles from './Voice.module.css';
 
-/** 自分のマイク ON/OFF（Gemini Live で文字起こし） */
+/**
+ * 自分のマイク。既定はオン（みんなに声が届き、文字起こしもされる）。押すとミュートに切り替わる。
+ */
 export function MicButton() {
   const state = useVoice((s) => s.state);
-  const toggle = useVoice((s) => s.toggle);
-  const on = state === 'listening' || state === 'starting';
+  const inCall = useCall((s) => s.inCall);
+  const muted = useCall((s) => s.muted);
+  const toggleMute = useCall((s) => s.toggleMute);
+  const join = useCall((s) => s.join);
+  const listenOnly = useCall((s) => s.listenOnly);
+  const retryMic = useCall((s) => s.retryMic);
+  const on = inCall && !muted && !listenOnly;
   return (
     <button
       className={styles.mic}
-      data-state={state}
-      onClick={toggle}
+      data-state={on ? (state === 'off' ? 'listening' : state) : 'off'}
+      onClick={() => {
+        if (!inCall) {
+          if (muted) toggleMute();
+          void join();
+          return;
+        }
+        // 聞くだけで参加しているときは、マイクの許可を取り直してつなぎ直す
+        if (listenOnly) {
+          void retryMic();
+          return;
+        }
+        toggleMute();
+      }}
       aria-pressed={on}
-      aria-label={on ? 'マイクをOFFにする' : 'マイクをONにする'}
-      title={on ? 'マイクをOFFにする' : 'マイクをONにして話しかける（キャラの名前を呼ぶと、そのキャラ宛てになります）'}
+      aria-label={on ? 'ミュートする' : 'ミュートを解除する'}
+      title={on ? 'ミュートする（声がみんなにも AI にも届かなくなります）' : 'ミュートを解除する（キャラの名前を呼ぶと、そのキャラ宛てになります）'}
     >
       {on ? <Mic size={16} /> : <MicOff size={16} />}
     </button>

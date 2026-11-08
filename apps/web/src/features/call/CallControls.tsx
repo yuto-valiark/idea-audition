@@ -1,44 +1,35 @@
-import { Headphones, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Headphones, Volume2 } from 'lucide-react';
 import { useSession } from '../../store/session-store.ts';
 import { useMe } from '../../shared/selectors.ts';
 import { useCall } from './call-store.ts';
 import styles from './Call.module.css';
 
 /**
- * 通話（声）の操作。離れた場所から参加するとき用。
- * 同じ部屋に集まっているなら入らなくてよい（声が二重に聞こえるため）。
+ * 通話の様子（ヘッダー）。部屋に入ると自動で通話に入り、みんなの声が聞こえる。
+ * ミュートはマイクのボタンで切り替える。ブラウザが音を止めているときだけ「音声をオンにする」を出す。
  */
 export function CallControls() {
   const room = useSession((s) => s.room);
   const { me, isSpectator } = useMe();
   const inCall = useCall((s) => s.inCall);
   const joining = useCall((s) => s.joining);
-  const muted = useCall((s) => s.muted);
+  const blocked = useCall((s) => s.blocked);
   const peers = useCall((s) => s.peers.length);
-  const others = useCall((s) => Object.values(s.inCallOthers).filter(Boolean).length);
-  const join = useCall((s) => s.join);
-  const leave = useCall((s) => s.leave);
-  const toggleMute = useCall((s) => s.toggleMute);
+  const unlock = useCall((s) => s.unlock);
+  const listenOnly = useCall((s) => s.listenOnly);
   if (room !== 'active' || isSpectator || !me) return null;
-
-  if (!inCall) {
+  if (blocked) {
     return (
-      <button type="button" className={styles.join} onClick={() => void join()} disabled={joining} title="離れた場所の人と声でつながる（同じ部屋にいるなら不要）">
-        <Headphones size={14} /> {joining ? 'つないでいます…' : others > 0 ? `通話に参加（${others}人が通話中）` : '通話に参加'}
+      <button type="button" className={styles.join} onClick={() => void unlock()} title="ブラウザが音を止めています。押すとみんなの声が聞こえます">
+        <Volume2 size={14} /> 音声をオンにする
       </button>
     );
   }
+  if (!inCall) return joining ? <span className={styles.live}><Headphones size={14} /> つないでいます…</span> : null;
   return (
-    <span className={styles.bar} role="group" aria-label="通話">
-      <span className={styles.live}>
-        <Headphones size={14} /> 通話中 {peers > 0 ? `· ${peers}人とつながっています` : '· ほかの人を待っています'}
-      </span>
-      <button type="button" className={styles.icon} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? 'ミュートを解除' : 'ミュート'} title={muted ? 'ミュートを解除' : 'ミュート'}>
-        {muted ? <MicOff size={14} /> : <Mic size={14} />}
-      </button>
-      <button type="button" className={styles.leave} onClick={leave} aria-label="通話から抜ける" title="通話から抜ける">
-        <PhoneOff size={14} />
-      </button>
+    <span className={styles.live} title="みんなの声が聞こえます。マイクのボタンでミュート">
+      <Headphones size={14} /> {peers > 0 ? `${peers}人と通話中` : 'ほかの人を待っています'}
+      {listenOnly ? '（聞くだけ）' : ''}
     </span>
   );
 }
@@ -55,3 +46,6 @@ export function CallBadge({ judgeId }: { judgeId: string }) {
     </span>
   );
 }
+
+/** ヘッダーのマイク（ロビーでも使えるように）。押すとミュートを切り替える */
+export { MicButton as CallMicButton } from '../voice/VoiceControls.tsx';

@@ -10,8 +10,6 @@ import {
 import { CampClient, type CommandOutcome, type ConnectionState, type SendOptions } from '../net/camp-client.ts';
 import { useDisplay } from './display-store.ts';
 import { anchorCenter } from '../shared/anchors.ts';
-import { onCallSignal, onCallState } from '../features/call/call-store.ts';
-import type { CallSignal } from '../features/call/call-client.ts';
 
 /** 業務状態：サーバーから届いた snapshot をそのまま持つ（判定はしない） */
 interface SessionState {
@@ -271,6 +269,15 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   }
 }
 
+/**
+ * ほかの機能（通話など）が自分宛ての Ephemeral を受け取るための登録口。
+ * session-store から各機能を import すると読み込みが循環するので、機能の側から登録してもらう
+ */
+const ephemeralListeners = new Map<string, (senderId: string, payload: unknown) => void>();
+export function onEphemeral(type: EphemeralMessage['type'], listener: (senderId: string, payload: unknown) => void) {
+  ephemeralListeners.set(type, listener);
+}
+
 function handleEphemeral(m: EphemeralMessage) {
   if (!m.senderId) return;
   const display = useDisplay.getState();
@@ -287,11 +294,7 @@ function handleEphemeral(m: EphemeralMessage) {
     case 'THEME_DRAFT':
       useSession.setState({ themeDraft: m.payload });
       break;
-    case 'CALL_STATE':
-      onCallState(m.senderId, m.payload.on);
-      break;
-    case 'RTC_SIGNAL':
-      onCallSignal(m.senderId, m.payload as CallSignal);
-      break;
+    default:
+      ephemeralListeners.get(m.type)?.(m.senderId, m.payload);
   }
 }

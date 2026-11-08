@@ -8,6 +8,8 @@ interface VoiceStore {
   state: VoiceState;
   interim: string;
   toggle(): void;
+  /** 文字起こしを始める・止める（通話のミュートと連動させる） */
+  setActive(on: boolean): void;
 }
 
 let client: VoiceClient | null = null;
@@ -50,6 +52,11 @@ export const useVoice = create<VoiceStore>((set, get) => {
   return {
     state: 'off',
     interim: '',
+    setActive(on) {
+      const { state } = get();
+      const active = state === 'listening' || state === 'starting';
+      if (on !== active) get().toggle();
+    },
     toggle() {
       const c = getClient();
       const { state } = get();
