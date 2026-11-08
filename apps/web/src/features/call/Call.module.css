@@ -1,0 +1,83 @@
+.join,
+.leave,
+.icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.join {
+  border: 1px solid #3fc7a4;
+  background: #0f2f2a;
+  color: #b9f3e3;
+}
+
+.join:disabled {
+  opacity: 0.6;
+}
+
+.bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b9f3e3;
+  white-space: nowrap;
+}
+
+.icon {
+  padding: 0 8px;
+  border: 1px solid #3fc7a4;
+  background: #0f2f2a;
+  color: #b9f3e3;
+}
+
+.icon[aria-pressed='true'] {
+  border-color: #ff8a8a;
+  background: #3a1414;
+  color: #ffd0d0;
+}
+
+.leave {
+  padding: 0 8px;
+  border: 1px solid #ff6b6b;
+  background: #3a1414;
+  color: #ffd0d0;
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f2f2a;
+  color: #b9f3e3;
+  border: 1px solid #3fc7a4;
+  transition: box-shadow 0.15s;
+}
+
+.badge[data-speaking] {
+  background: #3fc7a4;
+  color: #0b1f1b;
+  box-shadow: 0 0 0 3px #3fc7a455, 0 0 10px #3fc7a4;
+}
+
+@media (max-width: 760px) {
+  .live {
+    display: none;
+  }
+}

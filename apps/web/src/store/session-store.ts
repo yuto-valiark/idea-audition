@@ -10,6 +10,8 @@ import {
 import { CampClient, type CommandOutcome, type ConnectionState, type SendOptions } from '../net/camp-client.ts';
 import { useDisplay } from './display-store.ts';
 import { anchorCenter } from '../shared/anchors.ts';
+import { onCallSignal, onCallState } from '../features/call/call-store.ts';
+import type { CallSignal } from '../features/call/call-client.ts';
 
 /** 業務状態：サーバーから届いた snapshot をそのまま持つ（判定はしない） */
 interface SessionState {
@@ -284,6 +286,12 @@ function handleEphemeral(m: EphemeralMessage) {
       break;
     case 'THEME_DRAFT':
       useSession.setState({ themeDraft: m.payload });
+      break;
+    case 'CALL_STATE':
+      onCallState(m.senderId, m.payload.on);
+      break;
+    case 'RTC_SIGNAL':
+      onCallSignal(m.senderId, m.payload as CallSignal);
       break;
   }
 }

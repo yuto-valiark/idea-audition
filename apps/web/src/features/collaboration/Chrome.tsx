@@ -1,5 +1,6 @@
 import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
+import { CallBadge, CallControls } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
@@ -41,6 +42,7 @@ export function Header() {
         <span>{connected}人で参加中</span>
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
         <AiModeBadge />
+        <CallControls />
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>
@@ -89,6 +91,7 @@ export function Footer() {
               </small>
             </div>
             {j.isHost && <Crown size={13} className={styles.hostCrown} aria-label="ホスト" />}
+            <CallBadge judgeId={j.judgeId} />
             {j.judgeId === judgeId ? <MicButton /> : <MicIndicator judgeId={j.judgeId} />}
           </div>
         ))}

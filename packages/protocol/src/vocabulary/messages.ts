@@ -62,6 +62,17 @@ export const EphemeralPayloads = {
   /** 注目しているキャラ（カーソルが乗っている・詳細を開いている）。退場の判定に使う */
   FOCUS_CHANGED: z.object({ hover: id.nullable(), detail: id.nullable() }),
   MIC_STATE_CHANGED: z.object({ on: z.boolean() }),
+  /** 通話に入った・抜けた（声は WebRTC でブラウザ同士が直接やり取りする。サーバーは中継しない） */
+  CALL_STATE: z.object({ on: z.boolean() }),
+  /** 通話をつなぐための受け渡し（offer / answer / 経路の候補 ice）。to で宛先の審査員を指定し、ほかの人は無視する */
+  RTC_SIGNAL: z.object({
+    to: id,
+    kind: z.enum(['offer', 'answer', 'ice']),
+    sdp: z.string().max(20_000).optional(),
+    candidate: z.string().max(2_000).optional(),
+    sdpMid: z.string().max(64).nullable().optional(),
+    sdpMLineIndex: z.number().int().min(0).max(64).nullable().optional(),
+  }),
   /** ロビーでホストが入力中のテーマと設定（ほかの人の画面にそのまま見せる。保存しない） */
   THEME_DRAFT: z.object({ theme: z.string().max(120), mode: z.enum(['team', 'solo']), aiMode: z.enum(['gemini', 'fixture']).nullable() }),
 } as const;
