@@ -63,7 +63,11 @@ export const EphemeralPayloads = {
   FOCUS_CHANGED: z.object({ hover: id.nullable(), detail: id.nullable() }),
   MIC_STATE_CHANGED: z.object({ on: z.boolean() }),
   /** 通話に入った・抜けた（声は WebRTC でブラウザ同士が直接やり取りする。サーバーは中継しない） */
-  CALL_STATE: z.object({ on: z.boolean() }),
+  CALL_STATE: z.object({
+    on: z.boolean(),
+    /** 観覧者（5人目以降）が聞くだけで入るときの通話用の ID。ブラウザで作る（spec_ で始まる） */
+    as: z.string().regex(/^spec_[a-z0-9]{6,24}$/).optional(),
+  }),
   /** 通話をつなぐための受け渡し（offer / answer / 経路の候補 ice）。to で宛先の審査員を指定し、ほかの人は無視する */
   RTC_SIGNAL: z.object({
     to: id,

@@ -17,7 +17,7 @@ export function CallControls() {
   const peers = useCall((s) => s.peers.length);
   const unlock = useCall((s) => s.unlock);
   const listenOnly = useCall((s) => s.listenOnly);
-  if (room !== 'active' || isSpectator || !me) return null;
+  if (room !== 'active' || (!isSpectator && !me)) return null;
   if (blocked) {
     return (
       <button type="button" className={styles.join} onClick={() => void unlock()} title="ブラウザが音を止めています。押すとみんなの声が聞こえます">
@@ -27,9 +27,9 @@ export function CallControls() {
   }
   if (!inCall) return joining ? <span className={styles.live}><Headphones size={14} /> つないでいます…</span> : null;
   return (
-    <span className={styles.live} title="みんなの声が聞こえます。マイクのボタンでミュート">
+    <span className={styles.live} title={isSpectator ? '観覧中は声を聞くだけです（話せるのは審査員の4人まで）' : 'みんなの声が聞こえます。マイクのボタンでミュート'}>
       <Headphones size={14} /> {peers > 0 ? `${peers}人と通話中` : 'ほかの人を待っています'}
-      {listenOnly ? '（聞くだけ）' : ''}
+      {listenOnly || isSpectator ? '（聞くだけ）' : ''}
     </span>
   );
 }

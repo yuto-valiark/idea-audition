@@ -44,7 +44,7 @@ export function Header() {
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
         <AiModeBadge />
         <CallControls />
-        {lobby && <CallMicButton />}
+        {lobby && !isSpectator && <CallMicButton />}
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>

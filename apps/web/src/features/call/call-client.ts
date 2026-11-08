@@ -23,6 +23,9 @@ export interface CallEvents {
   onError(message: string): void;
 }
 
+/** 観覧者（聞くだけ）の通話用の ID */
+export const isSpectatorCall = (id: string | null) => !!id?.startsWith('spec_');
+
 const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 /** この音量（0〜1 の RMS）を超えたら「話している」 */
 const SPEAKING_RMS = 0.04;
@@ -61,9 +64,13 @@ export class CallClient {
     return this.local !== null;
   }
 
-  async join() {
+  /** listenOnly：最初からマイクを使わず聞くだけで入る（観覧者） */
+  async join(opts: { listenOnly?: boolean } = {}) {
     if (this.local) return;
-    try {
+    if (opts.listenOnly) {
+      this.local = new MediaStream();
+      this.listenOnly = true;
+    } else try {
       this.local = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
@@ -117,6 +124,8 @@ export class CallClient {
   /** ほかの人が通話に入った・抜けた */
   onState(from: string, on: boolean) {
     if (!this.local) return;
+    // 観覧者どうしは、どちらも話さないのでつながない
+    if (isSpectatorCall(from) && isSpectatorCall(this.transport.me())) return;
     if (!on) {
       this.closePeer(from);
       this.announcedTo.delete(from);

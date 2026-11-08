@@ -127,7 +127,7 @@ const PERSIST_RETRY_MS = 5_000;
 export class SessionActor {
   readonly session: AuditionSession;
   private seq = 0;
-  private connections = new Map<string, { conn: Connection; judgeId: string | null }>();
+  private connections = new Map<string, { conn: Connection; judgeId: string | null; callId?: string }>();
   private results = new ResultCache<CommandResultMessage>(RESULT_CACHE_LIMIT);
   private held = new Map<string, string>(); // judgeId → instanceId（ドラッグ中）
   private focus = new Map<string, { hover: string | null; detail: string | null }>(); // judgeId → 注目中のキャラ
@@ -265,6 +265,7 @@ export class SessionActor {
     const entry = this.connections.get(conn.id);
     this.connections.delete(conn.id);
     if (this.connections.size === 0) this.pauseWhileEmpty();
+    if (entry?.callId) this.relayFrom(entry.callId, conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'CALL_STATE', payload: { on: false } });
     if (!entry?.judgeId) return;
     const stillConnected = [...this.connections.values()].some((c) => c.judgeId === entry.judgeId);
     if (stillConnected) return;
@@ -286,7 +287,13 @@ export class SessionActor {
 
   receiveEphemeral(conn: Connection, msg: EphemeralMessage) {
     const entry = this.connections.get(conn.id);
-    if (!entry?.judgeId) return;
+    if (!entry) return;
+    if (!entry.judgeId) {
+      // 観覧者は通話を聞くだけ。通話の受け渡しだけを、通話用の ID で中継する
+      if (msg.type === 'CALL_STATE' && msg.payload.as && !entry.callId) entry.callId = msg.payload.as;
+      if ((msg.type === 'CALL_STATE' || msg.type === 'RTC_SIGNAL') && entry.callId) this.relay(conn, msg);
+      return;
+    }
     if (msg.type === 'DRAG_PREVIEW') {
       if (msg.payload.instanceId) {
         this.held.set(entry.judgeId, msg.payload.instanceId);
@@ -309,8 +316,13 @@ export class SessionActor {
   }
 
   private relay(from: Connection, msg: EphemeralMessage) {
-    const senderId = this.connections.get(from.id)?.judgeId;
-    if (!senderId) return;
+    const entry = this.connections.get(from.id);
+    const senderId = entry?.judgeId ?? entry?.callId;
+    if (senderId) this.relayFrom(senderId, from, msg);
+  }
+
+  /** senderId の名前で、送り主以外に中継する（抜けた観覧者の分は、登録を消したあとに呼ぶ） */
+  private relayFrom(senderId: string, from: Connection, msg: EphemeralMessage) {
     const out: EphemeralMessage = { ...msg, senderId };
     for (const { conn } of this.connections.values()) if (conn.id !== from.id) conn.send(out);
   }

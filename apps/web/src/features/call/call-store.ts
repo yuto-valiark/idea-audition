@@ -28,6 +28,10 @@ interface CallStore {
 }
 
 let client: CallClient | null = null;
+
+/** 観覧者の通話用の ID（このタブのあいだ同じ） */
+const spectatorCallId = `spec_${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => (b % 36).toString(36)).join('')}`;
+const callId = () => useSession.getState().judgeId ?? spectatorCallId;
 let syncing = false;
 
 /**
@@ -58,8 +62,9 @@ export const useCall = create<CallStore>((set, get) => {
   const getClient = () =>
     (client ??= new CallClient(
       {
-        me: () => useSession.getState().judgeId,
-        sendState: (on) => useSession.getState().client?.sendEphemeral('CALL_STATE', { on }),
+        me: callId,
+        sendState: (on) =>
+          useSession.getState().client?.sendEphemeral('CALL_STATE', useSession.getState().judgeId ? { on } : { on, as: spectatorCallId }),
         sendSignal: (signal) => useSession.getState().client?.sendEphemeral('RTC_SIGNAL', signal),
       },
       {
@@ -101,7 +106,8 @@ export const useCall = create<CallStore>((set, get) => {
       set({ joining: true });
       startSync();
       const c = getClient();
-      await c.join();
+      // 観覧者（5人目以降）は話せない。聞くだけで入る
+      await c.join({ listenOnly: !useSession.getState().judgeId });
       c.setMuted(get().muted);
       set({ joining: false, inCall: c.inCall, blocked: c.audioBlocked, listenOnly: c.listenOnly });
       if (!c.inCall) return;

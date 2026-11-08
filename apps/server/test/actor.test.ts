@@ -196,3 +196,26 @@ describe('SessionActor', () => {
     expect(actor.session.answers.at(-1)?.instanceId).toBe(target);
   });
 });
+
+describe('観覧者の通話（聞くだけ）', () => {
+  it('5人目は通話の受け渡しだけ中継され、抜けたら通話を抜けたと伝わる', async () => {
+    const { actor, a } = await setup();
+    const c = fakeConnection('c');
+    const d = fakeConnection('d');
+    const e = fakeConnection('e');
+    for (const x of [c, d, e]) actor.attach(x.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
+    const eph = (msgs: ServerMessage[]) => msgs.filter((m) => m.kind === 'ephemeral');
+    // 観覧者のカーソルは中継しない
+    actor.receiveEphemeral(e.conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: { x: 0.5, y: 0.5 } });
+    expect(eph(a.received)).toHaveLength(0);
+    // 通話用の ID を名乗ってから、受け渡しを送る
+    actor.receiveEphemeral(e.conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'CALL_STATE', payload: { on: true, as: 'spec_abc123' } });
+    actor.receiveEphemeral(e.conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'RTC_SIGNAL', payload: { to: 'x', kind: 'answer', sdp: 'v=0' } });
+    expect(eph(a.received).map((m) => [m.type, m.senderId])).toEqual([
+      ['CALL_STATE', 'spec_abc123'],
+      ['RTC_SIGNAL', 'spec_abc123'],
+    ]);
+    actor.detach(e.conn);
+    expect(eph(a.received).at(-1)).toMatchObject({ type: 'CALL_STATE', senderId: 'spec_abc123', payload: { on: false } });
+  });
+});

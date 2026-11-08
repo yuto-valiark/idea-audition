@@ -40,12 +40,13 @@ export function App() {
   }, [connect, leaveRoom]);
 
   // 部屋に入って名前が決まったら、自動で通話に入る（みんなの声が聞こえる。ミュートはマイクのボタン）
+  // 観覧者（5人目以降）は名前が無くても、聞くだけで入る
   const room = useSession((s) => s.room);
   const connection = useSession((s) => s.connection);
   const { me, isSpectator } = useMe();
   const named = !!me?.name;
   useEffect(() => {
-    if (room === 'active' && connection === 'open' && named && !isSpectator) void useCall.getState().join();
+    if (room === 'active' && connection === 'open' && (named || isSpectator)) void useCall.getState().join();
   }, [room, connection, named, isSpectator]);
 
   const screen =
