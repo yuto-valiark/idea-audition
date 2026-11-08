@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { WebSocketServer } from 'ws';
-import { createCampTransport, type RoomRegistry } from '@camp-protocol/kit/server';
+import { CAMP_CLOSE } from '@camp-protocol/kit';
+import { createCampTransport, rejectUpgrade, type RoomRegistry } from '@camp-protocol/kit/server';
+import { WebSocketServer as LegacyServer } from 'ws';
 import { vocabulary } from '@idea-audition/protocol';
 import type { SessionActor } from '../application/session-actor.ts';
 import { createStaticHandler } from './static-files.ts';
@@ -49,6 +51,7 @@ export function startServer(opts: {
     if (serveStatic && (await serveStatic(req, res))) return;
     res.writeHead(404).end();
   });
+  const legacy = new LegacyServer({ noServer: true });
   const camp = createCampTransport({
     vocabulary,
     rooms: opts.registry,
@@ -61,7 +64,10 @@ export function startServer(opts: {
     if (path === '/camp') return camp.handleUpgrade(req, socket, head);
     const voice = opts.voice;
     if (path === '/voice' && voice) return voice.handleUpgrade(req, socket, head, (ws) => voice.emit('connection', ws, req));
-    socket.destroy();
+    // 改名前（HIP）の画面が開いたままだと /hip に再接続し続ける。版違い（4400）で閉じて、再接続をやめさせる
+    if (path === '/hip') return legacy.handleUpgrade(req, socket, head, (ws) => ws.close(CAMP_CLOSE.UNSUPPORTED_VERSION, 'moved to /camp; reload the page'));
+    // 知らないパスは HTTP の 404 を返して断る（何も返さずに切ると、Cloud Run がコンテナごと入れ替えてしまう）
+    rejectUpgrade(socket);
   });
   // port: 0 なら空いているポートを使う（テスト用）。実際のポートを返す
   const port = new Promise<number>((resolve) =>

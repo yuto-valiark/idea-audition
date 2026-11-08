@@ -3,6 +3,7 @@ import type { AnyVocabulary } from '../core/vocabulary.ts';
 import { CampRoom, type RoomDefinition } from './room.ts';
 import { createCampTransport, type RoomRegistry } from './transport.ts';
 import { randomRoomId } from './room-id.ts';
+import { rejectUpgrade } from './upgrade.ts';
 
 /**
  * いちばん短い始め方。http サーバー・/camp の WebSocket・部屋の管理をまとめて立てる。
@@ -64,7 +65,7 @@ export function createCampServer<V extends AnyVocabulary, S>(
     res.writeHead(404).end();
   });
   http.on('upgrade', (req, socket, head) => {
-    if ((req.url ?? '').split('?')[0] !== path) return void socket.destroy();
+    if ((req.url ?? '').split('?')[0] !== path) return rejectUpgrade(socket);
     transport.handleUpgrade(req, socket, head);
   });
   const port = new Promise<number>((resolve) =>

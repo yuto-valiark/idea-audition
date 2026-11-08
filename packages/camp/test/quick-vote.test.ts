@@ -209,4 +209,13 @@ describe('@camp-protocol/kit × Quick Vote', () => {
     ok.close();
     await own.close();
   });
+
+  it('決めたパス以外への接続は、何も返さずに切らず HTTP 404 で断る（前段にサーバーを入れ替えさせない）', async () => {
+    const status = await new Promise<number>((resolve) => {
+      const ws = new WebSocket(url.replace('/camp', '/elsewhere'));
+      ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
+      ws.on('error', () => {});
+    });
+    expect(status).toBe(404);
+  });
 });
