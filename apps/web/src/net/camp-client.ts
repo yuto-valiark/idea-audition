@@ -23,7 +23,8 @@ export type ConnectionState = 'connecting' | 'open' | 'reconnecting';
 export type CommandOutcome = GenericOutcome<RejectReason>;
 
 interface Handlers {
-  onAccessDenied(reason: 'required' | 'invalid'): void;
+  /** リンクの部屋が見つからない（作られていない・期限切れ） */
+  onRoomNotFound(): void;
   onWelcome(m: WelcomeMessage): void;
   onEvent(m: EventMessage): void;
   onEphemeral(m: EphemeralMessage): void;
@@ -45,14 +46,13 @@ function campUrl() {
 export class CampClient {
   private readonly inner: GenericCampClient<typeof vocabulary>;
 
-  constructor(sessionId: string, handlers: Handlers, initialJudgeId?: string, accessCode?: string) {
+  constructor(sessionId: string, handlers: Handlers, initialJudgeId?: string) {
     this.inner = new GenericCampClient(vocabulary, {
       url: campUrl(),
       room: sessionId,
       ...(initialJudgeId ? { participantId: initialJudgeId } : {}),
-      ...(accessCode ? { accessCode } : {}),
     }).on({
-      onAccessDenied: handlers.onAccessDenied,
+      onRoomNotFound: handlers.onRoomNotFound,
       onWelcome: (m) => handlers.onWelcome(m as WelcomeMessage),
       onEvent: (m) => handlers.onEvent(m as EventMessage),
       onEphemeral: (m) => handlers.onEphemeral(m as EphemeralMessage),

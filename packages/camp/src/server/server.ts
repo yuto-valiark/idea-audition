@@ -2,12 +2,17 @@ import { createServer } from 'node:http';
 import type { AnyVocabulary } from '../core/vocabulary.ts';
 import { CampRoom, type RoomDefinition } from './room.ts';
 import { createCampTransport, type RoomRegistry } from './transport.ts';
+import { randomRoomId } from './room-id.ts';
 
 /**
  * いちばん短い始め方。http サーバー・/camp の WebSocket・部屋の管理をまとめて立てる。
  *
  *   const server = createCampServer(quiz, { port: 8787, room: { initialState, commands: { ANSWER(room, p, ctx) { … } } } });
  *   await server.port;
+ *
+ * 既定では、知らない部屋 ID で入ってきたらその部屋を作る（試すのに便利）。
+ * 「作った部屋のリンクを知っている人だけが入れる」ようにするには autoCreateRooms: false にして、
+ * server.createRoom() で部屋を作り、返った ID をリンクにして配る。
  */
 export function createCampServer<V extends AnyVocabulary, S>(
   vocabulary: V,
@@ -16,7 +21,8 @@ export function createCampServer<V extends AnyVocabulary, S>(
     /** 0 なら空いているポート */
     port?: number;
     path?: string;
-    accessCode?: string | null;
+    /** 知らない部屋 ID で入ってきたら部屋を作るか（既定 true）。false なら createRoom() した部屋にだけ入れる */
+    autoCreateRooms?: boolean;
     /** 誰もいなくなった部屋を消すまでの時間 */
     idleReleaseMs?: number;
     helloTimeoutMs?: number;
@@ -29,6 +35,7 @@ export function createCampServer<V extends AnyVocabulary, S>(
     async get(id) {
       let entry = rooms.get(id);
       if (!entry) {
+        if (opts.autoCreateRooms === false) return null;
         entry = { room: new CampRoom(id, opts.room) };
         rooms.set(id, entry);
       }
@@ -48,7 +55,6 @@ export function createCampServer<V extends AnyVocabulary, S>(
   const transport = createCampTransport({
     vocabulary,
     rooms: registry,
-    accessCode: opts.accessCode ?? null,
     ...(opts.helloTimeoutMs ? { helloTimeoutMs: opts.helloTimeoutMs } : {}),
     ...(opts.log ? { log: opts.log } : {}),
   });
@@ -71,6 +77,12 @@ export function createCampServer<V extends AnyVocabulary, S>(
     port,
     rooms: {
       get: (id: string) => rooms.get(id)?.room,
+    },
+    /** 部屋を作って ID を返す（ID を省くと推測されにくい ID を振る）。誰も入らなければ idleReleaseMs で消える */
+    createRoom(id: string = randomRoomId()) {
+      if (!rooms.has(id)) rooms.set(id, { room: new CampRoom(id, opts.room) });
+      registry.release(id);
+      return id;
     },
     async close() {
       closing = true;

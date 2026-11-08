@@ -193,6 +193,10 @@ export class SessionActor {
     } catch (e) {
       deps.log?.(`session load failed (${deps.store.name}): ${sessionId}`, e);
     }
+    return SessionActor.fromRestored(sessionId, deps, restored);
+  }
+
+  private static fromRestored(sessionId: string, deps: Deps, restored: { seq: number; state: SessionState } | null) {
     const actor = new SessionActor(sessionId, deps, restored ?? undefined);
     if (restored) {
       deps.log?.(`session restored: ${sessionId} seq=${restored.seq} status=${restored.state.status}`);
@@ -201,6 +205,29 @@ export class SessionActor {
       if (actor.session.proposal?.status === 'generating') actor.runProposal();
     }
     return actor;
+  }
+
+  /** 新しい部屋を作り、すぐ保存する（再起動後もリンクで入れるように） */
+  static async create(sessionId: string, deps: Deps): Promise<SessionActor> {
+    const actor = new SessionActor(sessionId, deps);
+    try {
+      await deps.store.commit(sessionId, actor.seq, actor.session.toState(), []);
+    } catch (e) {
+      deps.log?.(`session create save failed (${deps.store.name}): ${sessionId}`, e);
+    }
+    return actor;
+  }
+
+  /** 保存先にある部屋だけ開く（なければ null） */
+  static async openExisting(sessionId: string, deps: Deps): Promise<SessionActor | null> {
+    let restored: { seq: number; state: SessionState } | null;
+    try {
+      restored = await deps.store.load(sessionId);
+    } catch (e) {
+      deps.log?.(`session load failed (${deps.store.name}): ${sessionId}`, e);
+      return null;
+    }
+    return restored ? SessionActor.fromRestored(sessionId, deps, restored) : null;
   }
 
   get connectionCount() {

@@ -166,3 +166,9 @@ packages/protocol/src/
 - 住所：npm は `@camp-protocol/*`（組織は空き、単体の `camp` は取られている）、GitHub の `camp-protocol` も空き（どちらも 2026-11-08 時点、まだ取得していない）。
 - 変えたもの：パッケージ `@camp-protocol/kit`（packages/camp）、`CampClient` / `CampRoom` / `createCampServer` / `createCampTransport` / `CAMP_VERSION` / `CAMP_CLOSE`、通信のフィールド `camp: "1"`、WebSocket のパス `/camp`、仕様書 docs/protocol/camp-v1.md。開発用の環境変数は `CAMP_PORT`（`HIP_PORT` も読む）。
 - この ADR より前の ADR（0004 など）は、当時の名前 HIP のまま残す。
+
+## 合言葉の廃止と、リンクで入る部屋（2026-11-08）
+
+- **決めたこと**：合言葉（hello の `accessCode`・`access_denied`・終了コード 4401）を CAMP から外した。代わりに、部屋はアプリが作り、推測されにくい部屋 ID のリンクを知っている人が入る（Google Meet と同じ）。ない部屋は `protocol_error{ROOM_NOT_FOUND}` と終了コード 4404 で断り、クライアントは再接続しない。
+- **理由**：入れる人を決めるのはアプリの仕事で、プロトコルに合言葉を持たせる必要はない。IDEA AUDITION の使い方も「オーディションごとにリンクを発行して配る」が自然。CAMP は「部屋があるか」を `RoomRegistry.get()` が null を返すことで表すだけにし、誰が部屋を作れるかはアプリに任せる。
+- **実装**：`@camp-protocol/kit` に `randomRoomId()`・`isRoomId()`、`createCampServer` に `autoCreateRooms`・`createRoom()`、クライアントに `onRoomNotFound`。IDEA AUDITION は `POST /api/rooms`（送り手ごとに1時間10回・同時に20部屋まで）と `/a/<部屋 ID>` の画面。

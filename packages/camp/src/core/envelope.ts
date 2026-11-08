@@ -40,8 +40,6 @@ export const HelloMessage = z.object({
   sessionId: id,
   participantId: id.optional(),
   lastSeq: z.number().int().optional(),
-  /** 公開環境の合言葉（サーバーに設定されているときだけ必要） */
-  accessCode: z.string().max(100).optional(),
 });
 export type HelloMessage = z.infer<typeof HelloMessage>;
 
@@ -77,16 +75,8 @@ export const resultMessage = <R extends z.ZodType>(reason: R) =>
     reason: reason.nullable(),
   });
 
-/** 合言葉が無い・違うときに返し、接続を閉じる */
-export const AccessDeniedMessage = z.object({
-  camp: z.literal(CAMP_VERSION),
-  kind: z.literal('access_denied'),
-  reason: z.enum(['required', 'invalid']),
-});
-export type AccessDeniedMessage = z.infer<typeof AccessDeniedMessage>;
-
 /** 黙って捨てずに、相手が直せる情報を返す（§3.8） */
-export const ProtocolErrorCode = z.enum(['UNSUPPORTED_VERSION', 'MALFORMED', 'UNKNOWN_TYPE', 'NOT_JOINED', 'RATE_LIMITED']);
+export const ProtocolErrorCode = z.enum(['UNSUPPORTED_VERSION', 'MALFORMED', 'UNKNOWN_TYPE', 'NOT_JOINED', 'RATE_LIMITED', 'ROOM_NOT_FOUND']);
 export type ProtocolErrorCode = z.infer<typeof ProtocolErrorCode>;
 
 export const ProtocolErrorMessage = z.object({

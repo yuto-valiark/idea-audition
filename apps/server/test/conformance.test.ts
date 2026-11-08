@@ -47,7 +47,7 @@ async function boot() {
     },
     release() {},
   };
-  const s = startServer({ port: 0, registry, voice: null, accessCode: null, staticDir: null, helloTimeoutMs: 300, log: () => {} });
+  const s = startServer({ port: 0, registry, voice: null, createRoom: null, staticDir: null, helloTimeoutMs: 300, log: () => {} });
   return { ...s, port: await s.port, actors };
 }
 

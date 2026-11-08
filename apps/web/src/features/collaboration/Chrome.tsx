@@ -11,6 +11,7 @@ import styles from './Chrome.module.css';
 export function Header() {
   const sessionId = useSession((s) => s.sessionId);
   const connection = useSession((s) => s.connection);
+  const room = useSession((s) => s.room);
   const judges = useSession((s) => s.snapshot?.judges ?? EMPTY);
   const connected = judges.filter((j) => j.connected).length;
   const { isSpectator } = useMe();
@@ -23,10 +24,11 @@ export function Header() {
         </strong>
       </div>
       <div className={styles.tag}>AIがプレゼン。あなたが審査員。</div>
+      {room === 'active' && (
       <div className={styles.right}>
         {connection === 'open' ? (
           <span className={styles.status}>
-            <span className={styles.onlineDot} /> SESSION {sessionId.toUpperCase()}
+            <span className={styles.onlineDot} /> {sessionId.toUpperCase()}
           </span>
         ) : (
           <span className={styles.statusWarn}>
@@ -40,6 +42,7 @@ export function Header() {
         <AiModeBadge />
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
       </div>
+      )}
     </header>
   );
 }

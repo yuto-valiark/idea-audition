@@ -258,3 +258,54 @@
     transform: translateY(-6px);
   }
 }
+
+.setup > .primary {
+  width: 100%;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+}
+
+.invite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 8px 8px 8px 12px;
+  border: 1px dashed #8a5cb0;
+  border-radius: 9px;
+  background: #160d2b;
+  min-width: 0;
+}
+
+.inviteLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d7c5e9;
+  white-space: nowrap;
+}
+
+.invite code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #f0e7f7;
+}
+
+.invite button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid #694284;
+  background: #251537;
+  color: #e5d6f5;
+}

@@ -1,6 +1,6 @@
 import { CAMP_CLOSE, CAMP_VERSION } from '../core/version.ts';
 import { SeqGate } from '../core/sequence.ts';
-import type { AccessDeniedMessage, ProtocolErrorMessage } from '../core/envelope.ts';
+import type { ProtocolErrorMessage } from '../core/envelope.ts';
 import type {
   AnyVocabulary,
   CommandMessageOf,
@@ -22,7 +22,7 @@ import type {
  *  - 切断したら指数バックオフ（400ms → 最大5秒）で再接続し、参加者 ID と lastSeq を付けて hello を送る
  *  - result が来ていない Command は、同じ commandId で送り直す（サーバーが重複を排除する）
  *  - 古い・重複した Event は捨てる（SeqGate）
- *  - バージョン違い・合言葉違いでは再接続しない
+ *  - バージョン違い・部屋が見つからないときは再接続しない
  */
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -49,7 +49,6 @@ export interface CampClientOptions {
   room: string;
   /** 前回もらった参加者 ID（再接続・再訪で同じ人として戻る） */
   participantId?: string;
-  accessCode?: string;
   /** WebSocket の作り方（Node では ws を渡す。既定は globalThis.WebSocket） */
   createSocket?: (url: string) => WebSocketLike;
   commandTimeoutMs?: number;
@@ -64,7 +63,8 @@ export interface CampClientHandlers<V extends AnyVocabulary> {
   onSnapshot?(s: SnapshotOf<V>): void;
   onEphemeral?(m: EphemeralMessageOf<V>): void;
   onState?(s: ConnectionState): void;
-  onAccessDenied?(reason: AccessDeniedMessage['reason']): void;
+  /** 部屋が見つからない（リンクが違う・期限切れ）。再接続はしない */
+  onRoomNotFound?(): void;
   onProtocolError?(m: ProtocolErrorMessage): void;
 }
 
@@ -122,7 +122,6 @@ export class CampClient<V extends AnyVocabulary> {
           sessionId: this.opts.room,
           participantId: this.participantId,
           lastSeq: this.seq.lastSeq,
-          accessCode: this.opts.accessCode,
         }),
       );
     };
@@ -130,7 +129,7 @@ export class CampClient<V extends AnyVocabulary> {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      if (e.code === CAMP_CLOSE.UNSUPPORTED_VERSION || e.code === CAMP_CLOSE.ACCESS_DENIED) this.closed = true;
+      if (e.code === CAMP_CLOSE.UNSUPPORTED_VERSION || e.code === CAMP_CLOSE.ROOM_NOT_FOUND) this.closed = true;
       if (this.closed) {
         this.handlers.onState?.('closed');
         return;
@@ -196,10 +195,6 @@ export class CampClient<V extends AnyVocabulary> {
     }
     const m = parsed.data as { kind: string } & Record<string, unknown>;
     switch (m.kind) {
-      case 'access_denied':
-        this.closed = true;
-        this.handlers.onAccessDenied?.((m as unknown as AccessDeniedMessage).reason);
-        break;
       case 'welcome': {
         const w = m as unknown as WelcomeMessageOf<V>;
         this.participantId = (w.participantId as string | null) ?? this.participantId;
@@ -232,6 +227,10 @@ export class CampClient<V extends AnyVocabulary> {
       case 'protocol_error': {
         const pe = m as unknown as ProtocolErrorMessage;
         if (pe.code === 'UNSUPPORTED_VERSION') this.closed = true;
+        if (pe.code === 'ROOM_NOT_FOUND') {
+          this.closed = true;
+          this.handlers.onRoomNotFound?.();
+        }
         this.handlers.onProtocolError?.(pe);
         break;
       }

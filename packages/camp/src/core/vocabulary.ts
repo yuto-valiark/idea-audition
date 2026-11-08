@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  AccessDeniedMessage,
   CommandBase,
   EphemeralBase,
   HelloMessage,
@@ -103,7 +102,7 @@ export interface Vocabulary<C extends Schemas, E extends Names, R extends Names,
   readonly ResultMessage: z.ZodType<ResultOf<R>>;
   readonly ClientMessage: z.ZodType<HelloMessage | CommandOf<C> | EphemeralOf<P> | SignalOf<G>>;
   readonly ServerMessage: z.ZodType<
-    ProtocolErrorMessage | AccessDeniedMessage | WelcomeOf<S> | EventOf<E, S> | ResultOf<R> | EphemeralOf<P>
+    ProtocolErrorMessage | WelcomeOf<S> | EventOf<E, S> | ResultOf<R> | EphemeralOf<P>
   >;
   /** この語彙が知っている Command の種類か（知らなければ UNKNOWN_TYPE を返す） */
   hasCommand(type: unknown): boolean;
@@ -160,7 +159,6 @@ export function defineVocabulary<
     ClientMessage: unionOf([HelloMessage, CommandMessage, ...(has(ephemerals) ? [EphemeralMessage] : []), ...(has(signals) ? [SignalMessage] : [])]) as never,
     ServerMessage: unionOf([
       ProtocolErrorMessage,
-      AccessDeniedMessage,
       WelcomeMessage,
       EventMessage,
       ResultMessage,

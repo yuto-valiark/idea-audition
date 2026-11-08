@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { CAMP_CLOSE, CAMP_VERSION } from '../src/core/index.ts';
 import { CampClient, type WebSocketLike } from '../src/client/index.ts';
-import { createCampServer } from '../src/server/index.ts';
+import { createCampServer, isRoomId } from '../src/server/index.ts';
 import { pollRoom, type Summarize } from '../examples/quick-vote/room.ts';
 import { quickVote } from '../examples/quick-vote/vocabulary.ts';
 
@@ -177,5 +177,36 @@ describe('@camp-protocol/kit × Quick Vote', () => {
     await until(() => !!own.rooms.get('closing'));
     await own.close();
     await until(() => !own.rooms.get('closing'));
+  });
+
+  it('autoCreateRooms: false なら、作った部屋のリンクでだけ入れる。知らない部屋は ROOM_NOT_FOUND で再接続しない', async () => {
+    const own = createCampServer(quickVote, { port: 0, room: pollRoom(summarize), autoCreateRooms: false });
+    const ownUrl = `ws://127.0.0.1:${await own.port}/camp`;
+    const id = own.createRoom();
+    expect(isRoomId(id)).toBe(true);
+
+    const states: string[] = [];
+    let notFound = 0;
+    const lost = new CampClient(quickVote, {
+      url: ownUrl,
+      room: 'abc-defg-hij',
+      createSocket: (u) => new WebSocket(u) as unknown as WebSocketLike,
+      maxBackoffMs: 20,
+    })
+      .on({ onState: (s) => states.push(s), onRoomNotFound: () => notFound++ })
+      .connect();
+    await until(() => states.includes('closed'));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(notFound).toBe(1);
+    expect(states.filter((s) => s === 'reconnecting')).toEqual([]);
+    lost.close();
+
+    let joined = false;
+    const ok = new CampClient(quickVote, { url: ownUrl, room: id, createSocket: (u) => new WebSocket(u) as unknown as WebSocketLike })
+      .on({ onWelcome: () => (joined = true) })
+      .connect();
+    await until(() => joined);
+    ok.close();
+    await own.close();
   });
 });

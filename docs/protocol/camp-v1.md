@@ -41,25 +41,24 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 
 | kind | 向き | 返事 | 順序 | 保存 | 実装 |
 |---|---|---|---|---|---|
-| `hello` | C → S | `welcome` / `access_denied` / `protocol_error` | 接続ごとに最初の1回 | しない | 済み |
+| `hello` | C → S | `welcome` / `protocol_error` | 接続ごとに最初の1回 | しない | 済み |
 | `welcome` | S → C | — | 接続ごとに1回 | しない | 済み |
 | `command` | C → S | 必ず `result` | 受け付けた順に直列処理 | 結果の Event を保存 | 済み |
 | `result` | S → 送った本人 | — | — | しない | 済み |
 | `event` | S → 全員 | — | `seq` の昇順 | `events/{seq}` に追記 | 済み |
 | `ephemeral` | C → S → 他の人 | なし | 最新の値だけ意味がある | しない | 済み |
 | `signal` | C → S | なし | 間引いてよい | しない（まとめた結果だけ Event で保存） | 済み |
-| `access_denied` | S → C | — | — | しない | 済み |
 | `protocol_error` | S → C | — | — | しない | 済み |
 
 ### 3.1 hello
 
 ```json
-{ "camp": "1", "kind": "hello", "sessionId": "main", "participantId": "j_…", "lastSeq": 128, "accessCode": "…" }
+{ "camp": "1", "kind": "hello", "sessionId": "main", "participantId": "j_…", "lastSeq": 128 }
 ```
 
 - `participantId`：前回もらった ID。あれば同じ審査員として戻る。
 - `lastSeq`：最後に反映した Event の `seq`。
-- `accessCode`：サーバーに合言葉が設定されているときだけ必要。
+- `sessionId`：部屋の ID。IDEA AUDITION ではホストが `POST /api/rooms` で作った部屋だけがあり、URL `/a/<部屋 ID>` を開いた人が入る（Google Meet と同じ）。ない部屋は `protocol_error{ROOM_NOT_FOUND}` を返して 4404 で閉じる。
 
 ### 3.2 welcome
 
@@ -122,10 +121,9 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 - 状態が変わったときは、まとめて `TASTE_UPDATED` や `CANDIDATE_REACTED` の Event で全員に知らせます。
 - 音声そのものは送りません。数値の特徴だけです。
 
-### 3.8 access_denied / protocol_error
+### 3.8 protocol_error
 
 ```json
-{ "camp": "1", "kind": "access_denied", "reason": "required | invalid" }
 { "camp": "1", "kind": "protocol_error", "code": "UNSUPPORTED_VERSION", "detail": "…", "supported": ["1"] }
 ```
 
@@ -271,14 +269,14 @@ Gemini の呼び出しは数百ミリ秒〜数十秒かかり、その間に人�
 | 1000 | 正常 | — | 済み |
 | 1011 | セッションを開けない（復元の失敗など） | 再接続する | 済み |
 | 4400 | バージョン違い | 再接続しない。更新を促す | 済み |
-| 4401 | 合言葉が無い・違う | 合言葉の入力に戻る | 済み |
+| 4404 | 部屋がない（リンクが違う・期限切れ） | 「見つかりません」を出す。再接続しない | 済み |
 | 4408 | 一定時間 hello が来ない | 再接続する | 済み |
 | 4429 | 送りすぎ | 間をあけて再接続する | 済み |
 
 ## 12. 安全
 
 - サーバーは送り手の申告（`senderId` など）を信用せず、接続に結び付いた `participantId` で判断します。
-- 合言葉は hello で1回だけ照合します。値はサーバーの環境変数（Secret Manager）にだけあります。
+- 合言葉は廃止しました（2026-11-08）。部屋の ID（26^10 通り）を知っている人だけが入れます。部屋を作る回数は送り手ごとに1時間10回、同時に置ける部屋は20までに制限して、Gemini のクレジットを守ります。
 - 文字列は長さを制限します（発言は400文字、ID は80文字）。
 
 ## 13. 適合テスト

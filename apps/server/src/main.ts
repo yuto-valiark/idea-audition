@@ -10,7 +10,8 @@ import { ResilientGateway } from './infrastructure/resilient-gateway.ts';
 import { nodeScheduler, randomIds, systemClock } from './infrastructure/runtime.ts';
 import { FirestoreSessionStore } from './infrastructure/persistence/firestore-store.ts';
 import { NoopSessionStore } from './infrastructure/persistence/memory-store.ts';
-import { startServer, type ActorRegistry } from './presentation/ws-server.ts';
+import { startServer, type CreateRoom } from './presentation/ws-server.ts';
+import { CreationLimiter, RoomDirectory } from './application/room-directory.ts';
 import { createVoiceServer } from './presentation/voice-server.ts';
 import { GeminiLiveTranscriber } from './infrastructure/gemini/live-transcriber.ts';
 
@@ -99,65 +100,37 @@ const config = {
 const ids = randomIds();
 
 /**
- * セッションはメモリ上のアクターが保持する（ADR-0003、Cloud Run max-instances=1 前提）。
- * 初回アクセス時に保存先から復元する。全員が切断しても一定時間はメモリに残す。
+ * オーディションの部屋。ホストが作るとリンク（/a/<部屋 ID>）ができ、そのリンクを開いた人が入れる（Google Meet と同じ）。
+ * 部屋はメモリ上のアクターが持ち（ADR-0003、Cloud Run max-instances=1 前提）、保存先にあれば再起動後も戻せる。
  */
-const actors = new Map<string, { actor: Promise<SessionActor>; releaseTimer?: NodeJS.Timeout }>();
-const IDLE_RELEASE_MS = 30 * 60_000;
-
-const registry: ActorRegistry = {
-  get(sessionId) {
-    let entry = actors.get(sessionId);
-    if (!entry) {
-      // 同時に来た接続が同じアクターを共有できるよう、Promise ごと保持する
-      const actor = SessionActor.open(sessionId, {
-        ai,
-        aiModes,
-        embedders,
-        store,
-        scheduler: nodeScheduler,
-        clock: systemClock,
-        ids,
-        config,
-        log,
-      });
-      entry = { actor };
-      actors.set(sessionId, entry);
-      log(`session opened: ${sessionId} (ai=${ai.name}, store=${store.name})`);
-      actor.catch(() => actors.delete(sessionId));
-    }
-    if (entry.releaseTimer) clearTimeout(entry.releaseTimer);
-    entry.releaseTimer = undefined;
-    return entry.actor;
-  },
-  release(sessionId) {
-    const entry = actors.get(sessionId);
-    if (!entry) return;
-    entry.releaseTimer = setTimeout(() => {
-      void entry.actor.then((a) => a.dispose());
-      actors.delete(sessionId);
-      log(`session released: ${sessionId}`);
-    }, IDLE_RELEASE_MS);
-  },
+const deps = { ai, aiModes, embedders, store, scheduler: nodeScheduler, clock: systemClock, ids, config, log };
+const rooms = new RoomDirectory({
+  open: (roomId, mode) => (mode === 'create' ? SessionActor.create(roomId, deps) : SessionActor.openExisting(roomId, deps)),
+  idleReleaseMs: 30 * 60_000,
+  maxLiveRooms: Number(env('MAX_LIVE_ROOMS', '20')),
+  log,
+});
+// 公開の URL から誰でも部屋を作れるので、作る回数に上限をかけて Gemini のクレジットを守る
+const limiter = new CreationLimiter(Number(env('ROOMS_PER_HOUR', '10')));
+const createRoom: CreateRoom = async (clientKey) => {
+  if (!limiter.allow(clientKey)) return { ok: false, status: 429, reason: 'TOO_MANY_REQUESTS' };
+  const r = await rooms.create();
+  return r.ok ? r : { ok: false, status: 503, reason: r.reason };
 };
 
 // 終了時（Cloud Run の入れ替え・デプロイ）に未保存のイベントを書き出す
 process.on('SIGTERM', async () => {
   log('SIGTERM: saving sessions');
-  await Promise.allSettled([...actors.values()].map((e) => e.actor.then((a) => a.persist())));
+  await rooms.persistAll();
   process.exit(0);
 });
 
 // Cloud Run は PORT を渡す。開発時は CAMP_PORT（旧 HIP_PORT）で固定する（PORT が別用途で設定されていても衝突しない）
-// 公開環境では合言葉を必須にする（Secret Manager から環境変数 ACCESS_CODE として渡す）
-const accessCode = process.env.ACCESS_CODE?.trim() || null;
-log(`access code: ${accessCode ? 'required' : 'not required'}`);
-
 startServer({
   port: Number(process.env.CAMP_PORT ?? process.env.HIP_PORT ?? env('PORT', '8787')),
-  registry,
-  voice: createVoiceServer({ registry, transcriber, accessCode, log }),
-  accessCode,
+  registry: rooms,
+  voice: createVoiceServer({ registry: rooms, transcriber, log }),
+  createRoom,
   staticDir: process.env.STATIC_DIR ?? null,
   log,
 });

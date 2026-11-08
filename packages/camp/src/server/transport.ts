@@ -4,11 +4,10 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { CAMP_CLOSE, CAMP_VERSION, SUPPORTED_CAMP_VERSIONS } from '../core/version.ts';
 import type { HelloMessage, ProtocolErrorCode } from '../core/envelope.ts';
 import type { AnyVocabulary, CommandMessageOf, EphemeralMessageOf, SignalMessageOf } from '../core/vocabulary.ts';
-import { checkAccess } from './access.ts';
 
 /**
  * CAMP の WebSocket 終端（docs/protocol/camp-v1.md §3・§10・§11）。
- * 形の検証・バージョン・合言葉・hello の時間切れ・送りすぎ・生存確認をここで受け持ち、
+ * 形の検証・バージョン・部屋があるか・hello の時間切れ・送りすぎ・生存確認をここで受け持ち、
  * 判定（状態を変えるかどうか）は部屋（RoomEndpoint）に渡す。
  */
 
@@ -28,8 +27,12 @@ export interface RoomEndpoint<V extends AnyVocabulary> {
 }
 
 export interface RoomRegistry<V extends AnyVocabulary> {
-  /** 初回は保存先から復元するなどのため非同期 */
-  get(roomId: string): Promise<RoomEndpoint<V>>;
+  /**
+   * 部屋を返す。初回は保存先から復元するなどのため非同期。
+   * 部屋がなければ null（接続には ROOM_NOT_FOUND を返して 4404 で閉じる）。
+   * 「アプリが作った部屋にだけ入れる」のか「入った人が部屋を作る」のかは、ここで決める。
+   */
+  get(roomId: string): Promise<RoomEndpoint<V> | null>;
   /** 誰も接続していなくなったとき */
   release(roomId: string): void;
 }
@@ -37,8 +40,6 @@ export interface RoomRegistry<V extends AnyVocabulary> {
 export interface TransportOptions<V extends AnyVocabulary> {
   vocabulary: V;
   rooms: RoomRegistry<V>;
-  /** 合言葉（null なら不要） */
-  accessCode?: string | null;
   helloTimeoutMs?: number;
   /** 1接続あたり1秒に受け付ける件数 */
   rateLimitPerSec?: number;
@@ -130,15 +131,14 @@ export function createCampTransport<V extends AnyVocabulary>(opts: TransportOpti
         if (roomReady) return;
         clearTimeout(helloTimer);
         const hello = msg as unknown as HelloMessage;
-        const access = checkAccess(opts.accessCode, hello.accessCode);
-        if (access !== 'ok') {
-          conn.send({ camp: CAMP_VERSION, kind: 'access_denied', reason: access });
-          ws.close(CAMP_CLOSE.ACCESS_DENIED, 'access denied');
-          return;
-        }
         roomId = hello.sessionId;
         roomReady = opts.rooms.get(roomId).then(
           (room) => {
+            if (!room) {
+              protocolError('ROOM_NOT_FOUND', `room ${JSON.stringify(hello.sessionId)} does not exist`);
+              ws.close(CAMP_CLOSE.ROOM_NOT_FOUND, 'room not found');
+              return null;
+            }
             if (closed) return null;
             room.attach(conn, hello);
             return room;

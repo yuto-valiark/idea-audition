@@ -1,7 +1,7 @@
 import { currentFocus } from '../../scene/focus.ts';
 import { create } from 'zustand';
 import { useDisplay } from '../../store/display-store.ts';
-import { readAccessCode, useSession } from '../../store/session-store.ts';
+import { useSession } from '../../store/session-store.ts';
 import { VoiceClient, type VoiceState } from './voice-client.ts';
 
 interface VoiceStore {
@@ -60,7 +60,7 @@ export const useVoice = create<VoiceStore>((set, get) => {
       const { sessionId, judgeId } = useSession.getState();
       if (!judgeId) return;
       c.setTarget(useDisplay.getState().selected);
-      void c.start(sessionId, judgeId, readAccessCode());
+      void c.start(sessionId, judgeId);
     },
   };
 });

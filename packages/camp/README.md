@@ -19,6 +19,7 @@ WebSocket only delivers bytes, one connection at a time. Every realtime app ends
 | Disconnects | The client reconnects with backoff, comes back as the same participant, gets the full state, and resends commands that never got a result |
 | Slow AI results | `room.task()` runs the work. If the room was reset while the AI was thinking, the old result is thrown away |
 | "Was it still the same version?" | Commands can say which version they were looking at (`expected.rev`). The server can turn down stale ones with `STALE_VERSION` |
+| Who may enter | Rooms the app created, joined by link (`randomRoomId()` gives Meet-style IDs). Unknown rooms get `ROOM_NOT_FOUND` |
 | Cursors, "hmm…" | Ephemerals (not stored, latest wins) and Signals (no reply, thinned out per person) |
 | Wrong version, broken messages, flooding | A `protocol_error` with a reason, then a fixed close code |
 
@@ -99,6 +100,21 @@ camp.signal('HMM', {});                       // a soft reaction, no reply
 
 In Node, pass `createSocket: (url) => new WebSocket(url)` using the `ws` package.
 
+### Rooms by link (like a meeting link)
+
+By default a room is created when someone joins it, which is handy for trying things out.
+To let only invited people in, turn that off and hand out links:
+
+```ts
+const server = createCampServer(quickVote, { port: 8790, autoCreateRooms: false, room: { /* … */ } });
+
+const roomId = server.createRoom();            // e.g. "kqd-rmzw-tbe"
+sendInvite(`https://example.com/r/${roomId}`); // whoever opens the link joins
+
+// In the UI, an unknown or expired link ends up here, without reconnect loops
+camp.on({ onRoomNotFound: () => showNotFound() });
+```
+
 ### Bring your own room
 
 If you need storage or your own processing order, implement `RoomEndpoint` (`attach` / `detach` / `receiveCommand` / `receiveEphemeral` / `receiveSignal`) and pass it to `createCampTransport({ vocabulary, rooms })`. IDEA AUDITION's session actor works this way: it saves to Firestore and plans AI generations, while CAMP handles the wire.
@@ -137,6 +153,7 @@ CAMP guarantees, within one room on one server process:
 CAMP leaves to your app:
 
 - Your rules: who may do what, limits, how to merge conflicting intents
+- Who may create rooms, and how often (CAMP gives you hard-to-guess IDs; rate limiting room creation is up to you)
 - Checking `expected.rev` against your own versions (the field is carried for you)
 - Storage. `CampRoom` keeps state in memory; bring your own `RoomEndpoint` to persist
 - Running one room across several server processes. Pin each room to one process (for example with session affinity)

@@ -6,22 +6,35 @@ import { ChampionScreen } from './features/champion/ChampionScreen.tsx';
 import { Footer, Header, Toasts } from './features/collaboration/Chrome.tsx';
 import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx';
 import { DragLayer } from './scene/DragLayer.tsx';
-import { AccessGate } from './features/audition/AccessGate.tsx';
+import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import styles from './App.module.css';
 
-function sessionIdFromUrl() {
-  const raw = new URLSearchParams(location.search).get('s') ?? 'demo';
-  return raw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'demo';
+/** URL の /a/<部屋 ID> から部屋を読む（Google Meet と同じく、リンクを開いた人がその部屋に入る） */
+function roomIdFromUrl() {
+  const m = /^\/a\/([^/]+)\/?$/.exec(location.pathname);
+  // 形が違う ID もサーバーに聞き、「見つかりません」を出す
+  return m ? decodeURIComponent(m[1]!).slice(0, 40) : null;
 }
 
 export function App() {
   const connect = useSession((s) => s.connect);
+  const leaveRoom = useSession((s) => s.leaveRoom);
   const status = useSession((s) => s.snapshot?.status);
   const hasChampion = useSession((s) => !!s.snapshot?.champion);
 
   useEffect(() => {
-    connect(sessionIdFromUrl());
-  }, [connect]);
+    const follow = () => {
+      const roomId = roomIdFromUrl();
+      if (!roomId) {
+        if (location.pathname !== '/') history.replaceState(null, '', '/');
+        if (useSession.getState().room !== 'none') leaveRoom();
+      } else if (roomId !== useSession.getState().sessionId) connect(roomId);
+    };
+    follow();
+    // ブラウザの戻る・進むで部屋とトップを行き来できるように
+    window.addEventListener('popstate', follow);
+    return () => window.removeEventListener('popstate', follow);
+  }, [connect, leaveRoom]);
 
   const screen =
     status === 'audition_active' || status === 'champion_selection'
@@ -46,7 +59,7 @@ export function App() {
       <IdeaBoxModal />
       <DragLayer />
       <Toasts />
-      <AccessGate />
+      <RoomNotFound />
     </main>
   );
 }

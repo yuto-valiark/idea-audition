@@ -87,6 +87,18 @@ camp.signal('HMM', {});                        // 返事のいらない反応
 
 Node で使うときは `createSocket: (url) => new WebSocket(url)`（`ws` パッケージ）を渡します。
 
+### リンクで入る部屋（会議のリンクと同じ）
+
+既定では、入ってきた人がいれば部屋を作ります（試すのに便利）。招待した人だけを入れるなら、それを止めてリンクを配ります。
+
+```ts
+const server = createCampServer(quickVote, { port: 8790, autoCreateRooms: false, room: { /* … */ } });
+const roomId = server.createRoom();            // 例 "kqd-rmzw-tbe"（推測されにくい ID）
+sendInvite(`https://example.com/r/${roomId}`); // リンクを開いた人が入れる
+
+camp.on({ onRoomNotFound: () => showNotFound() }); // 違う・期限切れのリンク。再接続はしない
+```
+
 ### 状態を保存したい・独自の処理順が要るとき
 
 `createCampTransport({ vocabulary, rooms })` に、`RoomEndpoint`（attach / detach / receiveCommand / receiveEphemeral / receiveSignal）を実装した自分の部屋を渡します。たとえば IDEA AUDITION の `SessionActor` はこの形で、Firestore への保存・AI の生成計画・合意台帳を持っています。

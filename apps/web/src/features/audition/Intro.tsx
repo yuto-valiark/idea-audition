@@ -1,7 +1,7 @@
-import { ArrowRight, ChevronRight, Crown, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Copy, Crown, Plus, Sparkles } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
-import { useSession } from '../../store/session-store.ts';
+import { roomUrl, useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import styles from './Intro.module.css';
@@ -11,6 +11,9 @@ const DEMO_THEME = '大学の学食をもっと楽しくする企画';
 export function Intro() {
   const send = useSession((s) => s.send);
   const connection = useSession((s) => s.connection);
+  const room = useSession((s) => s.room);
+  const roomId = useSession((s) => s.sessionId);
+  const createRoom = useSession((s) => s.createRoom);
   const { isSpectator } = useMe();
   const [theme, setTheme] = useState(DEMO_THEME);
   const [mode, setMode] = useState<'team' | 'solo'>('team');
@@ -47,6 +50,7 @@ export function Intro() {
           <br />
           あなたの直感で選び、みんなで磨いて、最高の1案へ。
         </p>
+        {room === 'active' ? (
         <form
           className={styles.setup}
           onSubmit={(e) => {
@@ -54,6 +58,7 @@ export function Intro() {
             void start();
           }}
         >
+          <InviteLink url={roomUrl(roomId)} />
           <label htmlFor="theme">今回のオーディションテーマ</label>
           <div className={styles.themeInput}>
             <input id="theme" value={theme} maxLength={120} onChange={(e) => setTheme(e.target.value)} />
@@ -83,9 +88,25 @@ export function Intro() {
               ? 'サーバーに接続しています…'
               : isSpectator
                 ? '審査員は4人までです。観覧モードで参加しています'
-                : '同じURLを開いた人は、同じステージで一緒に審査できます（最大4人）'}
+                : 'このリンクを開いた人は、同じステージで一緒に審査できます（最大4人）'}
           </small>
         </form>
+        ) : (
+          <div className={styles.setup}>
+            <button
+              className={styles.primary}
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                await createRoom();
+                setBusy(false);
+              }}
+            >
+              <Plus size={18} /> オーディションを作る
+            </button>
+            <small>作ると招待リンクができます。リンクを送った人が、同じステージで一緒に審査できます（最大4人）</small>
+          </div>
+        )}
       </div>
       <div className={styles.stage}>
         <div className={styles.stageTitle}>
@@ -117,5 +138,28 @@ export function Intro() {
         </span>
       </div>
     </section>
+  );
+}
+
+/** 招待リンク。コピーして参加者に送る（Google Meet のリンクと同じ使い方） */
+function InviteLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={styles.invite}>
+      <span className={styles.inviteLabel}>招待リンク</span>
+      <code>{url.replace(/^https?:\/\//, '')}</code>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(url).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1600);
+          });
+        }}
+        aria-label="招待リンクをコピー"
+      >
+        {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'コピーしました' : 'コピー'}
+      </button>
+    </div>
   );
 }

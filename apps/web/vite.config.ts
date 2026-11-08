@@ -8,6 +8,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/camp': { target: 'ws://localhost:8787', ws: true },
+      '/api': { target: 'http://localhost:8787' },
       '/voice': { target: 'ws://localhost:8787', ws: true },
     },
   },

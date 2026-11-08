@@ -13,38 +13,27 @@ import { anchorCenter } from '../shared/anchors.ts';
 
 /** 業務状態：サーバーから届いた snapshot をそのまま持つ（判定はしない） */
 interface SessionState {
+  /** いま入っている部屋の ID（URL の /a/<ID>）。部屋に入っていなければ '' */
   sessionId: string;
   judgeId: string | null;
   snapshot: SessionSnapshot | null;
   connection: ConnectionState;
   client: CampClient | null;
-  /** 合言葉が必要・違うとき（公開環境） */
-  accessDenied: 'required' | 'invalid' | null;
+  /** none：部屋に入っていない（トップ）、active：部屋に入っている、not_found：リンクの部屋が見つからない */
+  room: 'none' | 'active' | 'not_found';
   connect(sessionId: string): void;
-  submitAccessCode(code: string): void;
+  /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
+  createRoom(): Promise<boolean>;
+  /** 部屋を出てトップに戻る */
+  leaveRoom(): void;
   send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts?: SendOptions): Promise<CommandOutcome>;
 }
 
 const storageKey = (sessionId: string) => `idea-audition:judge:${sessionId}`;
-const ACCESS_KEY = 'idea-audition:access-code';
 
-/** 合言葉はこの端末に覚えておく（毎回入れなくてよいように）。読めない環境では毎回聞く */
-export function readAccessCode() {
-  try {
-    return localStorage.getItem(ACCESS_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-function writeAccessCode(code: string | null) {
-  try {
-    if (code) localStorage.setItem(ACCESS_KEY, code);
-    else localStorage.removeItem(ACCESS_KEY);
-  } catch {
-    /* 保存できなくても続行 */
-  }
-}
-let sessionAccessCode: string | undefined;
+/** 部屋のリンク（/a/kqd-rmzw-tbe） */
+export const roomPath = (roomId: string) => `/a/${roomId}`;
+export const roomUrl = (roomId: string) => `${location.origin}${roomPath(roomId)}`;
 
 function readJudgeId(sessionId: string) {
   try {
@@ -63,25 +52,22 @@ function writeJudgeId(sessionId: string, judgeId: string) {
 }
 
 export const useSession = create<SessionState>((set, get) => ({
-  sessionId: 'demo',
+  sessionId: '',
   judgeId: null,
   snapshot: null,
   connection: 'connecting',
   client: null,
-  accessDenied: null,
+  room: 'none',
 
   connect(sessionId) {
     get().client?.close();
     const client = new CampClient(
       sessionId,
       {
-        onAccessDenied: (reason) => {
-          if (reason === 'invalid') writeAccessCode(null);
-          set({ accessDenied: reason });
-        },
+        onRoomNotFound: () => set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
         onWelcome: (m) => {
           if (m.participantId) writeJudgeId(sessionId, m.participantId);
-          set({ judgeId: m.participantId, snapshot: m.snapshot, accessDenied: null });
+          set({ judgeId: m.participantId, snapshot: m.snapshot, room: 'active' });
         },
         onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
         onEphemeral: handleEphemeral,
@@ -93,17 +79,34 @@ export const useSession = create<SessionState>((set, get) => ({
         },
       },
       readJudgeId(sessionId),
-      sessionAccessCode ?? readAccessCode(),
     );
-    set({ sessionId, client });
+    set({ sessionId, client, room: 'active', connection: 'connecting', snapshot: null, judgeId: null });
     client.connect();
   },
 
-  submitAccessCode(code) {
-    sessionAccessCode = code.trim();
-    writeAccessCode(sessionAccessCode);
-    set({ accessDenied: null, connection: 'connecting' });
-    get().connect(get().sessionId);
+  async createRoom() {
+    try {
+      const res = await fetch('/api/rooms', { method: 'POST' });
+      if (!res.ok) {
+        useDisplay
+          .getState()
+          .toast(res.status === 429 ? '作れる回数の上限です。しばらくしてからお試しください' : 'いまは新しく作れません。少し待ってからお試しください', 'warn');
+        return false;
+      }
+      const { roomId } = (await res.json()) as { roomId: string };
+      history.pushState(null, '', roomPath(roomId));
+      get().connect(roomId);
+      return true;
+    } catch {
+      useDisplay.getState().toast('サーバーにつながりません。通信を確かめてください', 'warn');
+      return false;
+    }
+  },
+
+  leaveRoom() {
+    get().client?.close();
+    if (location.pathname !== '/') history.pushState(null, '', '/');
+    set({ sessionId: '', client: null, snapshot: null, judgeId: null, room: 'none', connection: 'connecting' });
   },
 
   async send(type, payload, opts) {

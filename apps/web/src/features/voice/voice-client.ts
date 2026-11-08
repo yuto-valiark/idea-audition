@@ -33,7 +33,7 @@ export class VoiceClient {
 
   constructor(private readonly handlers: Handlers) {}
 
-  async start(sessionId: string, judgeId: string, accessCode?: string) {
+  async start(sessionId: string, judgeId: string) {
     if (this.active) return;
     this.active = true;
     this.handlers.onState('starting');
@@ -52,7 +52,7 @@ export class VoiceClient {
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onopen = () => {
-      ws.send(JSON.stringify({ kind: 'voice_hello', sessionId, judgeId, accessCode }));
+      ws.send(JSON.stringify({ kind: 'voice_hello', sessionId, judgeId }));
       ws.send(JSON.stringify({ kind: 'voice_target', instanceId: this.target }));
     };
     ws.onmessage = (e) => {

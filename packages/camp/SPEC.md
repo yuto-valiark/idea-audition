@@ -19,7 +19,7 @@ The **vocabulary** (command types and payloads, event types, reject reasons, sta
 
 | Term | Meaning |
 |---|---|
-| Room | One shared session. Identified by `sessionId` in `hello` |
+| Room | One shared session. Identified by `sessionId` in `hello`. The application decides which rooms exist (§3.1) |
 | Participant | A person (or agent) who may send commands. Gets a `participantId` from the server |
 | Spectator | A connection without a participant seat. Receives everything, may not send commands |
 | Host | One participant the server marks as host (the earliest connected participant by default). Apps MAY use it in their rules |
@@ -39,19 +39,21 @@ Every message has `camp: "1"` and a `kind`.
 | `event` | server → everyone in the room | — | Something changed. Carries `seq` and the full snapshot |
 | `ephemeral` | both | — | Short-lived sharing (cursors, mic on). Not stored, latest wins |
 | `signal` | client → server | — | A soft reaction ("hmm", hesitation). No reply, MAY be dropped |
-| `access_denied` | server → client | — | Missing or wrong access code. The connection then closes |
 | `protocol_error` | server → client | — | The message could not be handled. Says why |
 
 ### 3.1 hello
 
 ```json
-{ "camp": "1", "kind": "hello", "sessionId": "class-3b", "participantId": "p_2", "lastSeq": 41, "accessCode": "…" }
+{ "camp": "1", "kind": "hello", "sessionId": "kqd-rmzw-tbe", "participantId": "p_2", "lastSeq": 41 }
 ```
 
 - `sessionId` (required): the room.
 - `participantId` (optional): the ID from an earlier `welcome`. If the server still knows it, the client comes back as the same participant.
 - `lastSeq` (optional): the last `seq` the client applied. Informational in v1, since `welcome` always carries the full snapshot.
-- `accessCode` (optional): required only when the server is configured with one.
+
+If the room does not exist, the server answers `protocol_error{ROOM_NOT_FOUND}` and closes with 4404.
+Whether joining creates a room or only rooms the application created can be joined is the application's choice.
+A common pattern is the meeting link: the host creates a room, the server returns a hard-to-guess ID (the reference implementation's `randomRoomId()` gives IDs like `kqd-rmzw-tbe`), and whoever opens the link joins.
 
 The server MUST close the connection with 4408 if no valid `hello` arrives within its hello timeout (10 s in the reference implementation).
 Messages sent before `hello` get `protocol_error{NOT_JOINED}`; a command also gets `result{ok:false, reason:"NOT_AUTHORIZED"}`.
@@ -123,10 +125,9 @@ Signals carry vague, frequent reactions that should influence the room without b
 They get no reply. The server MAY drop them; the reference room accepts 2 per participant per second.
 If a signal changes the room, the server reports that with a normal `event`.
 
-### 3.8 access_denied and protocol_error
+### 3.8 protocol_error
 
 ```json
-{ "camp": "1", "kind": "access_denied", "reason": "invalid" }
 { "camp": "1", "kind": "protocol_error", "code": "MALFORMED", "detail": "not JSON", "supported": ["1"] }
 ```
 
@@ -137,6 +138,7 @@ If a signal changes the room, the server reports that with a normal `event`.
 | `UNKNOWN_TYPE` | Unknown `kind` | Connection stays open |
 | `NOT_JOINED` | Anything but `hello` before joining | Connection stays open |
 | `RATE_LIMITED` | Too many messages (120 per second per connection in the reference implementation) | Close with 4429 |
+| `ROOM_NOT_FOUND` | The room in `hello` does not exist | Close with 4404 |
 
 The server MUST NOT silently drop malformed messages; it tells the sender what was wrong.
 
@@ -189,7 +191,7 @@ CAMP carries the field; the app decides what a version is.
 4. `welcome` carries the full snapshot. The client replaces its state.
 5. The client resends every command still waiting for a result, with the **same** `commandId`. Duplicates are answered from §5.2, so nothing runs twice.
 
-The client MUST NOT reconnect after close codes 4400 or 4401, or after `access_denied`.
+The client MUST NOT reconnect after close codes 4400 or 4404.
 
 The server SHOULD send WebSocket pings (every 25 s in the reference implementation) and drop connections that do not answer.
 
@@ -232,7 +234,7 @@ Implementations in other languages SHOULD accept the same information, for examp
 | Code | Meaning | Client reconnects? |
 |---|---|---|
 | 4400 | Unsupported version | No |
-| 4401 | Access denied | No |
+| 4404 | Room not found | No |
 | 4408 | No `hello` in time | Yes |
 | 4429 | Rate limited | Yes, after backoff |
 | 1011 | The server could not open the room | Yes |
@@ -240,9 +242,9 @@ Implementations in other languages SHOULD accept the same information, for examp
 ## 12. Security
 
 - The server MUST derive the actor from the connection, never from fields the client sends (`senderId` and similar are overwritten).
-- Access codes SHOULD be compared in constant time.
+- Room IDs that work as invitations SHOULD be hard to guess, and servers SHOULD limit how fast rooms can be created.
 - Servers SHOULD cap the frame size (64 KiB in the reference implementation) and the message rate.
-- CAMP does not define user authentication. Put it in front of the WebSocket upgrade or in the access code.
+- CAMP does not define user authentication. Put it in front of the WebSocket upgrade, or decide in the room registry who may enter which room.
 
 ## 13. Conformance
 
@@ -256,3 +258,4 @@ An implementation conforms to CAMP v1 if it passes these behaviors, all covered 
 6. Connections beyond the participant limit become spectators and get `SPECTATOR` for commands
 7. Signals beyond the per-person rate are dropped
 8. Unknown command types get `UNKNOWN_TYPE`; an unsupported version is closed with 4400
+9. When rooms are created by the application, joining an unknown room gets `ROOM_NOT_FOUND` and the client does not reconnect
