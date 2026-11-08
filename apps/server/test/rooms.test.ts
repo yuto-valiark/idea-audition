@@ -104,7 +104,7 @@ describe('オーディションの部屋（リンクで入る）', () => {
     expect((await hello(second.port, roomId)).kind).toBe('welcome');
   });
 
-  it('知らないパスへの接続は HTTP 404 で断り、改名前の /hip は版違い（4400）で閉じる（どちらもサーバーを落とさない）', async () => {
+  it('知らないパスへの接続は HTTP 404、改名前の /hip は 410 で断る（どちらもサーバーを落とさない）', async () => {
     const { port } = await boot();
     const status = await new Promise<number>((resolve) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/nope`);
@@ -112,12 +112,12 @@ describe('オーディションの部屋（リンクで入る）', () => {
       ws.on('error', () => {});
     });
     expect(status).toBe(404);
-    const code = await new Promise<number>((resolve) => {
+    const gone = await new Promise<number>((resolve) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/hip`);
-      ws.on('close', (c) => resolve(c));
+      ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
       ws.on('error', () => {});
     });
-    expect(code).toBe(CAMP_CLOSE.UNSUPPORTED_VERSION);
+    expect(gone).toBe(410);
     // そのあとも普通に部屋を作れる
     expect((await create(port)).status).toBe(201);
   });
