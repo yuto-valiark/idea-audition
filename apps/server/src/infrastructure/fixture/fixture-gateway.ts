@@ -133,6 +133,9 @@ export class FixtureGateway implements IdeaGenerationPort {
       summary: `${first}\n${v.line}`,
       icon: '◎',
       profile,
+      keepStrengths: [first.slice(0, 20)],
+      improvementPoints: [v.line.replace(/。$/, '')],
+      changeNote: `${v.suffix}にして迷いを減らした`,
     };
   }
 

@@ -111,13 +111,15 @@ export class StubAi implements IdeaGenerationPort {
     this.nextConsensusOps = [];
     return ops;
   }
+  answerCalls: string[] = [];
   async answer(input: { question: string }) {
+    this.answerCalls.push(input.question);
     return `回答:${input.question}`;
   }
   varyCalls: VaryInput[] = [];
   async varyIdea(input: VaryInput) {
     this.varyCalls.push(input);
-    return { title: `${input.idea.title}別案`, summary: '別案\n中身', icon: '◎', profile: input.idea.profile ?? undefined };
+    return { title: `${input.idea.title}別案`, summary: '別案\n中身', icon: '◎', profile: input.idea.profile ?? undefined, keepStrengths: ['良さ'], improvementPoints: ['小さく試す'], changeNote: '小さく始める形に' };
   }
 }
 

@@ -61,8 +61,9 @@ export interface RotationConfig {
 export const DEFAULT_ROTATION: RotationConfig = {
   checkMs: 1_000,
   warningMs: 10_000,
-  minGapMs: 6_000,
-  maxConcurrentLeaving: 2,
+  // 入れ替えは18秒に1案まで、同時に予告するのは1案だけ（プレイテストで6秒に1案は速すぎ、読む前に消えた）
+  minGapMs: 18_000,
+  maxConcurrentLeaving: 1,
   policy: DEFAULT_ROTATION_POLICY,
 };
 
@@ -96,6 +97,8 @@ type RefineTrigger =
   | { kind: 'instruction'; instanceId: string; text: string };
 
 const QUESTION_PATTERN = /[?？]\s*$|どう|なぜ|なに|何|どれ|いくら|ですか|ますか|できる/;
+/** 改良の頼み（「足して」「下げて」「〜にして」など）。質問と一緒に言われても改良する */
+const REQUEST_PATTERN = /(足して|加えて|入れて|変えて|下げて|上げて|増やして|減らして|絞って|広げて|にして|して(?:ほしい|欲しい|みて|ください|下さい)?[。、！!]|してほしい|して欲しい|したい|ほしい|欲しい|お願い)/;
 /** 見送りの言い方。名前を呼んだ下段の案にだけ使う（「少ないな」などで誤作動しないよう、はっきりした語に限る） */
 const REJECT_PATTERN =
   /却下|ボツ|[はも]パス|パスで|パス[。！!]*\s*$|いらない|要らない|交代|退場|見送|次の人|[はも](ナシ|なし)|ないわ|ないな[ぁあ。！!]*\s*$/;
@@ -388,7 +391,7 @@ export class SessionActor {
       })
       .then((draft) => {
         if (epoch !== this.epoch) return;
-        const r = s.reviseLower(instanceId, base.revisionId, draft, `${HESITATION_REVISION_REASON}「${concern.slice(0, 20)}」`);
+        const r = s.reviseLower(instanceId, base.revisionId, draft, `${HESITATION_REVISION_REASON}：${draft.changeNote || 'ピンと来なかった点を変えた'}`);
         if (!r.ok) return; // その間に退場・昇格した
         this.emit([...r.events, ...s.touch(instanceId, 'detail')], { actorJudgeId: null });
         this.embedTexts([draft]);
@@ -500,8 +503,14 @@ export class SessionActor {
         this.onConsensusChanged(result.statusChanges.length > 0);
         return { ok: true };
       }
-      case 'ASK_CANDIDATE':
+      case 'ASK_CANDIDATE': {
+        // 詳細画面の質問欄でも「うーん、微妙かも」は迷いとして受け止め、別案を出す（質問として答えはしない）
+        if (detectCue(cmd.payload.text) === 'hesitation' && s.characters.get(cmd.payload.instanceId)?.location === 'lower') {
+          this.reactToHesitation(judgeId, cmd.payload.instanceId, cmd.payload.text);
+          return { ok: true };
+        }
         return this.ask(judgeId, cmd.payload.instanceId, cmd.payload.text, meta);
+      }
       case 'REQUEST_REFINEMENT': {
         if (s.status !== 'audition_active') return { ok: false, reason: 'SESSION_NOT_ACTIVE' };
         if (!s.finalist(cmd.payload.instanceId)) return { ok: false, reason: 'NOT_IN_UPPER' };
@@ -581,7 +590,11 @@ export class SessionActor {
     const cueTarget = targetInstanceId ?? this.focusedTarget(judgeId);
     if (cue === 'positive' && cueTarget) this.tasteSignal(judgeId, cueTarget, 'positive');
     const isQuestion = QUESTION_PATTERN.test(text);
-    const willRefine = !!targetInstanceId && !isQuestion && !!s.finalist(targetInstanceId) && s.status === 'audition_active';
+    const isRequest = REQUEST_PATTERN.test(text);
+    // 決勝の案への頼みは改良する。「〜を足して。収益は？」のように質問と一緒でも、頼みがあれば改良し、質問にも答える
+    const willRefine =
+      !!targetInstanceId && (isRequest || !isQuestion) && !!s.finalist(targetInstanceId) && s.status === 'audition_active';
+    const alsoAnswer = willRefine && isQuestion;
     // 「ルナは却下」「MOMOはパス」：名前を呼んだ下段の案を見送る
     const willReject =
       !!targetInstanceId &&
@@ -636,6 +649,7 @@ export class SessionActor {
     }
     if (willRefine) {
       this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text });
+      if (alsoAnswer) return this.ask(judgeId, targetInstanceId, text, meta);
       return { ok: true };
     }
     const target = s.characters.get(targetInstanceId);

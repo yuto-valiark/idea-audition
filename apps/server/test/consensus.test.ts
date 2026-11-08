@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CAMP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
 import { applyOps, emptyLedger, quorum, type Ledger } from '../src/domain/consensus.ts';
 import { SessionActor } from '../src/application/session-actor.ts';
+import { buildConsensusUpdateInput } from '../src/application/consensus-context.ts';
 import { AuditionSession } from '../src/domain/session.ts';
 import { GeminiGateway, renderContext } from '../src/infrastructure/gemini/gemini-gateway.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
@@ -178,6 +179,9 @@ describe('Gemini：台帳の差分と文脈', () => {
               { op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', label: '', byLabel: '', seq: 12 },
               { op: 'set_stance', text: '', judge: '審査員 Z', stance: 'oppose', label: 'C1', byLabel: '', seq: 0 },
               { op: 'set_stance', text: '', judge: '審査員 B', stance: 'oppose', label: 'C1', byLabel: '', seq: 13 },
+              // 誰も言っていない論点（発言の番号が無い・行動もしていない）は捨てる
+              { op: 'add_claim', text: '起業は避ける', judge: '審査員 B', stance: 'oppose', label: '', byLabel: '', seq: 0 },
+              { op: 'add_claim', text: '会員制で収益', judge: '', stance: 'support', label: '', byLabel: '', seq: 12 },
             ],
           }),
         }),
@@ -190,7 +194,11 @@ describe('Gemini：台帳の差分と文脈', () => {
     const ops = await g.updateConsensus({
       theme: 't', nextClaimNumber: 2, judges: ['審査員 A', '審査員 B'],
       claims: [{ label: 'C1', text: '夜営業', status: 'proposed', stances: [] }],
-      utterances: [], decisions: [],
+      utterances: [
+        { seq: 12, judge: '審査員 A', text: 'コストは低くしたい', target: null, replyToClaim: null },
+        { seq: 13, judge: '審査員 B', text: '夜営業は微妙', target: null, replyToClaim: null },
+      ],
+      decisions: [],
     });
     expect(ops).toEqual([
       { op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', seq: 12 },
@@ -204,5 +212,17 @@ describe('Gemini：台帳の差分と文脈', () => {
     const b = renderContext('学食', { ...ctx, recentRemarks: [{ judge: 'B', text: 'y' }] });
     expect(a).toBe(b); // 直近の発言は L1 に含めない
     expect(a).toContain('合意台帳 v3');
+  });
+
+  it('台帳の材料には人の行動だけを渡す（下段の自動の入れ替えは、誰の判断でもないので渡さない）', () => {
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const j = s.join(undefined);
+    if (!j.ok) throw new Error('join failed');
+    s.decisions.push(
+      { kind: 'timed_out', instanceId: 'ch_1', title: '自動で退場した案', judgeId: null, at: 10 },
+      { kind: 'rejected', instanceId: 'ch_2', title: '見送った案', judgeId: j.value.judgeId, at: 11 },
+    );
+    const input = buildConsensusUpdateInput(s, 0, new Map());
+    expect(input.decisions.map((d) => d.title)).toEqual(['見送った案']);
   });
 });

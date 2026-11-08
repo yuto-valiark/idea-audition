@@ -53,6 +53,7 @@ const SYSTEM = `あなたは企画決めツール「IDEA AUDITION」の裏方で
 AIキャラクターが人間の審査員の前で企画をプレゼンし、選ばれると互いに批評しながら企画を磨きます。
 審査員の会話から決まったこと（合意）と、まだ揉めていること（提案中）は「審査の文脈」として渡されます。
 - 合意している論点には反しない。提案中の論点は参考にしてよいが、決まったことにはしない
+- 「反しない」は「すべての案をその方向に寄せる」という意味ではない。案を出すときは、合意や選ばれた案とは別の切り口も必ず残す
 - 却下された論点・見送られた案の方向は繰り返さない
 - 日本語で、親しみやすく短く書く。実在の企業名・人名・商標は使わない
 - 指定された文字数を必ず守る（画面のフリップに収めるため）
@@ -87,6 +88,9 @@ const VarySchema = z.object({
   reading: z.string(),
   summary: z.string().min(1),
   icon: z.enum(ICONS),
+  keepStrength: z.string(),
+  improvement: z.string(),
+  changeNote: z.string(),
   profile: ProfileSchema,
 });
 
@@ -267,6 +271,8 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
     const count = slots.length || input.count;
     const hasDirection = !!ctx && ctx.agreed.length + ctx.proposed.length > 0;
     const follow = hasDirection ? Math.ceil(count / 2) : 0;
+    // 好み・折衷の枠だけが合意や選ばれた案を伸ばしてよい。探る枠・ワイルドカードの枠はそこから離れる（同じ方向ばかりにならないように）
+    const awayFrom = [...(ctx?.favoredIdeas ?? []), ...(ctx?.agreed ?? []).map((c) => c.text)].slice(0, 6);
     const prompt = `${renderContext(input.theme, ctx)}
 ${renderRemarks(ctx)}${renderTaste(input.taste)}
 # 今回の依頼
@@ -279,8 +285,10 @@ ${slots.map((sl, i) => `  枠${i + 1}：方向＝${sl.direction}／発想の型�
 }
 ${
   follow > 0
-    ? `- 合意・提案中の論点を伸ばせる案は、inspiredBy に受けた論点のラベル（例 C1）、note に何を受けたか（20文字以内）を入れる
-- まだ話題に出ていない切り口の案は、inspiredBy は空、note は空文字`
+    ? `- 合意・提案中の論点を伸ばしてよいのは、方向が「〜が好む方向」「両立・折衷」の枠だけ。その案は inspiredBy に受けた論点のラベル（例 C1）、note に何を受けたか（20文字以内）を入れる
+- それ以外の枠（「逆の方向」「まだ出ていない方向」「意外で大胆な案」）は、inspiredBy は空、note は空文字${
+        awayFrom.length ? `。次の案・論点と同じ対象・同じ手段は使わず、テーマの別の側面から考える：${awayFrom.join('／')}` : ''
+      }`
     : '- まだ合意が無いので、inspiredBy は空、note は空文字'
 }
 - title：企画名。12文字以内
@@ -316,14 +324,22 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
 - reading：企画名の読みを全角カタカナで
 - summary：20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は何を変えたか
 - icon：${ICONS.join(' ')} から1つ
+- keepStrength：元の案から残した一番の良さ。20文字以内
+- improvement：今回変えた点。20文字以内
+- changeNote：審査員に向けた、変えた理由のひとこと。20文字以内（例「大がかりすぎたので小さく始める形に」）。審査員の発言をそのまま引用しない
 - profile：新しい案を8つの軸で -1〜+1 で採点する。${AXIS_GUIDE}`;
     const out = await this.call('varyIdea', this.config.fast, prompt, VarySchema);
+    const keep = clean(out.keepStrength, 28);
+    const improve = clean(out.improvement, 28);
     return {
       title: clean(out.title, 16),
       summary: cleanSummary(out.summary),
       icon: out.icon,
       profile: toProfile(out.profile),
       reading: toReading(out.reading),
+      ...(keep ? { keepStrengths: [keep] } : {}),
+      ...(improve ? { improvementPoints: [improve] } : {}),
+      ...(clean(out.changeNote, 28) ? { changeNote: clean(out.changeNote, 28) } : {}),
     };
   }
 
@@ -440,16 +456,23 @@ ${input.decisions.map((d) => `- ${d.judge ?? '自動'}：${DECISION_LABEL[d.kind
 - add_claim：新しい方針・条件（例「実現コストは低く」「留学生も対象に」）。text は30文字以内の言い切り。言い出した人を judge、その人の賛否を stance に
 - set_stance：既存の論点への賛成・反対（「いいね」「それは微妙」など、前の発言・論点への反応も含む）。label と judge と stance を入れる
 - supersede：新しい論点が古い論点を置き換える場合（方針が変わった）。label に古い方、byLabel に新しい方（同じ回で add_claim した論点は C${nextLabelNumber(input)} から順に番号が振られる）
-- 行動も手がかりにする：見送りが続く方向は反対、選ばれた案に共通する方向は賛成とみなしてよい（judge はその行動をした人）
-- 単なる質問・雑談・個別の企画への感想だけなら何も出さない（ops は空配列）
+- 根拠は審査員（人間）の発言と行動だけ。AI キャラの答えや企画の中身、自分の推測から論点を作らない
+- add_claim の text は、審査員が実際に言った内容の言い換えにとどめる。seq にその発言の番号を入れる（行動から作る場合は 0）
+- 行動から論点を作ってよいのは、同じ審査員が同じ方向の案を2回以上選んだときだけ（judge はその人、stance は support）
+- 反対（oppose）は、審査員がはっきり否定した（「それは微妙」「やめよう」など）か、案を見送った（不合格にした）ときだけ。選ばれなかった案があるだけでは反対にしない
+- 単なる質問・雑談・個別の企画への感想や改良の頼みだけなら何も出さない（ops は空配列）
 - 使わない項目は空文字、stance が無ければ none、seq が無ければ 0`;
     const out = await this.call('updateConsensus', this.config.fast, prompt, ConsensusSchema);
     const drafts: ConsensusOpDraft[] = [];
     const judges = new Set(input.judges);
+    const spoke = new Set(input.utterances.map((u) => u.seq));
+    const acted = new Set(input.decisions.map((d) => d.judge).filter((j): j is string => !!j));
     for (const o of out.ops) {
-      const seq = o.seq > 0 ? o.seq : null;
+      const seq = o.seq > 0 && spoke.has(o.seq) ? o.seq : null;
       const judge = judges.has(o.judge.trim()) ? o.judge.trim() : null;
       if (o.op === 'add_claim' && o.text.trim()) {
+        // 人の発言か行動に結び付かない論点は捨てる（AI の推測で合意・却下が増えないように）
+        if (!judge || (seq === null && !acted.has(judge))) continue;
         drafts.push({ op: 'add_claim', text: clean(o.text, 40), judge, stance: o.stance === 'none' ? null : o.stance, seq });
       } else if (o.op === 'set_stance' && judge && o.stance !== 'none' && o.label.trim()) {
         drafts.push({ op: 'set_stance', label: o.label.trim(), judge, stance: o.stance, seq });

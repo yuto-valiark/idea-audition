@@ -114,4 +114,30 @@ describe('SessionActor', () => {
     expect(snap.answers.at(-1)).toMatchObject({ question: '費用は？', answer: '回答:費用は？' });
     expect(snap.ideas[snap.characters[target]!.ideaId]!.revisions).toHaveLength(1);
   });
+
+  it('決勝の案に「〜を足して。〜は？」と言うと、改良もし、質問にも答える（プレイテスト P0-4）', async () => {
+    const { actor, ai, a, advance } = await setup();
+    const target = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: target }));
+    await advance(3000);
+    const before = ai.refineCalls.length;
+    const name = actor.session.characters.get(target)!;
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: '毎週通いたくなる仕掛けを足して。収益はどうやって出す？', source: 'text', targetInstanceId: target }));
+    await advance(3000);
+    expect(ai.refineCalls.length).toBeGreaterThan(before);
+    expect(ai.answerCalls.at(-1)).toContain('収益はどうやって出す？');
+    expect(name.location).toBe('upper');
+  });
+
+  it('決勝の案への質問だけなら、答えるだけで改良しない', async () => {
+    const { actor, ai, a, advance } = await setup();
+    const target = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: target }));
+    await advance(3000);
+    const before = ai.refineCalls.length;
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: '収益はどうやって出すの？', source: 'text', targetInstanceId: target }));
+    await advance(3000);
+    expect(ai.refineCalls.length).toBe(before);
+    expect(ai.answerCalls.at(-1)).toBe('収益はどうやって出すの？');
+  });
 });

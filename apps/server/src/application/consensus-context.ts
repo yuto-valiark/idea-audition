@@ -78,8 +78,9 @@ export function buildConsensusUpdateInput(
       target: titleOf(u.targetInstanceId),
       replyToClaim: replyTo.get(u.seq) ?? null,
     })),
+    // 人の行動だけを渡す。下段の自動の入れ替え（timed_out）や AI の処理は、誰の判断でもないので根拠にしない
     decisions: s.decisions
-      .filter((d) => d.at > decisionsSince)
+      .filter((d) => d.at > decisionsSince && d.judgeId !== null && d.kind !== 'timed_out')
       .map((d) => ({ kind: d.kind, title: d.title, judge: d.judgeId ? (toLabel.get(d.judgeId) ?? null) : null })),
   };
 }

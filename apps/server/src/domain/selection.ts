@@ -24,6 +24,8 @@ export interface SelectionContext {
   centroids: (Vec | null)[];
   /** 舞台にいる・最近出た案（似すぎ防止） */
   shown: { profile: Vec; embedding: Vec | null }[];
+  /** 決勝の案。探る枠・ワイルドカードでは、これに近い候補を強く減点する（同じ方向ばかりにしない） */
+  finalists?: { profile: Vec; embedding: Vec | null }[];
   /** MMR の重み */
   mu: number;
   /** 抽選の温度（小さいほど1位に寄る） */
@@ -47,6 +49,15 @@ export function novelty(c: Candidate, shown: SelectionContext['shown']): number 
   return 1 - Math.max(...shown.map((s) => similarity(c, s)));
 }
 
+/** 探る枠・ワイルドカードで、決勝の案への近さを減点する重み */
+const FINALIST_AWAY = 0.6;
+
+/** 決勝の案のどれかへの近さ（0〜1）。決勝が無ければ 0 */
+export function closeness(c: Candidate, others: SelectionContext['finalists']): number {
+  if (!others?.length) return 0;
+  return Math.max(0, ...others.map((o) => similarity(c, o)));
+}
+
 export function roleScore(c: Candidate, ctx: SelectionContext): number {
   switch (ctx.role) {
     case 'fit':
@@ -54,9 +65,10 @@ export function roleScore(c: Candidate, ctx: SelectionContext): number {
     case 'bridge':
       return Math.min(...ctx.targets.map((t, i) => fitTo(c, t, ctx.centroids[i] ?? null)));
     case 'explore':
-      return novelty(c, ctx.shown);
+      return novelty(c, ctx.shown) - FINALIST_AWAY * closeness(c, ctx.finalists);
     case 'wildcard':
-      return novelty(c, ctx.shown) + 0.3 * (c.profile[1] ?? 0); // 新規性の軸が高いものを少し優遇
+      // 新規性の軸が高いものを少し優遇
+      return novelty(c, ctx.shown) + 0.3 * (c.profile[1] ?? 0) - FINALIST_AWAY * closeness(c, ctx.finalists);
   }
 }
 

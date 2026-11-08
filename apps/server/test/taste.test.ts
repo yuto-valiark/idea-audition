@@ -188,4 +188,27 @@ describe('好みエンジン（アクター）', () => {
     await tick(10);
     expect(events(a.received).filter((e) => e.type === 'CANDIDATE_REACTED')).toHaveLength(1);
   });
+
+  it('詳細画面の質問欄に「うーん、微妙かも」と入れても、迷いとして別案を出す（質問として答えない）', async () => {
+    const { actor, ai, a, tick } = await setup();
+    const target = actor.session.lowerSlots[2]!;
+    actor.receiveCommand(a.conn, cmd('ASK_CANDIDATE', { instanceId: target, text: 'うーん、ちょっと微妙かも…' }));
+    await tick(10);
+    expect(events(a.received).some((e) => e.type === 'CANDIDATE_REVISED')).toBe(true);
+    expect(events(a.received).some((e) => e.type === 'CANDIDATE_ANSWERED')).toBe(false);
+    expect(ai.varyCalls).toHaveLength(1);
+  });
+
+  it('別案の版には、残した良さ・変えた点・ひとことの理由が入り、発言をそのまま貼らない', async () => {
+    const { actor, a, tick } = await setup();
+    const target = actor.session.lowerSlots[1]!;
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: 'うーん、なんか違うな', source: 'text', targetInstanceId: target }));
+    await tick(10);
+    const idea = actor.session.ideaOf(target)!;
+    const rev = idea.revisions.at(-1)!;
+    expect(rev.keepStrengths.length).toBeGreaterThan(0);
+    expect(rev.improvementPoints.length).toBeGreaterThan(0);
+    expect(rev.reason).toMatch(/^迷いを受けて：/);
+    expect(rev.reason).not.toContain('なんか違うな');
+  });
 });

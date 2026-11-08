@@ -64,6 +64,10 @@ export interface IdeaDraft {
   persona?: string;
   /** 企画名の読み（カタカナ）。音声の聞き間違いを直すのに使う */
   reading?: string;
+  /** 別案（迷いを受けた版）で、元の案から残した良さ・変えた点・ひとことの理由 */
+  keepStrengths?: string[];
+  improvementPoints?: string[];
+  changeNote?: string;
 }
 
 export interface RevisionDraft {

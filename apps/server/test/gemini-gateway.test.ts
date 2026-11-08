@@ -83,10 +83,17 @@ describe('GeminiGateway', () => {
   });
 
   it('迷いの別案：元の案と迷いの言葉を渡し、8軸つきで1案返す', async () => {
-    const { client, calls } = fakeClient([JSON.stringify({ title: 'ミニ屋台', reading: 'ミニヤタイ', summary: '1日だけ\nまず小さく', icon: '♧', profile: P })]);
+    const { client, calls } = fakeClient([JSON.stringify({ title: 'ミニ屋台', reading: 'ミニヤタイ', summary: '1日だけ\nまず小さく', icon: '♧', keepStrength: '屋台のにぎわい', improvement: '1日だけ・1か所で試す', changeNote: '大がかりすぎたので小さく始める形に', profile: P })]);
     const g = new GeminiGateway(client, config);
     const out = await g.varyIdea({ theme: '学食', characterName: 'MOMO', idea: { title: '屋台村', summary: 'a\nb', profile: null }, concern: 'うーん高そう' });
-    expect(out).toMatchObject({ title: 'ミニ屋台', summary: '1日だけ\nまず小さく', profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0] });
+    expect(out).toMatchObject({
+      title: 'ミニ屋台',
+      summary: '1日だけ\nまず小さく',
+      profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0],
+      keepStrengths: ['屋台のにぎわい'],
+      improvementPoints: ['1日だけ・1か所で試す'],
+      changeNote: '大がかりすぎたので小さく始める形に',
+    });
     expect(calls[0]!.contents).toContain('うーん高そう');
   });
 

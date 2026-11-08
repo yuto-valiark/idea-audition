@@ -21,8 +21,11 @@ import type { GenerationSlot, TasteHint } from './ports.ts';
  */
 
 const AXIS_LABEL = TASTE_AXES.map((a) => a.label);
-/** 好みが溜まってからの役割の回り方 */
-const WARM_ROTATION: PitchRole[] = ['fit', 'bridge', 'explore', 'fit', 'wildcard'];
+/**
+ * 好みが溜まってからの役割の回り方。5枠のうち好み・折衷は2枠まで（多いと1回選んだだけで同じ方向ばかりになる。
+ * プレイテスト 2026-11-08 で、好み枠が多いときに下段も決勝も同じ方向に寄った）
+ */
+const WARM_ROTATION: PitchRole[] = ['fit', 'explore', 'bridge', 'wildcard', 'explore'];
 /** 好みが溜まるまでは広く探る */
 const COLD_ROTATION: PitchRole[] = ['explore', 'wildcard', 'explore', 'explore'];
 
@@ -180,7 +183,12 @@ export function chooseFromStock(
     profile: d.profile ?? zeros(),
     embedding: embed(d.title),
   }));
-  const picked = sample(candidates, { role, targets, centroids, shown, mu: 0.35, temperature: 0.12 }, rng);
+  const finalists = s.upper
+    .map((f) => s.characters.get(f.instanceId))
+    .map((c) => (c ? s.ideas.get(c.ideaId) : undefined))
+    .filter((i) => !!i)
+    .map((i) => ({ profile: i.revisions.at(-1)!.profile ?? zeros(), embedding: embed(i.revisions[0]!.title) }));
+  const picked = sample(candidates, { role, targets, centroids, shown, finalists, mu: 0.35, temperature: 0.12 }, rng);
   if (!picked) return null;
   return { index: picked.index, pitch: pitchFor(s, role, judgeIds, stock[picked.index]!, now) };
 }
