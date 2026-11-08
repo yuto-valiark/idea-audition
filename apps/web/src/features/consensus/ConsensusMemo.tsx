@@ -1,4 +1,5 @@
 import { Pin, PinOff, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { useEffect } from 'react';
 import type { ClaimView, SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
@@ -19,6 +20,13 @@ export function ConsensusMemo() {
   const open = useDisplay((s) => s.consensusOpen);
   const setOpen = useDisplay((s) => s.setConsensusOpen);
   const snapshot = useSession((s) => s.snapshot);
+  // Esc で閉じる
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
   if (!open || !snapshot) return null;
   const claims = snapshot.consensus.claims;
   const groups: [string, ClaimView[]][] = [

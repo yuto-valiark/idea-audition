@@ -21,6 +21,8 @@ interface SessionState {
   client: CampClient | null;
   /** none：部屋に入っていない（トップ）、active：部屋に入っている、not_found：リンクの部屋が見つからない */
   room: 'none' | 'active' | 'not_found';
+  /** ロビーでホストが入力中のテーマ（ホスト以外の画面に見せる） */
+  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null } | null;
   connect(sessionId: string): void;
   /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
   createRoom(): Promise<boolean>;
@@ -58,6 +60,7 @@ export const useSession = create<SessionState>((set, get) => ({
   connection: 'connecting',
   client: null,
   room: 'none',
+  themeDraft: null,
 
   connect(sessionId) {
     get().client?.close();
@@ -80,7 +83,7 @@ export const useSession = create<SessionState>((set, get) => ({
       },
       readJudgeId(sessionId),
     );
-    set({ sessionId, client, room: 'active', connection: 'connecting', snapshot: null, judgeId: null });
+    set({ sessionId, client, room: 'active', connection: 'connecting', snapshot: null, judgeId: null, themeDraft: null });
     client.connect();
   },
 
@@ -124,6 +127,14 @@ export const useSession = create<SessionState>((set, get) => ({
 
 /* ----------------------- イベント → 演出のつなぎ ----------------------- */
 
+/** 操作した人の呼び方（自分なら「あなた」、ほかの人は「Bさん」）。わからなければ null */
+function whoDid(snapshot: SessionSnapshot, actorId: string | null) {
+  if (!actorId) return null;
+  if (actorId === useSession.getState().judgeId) return 'あなた';
+  const label = snapshot.judges.find((j) => j.judgeId === actorId)?.label;
+  return label ? `${label.replace('審査員 ', '')}さん` : null;
+}
+
 function nameOf(snapshot: SessionSnapshot, instanceId: unknown) {
   return typeof instanceId === 'string' ? (snapshot.characters[instanceId]?.name ?? 'AI') : 'AI';
 }
@@ -163,9 +174,11 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   }
 
   switch (e.type) {
-    case 'PROMOTION_CONFIRMED':
-      display.toast(`${nameOf(e.snapshot, d.instanceId)} が最終オーディションへ！`, 'gold');
+    case 'PROMOTION_CONFIRMED': {
+      const who = whoDid(e.snapshot, e.actorId);
+      display.toast(`${who ? `${who}が選抜：` : ''}${nameOf(e.snapshot, d.instanceId)} が最終オーディションへ！`, 'gold');
       break;
+    }
     case 'FINALIST_CRITIQUE_POSTED':
       if (typeof d.fromInstanceId === 'string' && typeof d.toInstanceId === 'string') {
         display.setBubble(d.fromInstanceId, {
@@ -267,6 +280,9 @@ function handleEphemeral(m: EphemeralMessage) {
       break;
     case 'MIC_STATE_CHANGED':
       display.setMic(m.senderId, m.payload.on);
+      break;
+    case 'THEME_DRAFT':
+      useSession.setState({ themeDraft: m.payload });
       break;
   }
 }

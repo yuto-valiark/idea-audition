@@ -1,6 +1,6 @@
 import { Crown, MessageCircle, Send, Sparkles, Trophy, X } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { UPPER_CAPACITY } from '@idea-audition/protocol';
+import { PITCH_ROLE_ICON, UPPER_CAPACITY } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
@@ -76,6 +76,7 @@ export function DetailModal() {
               {character.name} / {where}
             </div>
             <h2>{shown.title}</h2>
+            {!showBefore && current.title !== original.title && <div className={styles.origin}>元の案：{original.title}</div>}
             <span className={styles.version}>
               Ver.{shown.version}
               {showBefore ? '（元の案）' : revisions.length > 1 ? `（全${revisions.length}版）` : ''}
@@ -83,6 +84,27 @@ export function DetailModal() {
           </div>
         </div>
         <p className={styles.desc}>{shown.summary}</p>
+        {(shown.outline ?? original.outline) && (
+          <dl className={styles.outline}>
+            <div>
+              <dt>誰の</dt>
+              <dd>{(shown.outline ?? original.outline)!.who}</dd>
+            </div>
+            <div>
+              <dt>困りごと</dt>
+              <dd>{(shown.outline ?? original.outline)!.pain}</dd>
+            </div>
+            <div>
+              <dt>どう解く</dt>
+              <dd>{(shown.outline ?? original.outline)!.how}</dd>
+            </div>
+          </dl>
+        )}
+        {idea.pitch && character.location === 'lower' && (
+          <p className={styles.pitch}>
+            この案を出した理由：{PITCH_ROLE_ICON[idea.pitch.role]} {idea.pitch.reason}
+          </p>
+        )}
 
         {revisions.length > 1 && (
           <div className={styles.evolution}>

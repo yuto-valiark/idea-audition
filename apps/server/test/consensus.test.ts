@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CAMP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
 import { applyOps, emptyLedger, quorum, type Ledger } from '../src/domain/consensus.ts';
 import { SessionActor } from '../src/application/session-actor.ts';
-import { buildConsensusUpdateInput } from '../src/application/consensus-context.ts';
+import { buildConsensusUpdateInput, toLedgerOps } from '../src/application/consensus-context.ts';
 import { AuditionSession } from '../src/domain/session.ts';
 import { GeminiGateway, renderContext } from '../src/infrastructure/gemini/gemini-gateway.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
@@ -224,5 +224,23 @@ describe('Gemini：台帳の差分と文脈', () => {
     );
     const input = buildConsensusUpdateInput(s, 0, new Map());
     expect(input.decisions.map((d) => d.title)).toEqual(['見送った案']);
+  });
+
+  it('企画名そのものや、1回選んだだけの行動からは論点を作らない', () => {
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const j = s.join(undefined);
+    if (!j.ok) throw new Error('join failed');
+    s.ideas.set('i1', { ideaId: 'i1', revisions: [{ title: '一坪ダンボール横丁' } as never] });
+    s.decisions.push({ kind: 'promoted', instanceId: 'c1', title: '一坪ダンボール横丁', judgeId: j.value.judgeId, at: 1 });
+    const label = s.judges[0] ? '審査員 A' : '';
+    const ops = toLedgerOps(s, [
+      { op: 'add_claim', text: '一坪ダンボール横丁', judge: label, stance: 'support', seq: 5 },
+      { op: 'add_claim', text: '小さく始める', judge: label, stance: 'support', seq: null },
+      { op: 'add_claim', text: 'コストは低く', judge: label, stance: 'support', seq: 5 },
+    ]);
+    expect(ops.map((o) => (o.op === 'add_claim' ? o.text : o.op))).toEqual(['コストは低く']);
+    // 2回選んでいれば、行動から作った論点も入れてよい
+    s.decisions.push({ kind: 'promoted', instanceId: 'c2', title: '別の案', judgeId: j.value.judgeId, at: 2 });
+    expect(toLedgerOps(s, [{ op: 'add_claim', text: '小さく始める', judge: label, stance: 'support', seq: null }])).toHaveLength(1);
   });
 });

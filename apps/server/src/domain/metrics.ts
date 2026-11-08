@@ -6,6 +6,11 @@ export const HESITATION_REVISION_REASON = '迷いを受けて';
 
 /** 前半・後半で何％増えたかを出すのに必要な、それぞれの最低の登場数 */
 const MIN_SHOWN_FOR_LIFT = 4;
+/**
+ * 同じく、それぞれの最低の「選ばれた数」。1件と2件の比較で「+100%」のように大きく見せないため
+ * （プレイテスト 2026-11-08 で、前半1件・後半2件から +167% が出た）
+ */
+export const MIN_PICKED_FOR_LIFT = 3;
 
 /**
  * 効果の指標（ADR-0009 §2-4）。純粋関数。
@@ -50,7 +55,10 @@ export function computeMetrics(input: {
 
   const rate = (h: { shown: number; picked: number }) => (h.shown === 0 ? 0 : h.picked / h.shown);
   const liftPct =
-    firstHalf.shown >= MIN_SHOWN_FOR_LIFT && secondHalf.shown >= MIN_SHOWN_FOR_LIFT && rate(firstHalf) > 0
+    firstHalf.shown >= MIN_SHOWN_FOR_LIFT &&
+    secondHalf.shown >= MIN_SHOWN_FOR_LIFT &&
+    firstHalf.picked >= MIN_PICKED_FOR_LIFT &&
+    secondHalf.picked >= MIN_PICKED_FOR_LIFT
       ? Math.round(((rate(secondHalf) - rate(firstHalf)) / rate(firstHalf)) * 100)
       : null;
   return { firstHalf, secondHalf, byRole, liftPct, revisions };

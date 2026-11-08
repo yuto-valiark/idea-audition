@@ -113,6 +113,8 @@ export class FixtureGateway implements IdeaGenerationPort {
       ...d,
       profile: heuristicProfile(`${d.title} ${d.summary}`),
       persona: slots?.[i]?.persona.name,
+      // 固定データでも詳細画面の3行が出るよう、要約の2行から作る
+      outline: d.outline ?? fixtureOutline(input.theme, d.summary),
     }));
   }
 
@@ -249,4 +251,10 @@ export class FixtureGateway implements IdeaGenerationPort {
       icon,
     }));
   }
+}
+
+/** 固定データの案の「誰の・何の困りごとを・どう解くか」（要約の2行目を仕組みとして使う） */
+function fixtureOutline(theme: string, summary: string) {
+  const [first, second] = summary.split('\n');
+  return { who: `「${theme.slice(0, 14)}」に関わる人`, pain: (first ?? '').slice(0, 24), how: (second ?? first ?? '').slice(0, 24) };
 }

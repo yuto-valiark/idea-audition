@@ -73,6 +73,10 @@ const IdeaItem = z.object({
   /** 企画名の読み（全角カタカナ） */
   reading: z.string(),
   summary: z.string().min(1),
+  /** 詳細画面の3行：誰の・何の困りごとを・どう解くか */
+  who: z.string(),
+  pain: z.string(),
+  how: z.string(),
   icon: z.enum(ICONS),
   /** 受けた論点のラベル（C1 など）。新しい切り口の案は空 */
   inspiredBy: z.array(z.string()),
@@ -294,6 +298,9 @@ ${
 - title：企画名。12文字以内
 - reading：企画名の読みを全角カタカナで（英字も読みで。例「学食SNS」→「ガクショクエスエヌエス」）
 - summary：説明。20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は具体的な中身
+- who：誰のための案か。20文字以内（例「一人暮らしの大学生」）
+- pain：その人のどんな困りごと・不満を扱うか。24文字以内
+- how：どうやって解くか（仕組み）。24文字以内
 - icon：企画の雰囲気に合う記号を ${ICONS.join(' ')} から1つ
 - profile：この案を8つの軸で -1〜+1 で採点する（0 が普通）。${AXIS_GUIDE}
 ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${avoid.join('、')}` : ''}`;
@@ -308,6 +315,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
         profile: toProfile(i.profile),
         persona: slot?.persona.name,
         reading: toReading(i.reading),
+        ...(i.who.trim() && i.how.trim() ? { outline: { who: clean(i.who, 24), pain: clean(i.pain, 30), how: clean(i.how, 30) } } : {}),
       };
     });
   }
@@ -376,14 +384,17 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
       order.length ? '相互批評で受けた指摘も反映する。\n' : '審査員が注目した強みを残し、実現性と面白さを高める。\n'
     }合意している論点には必ず沿わせる。
 - participant：P1 などのラベル
-- title：改良後の企画名。14文字以内
+- title：企画名。元の企画名をそのまま使うのが基本。中身の対象や仕組みが大きく変わったときだけ変える（14文字以内）。変える場合も元の名前が分かる程度に似せる。漢字の誤り（「夕」と「タ」など）に注意
 - summary：20文字以内の文を2行（改行で区切る）
 - keepStrengths：元の案から残す強み。1〜2個、各20文字以内
 - improvementPoints：今回の改善ポイント。2個、各24文字以内
 - reason：何を受けてどう変えたか。40文字以内
 - inspiredBy：反映した論点のラベル（例 C1）。無ければ空`;
 
-    const out = await this.call('refine', this.config.refine, prompt, RefineSchema);
+    // 決勝に人が加わったときの相互批評は、短い掛け合いと小さな改良なので速いモデルで回す（待ち時間を短く）。
+    // 審査員の頼み・昇格したときの改良は、質を優先して改良用のモデルを使う
+    const profile = input.trigger === 'arrival' ? this.config.fast : this.config.refine;
+    const out = await this.call('refine', profile, prompt, RefineSchema);
 
     // 話し手と相手はモデルに任せず、決めた順番を使う（ADR-0005 §6）
     const critiques = order

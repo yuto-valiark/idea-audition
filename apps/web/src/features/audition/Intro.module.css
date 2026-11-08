@@ -340,3 +340,19 @@
   background: linear-gradient(105deg, #9a45e8, #7736db);
   color: white;
 }
+
+.waiting {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px dashed #8a5cb0;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #d7c5e9;
+  padding: 14px 18px;
+}
+
+.themeInput input:read-only {
+  color: #d7c5e9;
+}

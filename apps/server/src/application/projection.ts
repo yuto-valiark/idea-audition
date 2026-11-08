@@ -53,6 +53,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
             basedOnConsensus: r.basedOnConsensus ?? null,
             inspiredBy: r.inspiredBy ?? null,
             profile: r.profile ?? null,
+            outline: r.outline ?? null,
           })),
           pitch: i.pitch ?? null,
           persona: i.persona ?? null,

@@ -140,4 +140,24 @@ describe('SessionActor', () => {
     expect(ai.refineCalls.length).toBe(before);
     expect(ai.answerCalls.at(-1)).toBe('収益はどうやって出すの？');
   });
+
+  it('オーディションを始めるのはホストだけ（ロビーでほかの人はホストの入力を見ている）', async () => {
+    const { scheduler } = manualScheduler();
+    const actor = new SessionActor('lobby', {
+      ai: new StubAi(),
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: fakeClock(),
+      ids: seqIds(),
+      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+    });
+    const host = fakeConnection('h');
+    const guest = fakeConnection('g');
+    actor.attach(host.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'lobby' });
+    actor.attach(guest.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'lobby' });
+    actor.receiveCommand(guest.conn, cmd('START_AUDITION', { theme: '学食', mode: 'team' }));
+    expect(results(guest.received).at(-1)).toMatchObject({ ok: false, reason: 'NOT_HOST' });
+    actor.receiveCommand(host.conn, cmd('START_AUDITION', { theme: '学食', mode: 'team' }));
+    expect(results(host.received).at(-1)).toMatchObject({ ok: true });
+  });
 });

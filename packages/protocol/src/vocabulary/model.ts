@@ -56,6 +56,8 @@ export const RevisionView = z.object({
   inspiredBy: z.object({ claimLabels: z.array(z.string()), note: z.string() }).nullable(),
   /** 8軸のプロフィール（ADR-0009） */
   profile: Profile.nullable(),
+  /** 詳細画面の3行：誰の・何の困りごとを・どう解くか（無い版もある） */
+  outline: z.object({ who: z.string(), pain: z.string(), how: z.string() }).nullable().optional(),
 });
 export type RevisionView = z.infer<typeof RevisionView>;
 

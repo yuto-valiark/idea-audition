@@ -352,7 +352,7 @@ function TasteReport({ snapshot }: { snapshot: SessionSnapshot }) {
       </table>
       <p className={styles.muted}>
         {metrics.liftPct === null
-          ? '前半と後半の比較には、それぞれ4案以上が必要です（今回は案が少ないため比較していません）。'
+          ? `前半と後半の比較には、それぞれ4案以上が出て3案以上が選ばれている必要があります（今回は前半 ${metrics.firstHalf.picked} 件・後半 ${metrics.secondHalf.picked} 件が選ばれたので、件数だけ示します）。`
           : `後半に出た案は、前半より決勝に選ばれた率が ${metrics.liftPct >= 0 ? `${metrics.liftPct}% 高く` : `${-metrics.liftPct}% 低く`}なりました。`}
         1回のセッションの数字なので、偶然の影響を含みます。
       </p>

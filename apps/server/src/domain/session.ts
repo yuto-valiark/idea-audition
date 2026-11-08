@@ -339,6 +339,7 @@ export class AuditionSession {
             inspiredBy: draft.inspiredBy ?? null,
             profile: draft.profile ?? null,
             reading: draft.reading ?? null,
+            outline: draft.outline ?? null,
           },
         ],
         pitch: picked.pitch,

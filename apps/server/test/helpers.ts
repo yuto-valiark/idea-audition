@@ -107,7 +107,9 @@ export class StubAi implements IdeaGenerationPort {
   generateCalls: { context?: ConsensusContext }[] = [];
   async updateConsensus(input: ConsensusUpdateInput) {
     this.consensusCalls.push(input);
-    const ops = this.nextConsensusOps;
+    // 本物のモデルと同じく、発言から作った論点にはその発言の番号を付ける（番号の無い論点は行動から作ったものとして扱われる）
+    const lastSeq = input.utterances.at(-1)?.seq ?? null;
+    const ops = this.nextConsensusOps.map((o) => (o.op === 'add_claim' && o.seq === null && lastSeq !== null ? { ...o, seq: lastSeq } : o));
     this.nextConsensusOps = [];
     return ops;
   }

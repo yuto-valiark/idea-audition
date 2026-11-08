@@ -97,7 +97,7 @@ export function Footer() {
       <div className={styles.actions}>
         <TastePanel />
         <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title="反応から読み取ったみんなの好み">
-          🧭 好み {snapshot.taste.divergence ? <b>割れ</b> : null}
+          🧭 <span className={styles.btnLabel}>好み</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
         </button>
         <ConsensusMemo />
         <button
@@ -107,10 +107,10 @@ export function Footer() {
           }}
           aria-expanded={consensusOpen}
         >
-          🤝 合意メモ <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
+          🤝 <span className={styles.btnLabel}>合意メモ</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
         </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">
-          <Layers size={16} /> アイデアBOX <b>{snapshot.ideaBox.length}</b>
+          <Layers size={16} /> <span className={styles.btnLabel}>アイデアBOX</span> <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />
         </button>
         {isHost && (

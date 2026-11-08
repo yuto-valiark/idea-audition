@@ -446,6 +446,8 @@ export class SessionActor {
 
     switch (cmd.type) {
       case 'START_AUDITION': {
+        // テーマを決めて始めるのはホストだけ（ロビーでほかの人はホストの入力を見ている）
+        if (!s.judges.some((j) => j.judgeId === judgeId && j.isHost)) return { ok: false, reason: 'NOT_HOST' };
         const r = apply(s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode));
         if (r.ok) this.onStarted();
         return r;

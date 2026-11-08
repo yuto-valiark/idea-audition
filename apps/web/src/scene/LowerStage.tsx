@@ -86,7 +86,8 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
   const thinking = bubble?.critiqueId.startsWith('react:');
   const revisedForHesitation = revision.reason?.startsWith('迷いを受けて');
   const holder = holderId ? judgeById(snapshot, holderId) : null;
-  const leaving = character.leavingAt !== null;
+  // 投票中は入れ替えが止まっているので、交代の表示も出さない
+  const leaving = character.leavingAt !== null && snapshot.status === 'audition_active';
 
   return (
     <motion.article

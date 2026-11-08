@@ -60,6 +60,8 @@ export const EphemeralPayloads = {
   /** 注目しているキャラ（カーソルが乗っている・詳細を開いている）。退場の判定に使う */
   FOCUS_CHANGED: z.object({ hover: id.nullable(), detail: id.nullable() }),
   MIC_STATE_CHANGED: z.object({ on: z.boolean() }),
+  /** ロビーでホストが入力中のテーマと設定（ほかの人の画面にそのまま見せる。保存しない） */
+  THEME_DRAFT: z.object({ theme: z.string().max(120), mode: z.enum(['team', 'solo']), aiMode: z.enum(['gemini', 'fixture']).nullable() }),
 } as const;
 export type EphemeralType = keyof typeof EphemeralPayloads;
 

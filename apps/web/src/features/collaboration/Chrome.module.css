@@ -334,3 +334,20 @@
   background: #251537;
   color: #e5d6f5;
 }
+
+/* 幅が狭いとき（ノート PC を半分にしたときなど）：下のボタンは記号と数だけにし、審査員の札も詰める */
+@media (max-width: 1100px) {
+  .footer {
+    margin: 8px 12px 10px;
+    gap: 8px;
+  }
+  .btnLabel {
+    display: none;
+  }
+  .judge {
+    min-width: 0;
+  }
+  .actions button {
+    white-space: nowrap;
+  }
+}

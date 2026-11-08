@@ -51,6 +51,12 @@ export interface Inspiration {
   note: string;
 }
 
+export interface Outline {
+  who: string;
+  pain: string;
+  how: string;
+}
+
 export interface IdeaDraft {
   title: string;
   summary: string;
@@ -64,6 +70,8 @@ export interface IdeaDraft {
   persona?: string;
   /** 企画名の読み（カタカナ）。音声の聞き間違いを直すのに使う */
   reading?: string;
+  /** 詳細画面の3行（誰の・何の困りごとを・どう解くか） */
+  outline?: Outline;
   /** 別案（迷いを受けた版）で、元の案から残した良さ・変えた点・ひとことの理由 */
   keepStrengths?: string[];
   improvementPoints?: string[];
@@ -115,6 +123,7 @@ export interface Revision {
   inspiredBy?: Inspiration | null;
   profile?: number[] | null;
   reading?: string | null;
+  outline?: Outline | null;
 }
 
 export interface Idea {

@@ -1,7 +1,7 @@
 import { JUDGE_SLOTS, TASTE_AXES, type PitchRole } from '@idea-audition/protocol';
 import type { AuditionSession } from '../domain/session.ts';
 import type { IdeaDraft, Pitch } from '../domain/types.ts';
-import { sample, type Candidate } from '../domain/selection.ts';
+import { closeness, sample, type Candidate } from '../domain/selection.ts';
 import {
   CONFIDENT_SIGNALS,
   divergence,
@@ -128,6 +128,17 @@ export function tasteHint(s: AuditionSession, slots: GenerationSlot[], now: numb
 
 /* ------------------------------ 選抜 ------------------------------ */
 
+/** 決勝の案とこれ以上近ければ「ほぼ同じ案」とみなす（埋め込みとプロフィールの近さ） */
+const NEAR_DUPLICATE = 0.9;
+
+/** 表記ゆれを無視した企画名（漢字の「段」とカタカナの「ダン」など、よくあるものだけ） */
+function looseTitle(t: string) {
+  return t
+    .replace(/[\s・ー〜]/g, '')
+    .replace(/段/g, 'ダン')
+    .replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+}
+
 function meanProfile(vs: Vec[]): Vec {
   if (vs.length === 0) return zeros();
   return zeros().map((_, i) => vs.reduce((a, v) => a + (v[i] ?? 0), 0) / vs.length);
@@ -178,7 +189,7 @@ export function chooseFromStock(
         : [teamTaste(s.taste, s.judges.map((j) => j.judgeId), now)]
       : [];
   const centroids = judgeIds.map((j) => centroidOf(s, j, embed));
-  const candidates: Candidate[] = stock.map((d, index) => ({
+  const all: Candidate[] = stock.map((d, index) => ({
     index,
     profile: d.profile ?? zeros(),
     embedding: embed(d.title),
@@ -188,6 +199,16 @@ export function chooseFromStock(
     .map((c) => (c ? s.ideas.get(c.ideaId) : undefined))
     .filter((i) => !!i)
     .map((i) => ({ profile: i.revisions.at(-1)!.profile ?? zeros(), embedding: embed(i.revisions[0]!.title) }));
+  // 決勝の案とほぼ同じ案（「一坪ダンボール横丁」と「一坪段ボール横丁」など）は、どの枠でも出さない
+  const finalTitles = new Set(
+    s.upper
+      .map((f) => s.characters.get(f.instanceId))
+      .map((c) => (c ? s.ideas.get(c.ideaId) : undefined))
+      .filter((i) => !!i)
+      .flatMap((i) => i.revisions.map((r) => looseTitle(r.title))),
+  );
+  const distinct = all.filter((c) => !finalTitles.has(looseTitle(stock[c.index]!.title)) && closeness(c, finalists) < NEAR_DUPLICATE);
+  const candidates = distinct.length > 0 ? distinct : all;
   const picked = sample(candidates, { role, targets, centroids, shown, finalists, mu: 0.35, temperature: 0.12 }, rng);
   if (!picked) return null;
   return { index: picked.index, pitch: pitchFor(s, role, judgeIds, stock[picked.index]!, now) };

@@ -1,9 +1,10 @@
 .panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  width: min(400px, 92vw);
-  max-height: min(62svh, 560px);
+  /* 下段のカードを隠さないよう、画面の右上（決勝の段の横）に出す */
+  position: fixed;
+  right: 16px;
+  top: 96px;
+  width: min(380px, 92vw);
+  max-height: min(48svh, 480px);
   overflow: auto;
   z-index: 25;
   background: #160c26f5;

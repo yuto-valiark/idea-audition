@@ -89,9 +89,18 @@ export function buildConsensusUpdateInput(
 export function toLedgerOps(s: AuditionSession, drafts: ConsensusOpDraft[]): LedgerOp[] {
   const { toId } = judgeLabels(s);
   const ops: LedgerOp[] = [];
+  // 企画名そのものは論点（方針・条件）ではないので台帳に入れない
+  const titles = new Set([...s.ideas.values()].flatMap((i) => i.revisions.map((r) => normalizeText(r.title))));
   for (const d of drafts) {
     if (d.op === 'add_claim') {
-      ops.push({ op: 'add_claim', text: d.text, judgeId: d.judge ? (toId.get(d.judge) ?? null) : null, stance: d.stance, seq: d.seq });
+      const judgeId = d.judge ? (toId.get(d.judge) ?? null) : null;
+      if (titles.has(normalizeText(d.text))) continue;
+      // 発言に結び付かない（行動から作った）論点は、同じ人が2回以上選んだときだけ（1回の選抜で方針を決めつけない）
+      if (d.seq === null) {
+        const picks = s.decisions.filter((x) => x.kind === 'promoted' && x.judgeId === judgeId).length;
+        if (!judgeId || picks < 2) continue;
+      }
+      ops.push({ op: 'add_claim', text: d.text, judgeId, stance: d.stance, seq: d.seq });
     } else if (d.op === 'set_stance') {
       const judgeId = toId.get(d.judge);
       if (judgeId) ops.push({ op: 'set_stance', label: d.label, judgeId, stance: d.stance, seq: d.seq });
@@ -100,4 +109,8 @@ export function toLedgerOps(s: AuditionSession, drafts: ConsensusOpDraft[]): Led
     }
   }
   return ops;
+}
+
+function normalizeText(t: string) {
+  return t.replace(/[\s「」『』、。・！？!?]/g, '');
 }

@@ -163,9 +163,11 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
           </motion.div>
         </AnimatePresence>
         <div className={styles.improvement}>
-          {finalist.status !== 'ready'
-            ? STATUS_LABEL[finalist.status]
-            : `✓ ${evolved ? '改善済み' : '選抜アイデア'} · Ver.${revision.version}`}
+          {finalist.status !== 'ready' ? (
+            <BusyLabel label={STATUS_LABEL[finalist.status]} status={finalist.status} />
+          ) : (
+            `✓ ${evolved ? '改善済み' : '選抜アイデア'} · Ver.${revision.version}`
+          )}
         </div>
       </button>
       <div className={styles.podium} />
@@ -195,6 +197,24 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
           <span className={styles.tieNote}>同票：ホストが決定中</span>
         ))}
     </article>
+  );
+}
+
+/** 改良・批評の途中を、経過秒数と動くバーで見せる（何もしていないように見えないように） */
+function BusyLabel({ label, status }: { label: string; status: string }) {
+  const [since] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const sec = Math.floor((now - since) / 1000);
+  return (
+    <span className={styles.busy} key={status}>
+      {label}
+      {sec >= 2 && <small> {sec}秒</small>}
+      <span className={styles.busyBar} />
+    </span>
   );
 }
 

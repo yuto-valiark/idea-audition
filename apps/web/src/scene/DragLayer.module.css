@@ -2,7 +2,8 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 100;
+  /* 舞台より上、詳細画面（30）より下。移動中のキャラが詳細画面の上に浮かないように */
+  z-index: 28;
 }
 
 .ghost,

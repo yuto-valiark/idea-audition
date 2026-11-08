@@ -270,3 +270,45 @@
   color: #a38cb8;
   font-size: 13px;
 }
+
+.origin {
+  font-size: 11px;
+  color: #b9a3cf;
+  margin: 2px 0 4px;
+}
+
+/* 誰の・困りごと・どう解く の3行 */
+.outline {
+  display: grid;
+  gap: 6px;
+  margin: -6px 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #ffffff0a;
+  border: 1px solid #ffffff14;
+}
+
+.outline > div {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.outline dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent, #c785ff);
+}
+
+.outline dd {
+  margin: 0;
+  font-size: 13px;
+  color: #eee0f7;
+}
+
+.pitch {
+  font-size: 11px;
+  color: #b9a3cf;
+  margin: -6px 0 14px;
+}

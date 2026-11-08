@@ -76,11 +76,23 @@ describe('効果の指標', () => {
       pitch: { role: i % 2 ? 'fit' : 'explore', judgeIds: [], reason: '' } as const,
     }));
     const characters = ideas.map((i, n) => ({ ideaId: i.ideaId, instanceId: `c${n}` }) as never);
-    const decisions = ['c0', 'c5', 'c6', 'c7'].map((id) => ({ kind: 'promoted', instanceId: id }) as never);
+    const decisions = ['c0', 'c1', 'c2', 'c5', 'c6', 'c7', 'c8'].map((id) => ({ kind: 'promoted', instanceId: id }) as never);
     const m = computeMetrics({ ideas: ideas as never, characters, decisions, startedAt: 0, now: 100 });
-    expect(m.firstHalf).toEqual({ shown: 5, picked: 1 });
-    expect(m.secondHalf).toEqual({ shown: 5, picked: 3 });
-    expect(m.liftPct).toBe(200);
+    expect(m.firstHalf).toEqual({ shown: 5, picked: 3 });
+    expect(m.secondHalf).toEqual({ shown: 5, picked: 4 });
+    expect(m.liftPct).toBe(33);
+  });
+
+  it('選ばれた数が少ない（前半1件・後半2件など）ときは、％を出さない', () => {
+    const ideas = Array.from({ length: 10 }, (_, i) => ({
+      ideaId: `i${i}`,
+      revisions: [{ createdAt: i < 5 ? 10 : 90 } as never],
+      pitch: null,
+    }));
+    const characters = ideas.map((i, n) => ({ ideaId: i.ideaId, instanceId: `c${n}` }) as never);
+    const decisions = ['c0', 'c5', 'c6'].map((id) => ({ kind: 'promoted', instanceId: id }) as never);
+    const m = computeMetrics({ ideas: ideas as never, characters, decisions, startedAt: 0, now: 100 });
+    expect(m.liftPct).toBeNull();
   });
 });
 

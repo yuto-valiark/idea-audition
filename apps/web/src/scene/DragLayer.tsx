@@ -36,6 +36,12 @@ function FlightSprite({ flight }: { flight: Flight }) {
   const finish = useDisplay((s) => s.finishFlight);
   const [to, setTo] = useState<Point | null>(null);
 
+  // 画面が裏に回るとアニメーションが止まり、終わりの合図が来ないことがある。少し待っても終わらなければ片付ける
+  useLayoutEffect(() => {
+    const t = setTimeout(() => finish(flight.flightId), 2000);
+    return () => clearTimeout(t);
+  }, [flight.flightId, finish]);
+
   useLayoutEffect(() => {
     const anchor =
       flight.kind === 'upper' ? `upper:${flight.instanceId}` : flight.kind === 'box' ? 'ideabox' : `lower:${flight.instanceId}`;

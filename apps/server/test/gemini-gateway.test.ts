@@ -35,8 +35,8 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { slot: 0, title: 'ガチャ学食', reading: 'ガチャガクショク', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', icon: '☆', inspiredBy: [], note: '', profile: P },
-          { slot: 0, title: '郷土の味', reading: 'きょうどのあじ', summary: '全国の味を\n週替わりで', icon: '◎', inspiredBy: [], note: '', profile: P },
+          { slot: 0, title: 'ガチャ学食', reading: 'ガチャガクショク', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
+          { slot: 0, title: '郷土の味', reading: 'きょうどのあじ', summary: '全国の味を\n週替わりで', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
         ],
       }),
     ]);
@@ -44,7 +44,7 @@ describe('GeminiGateway', () => {
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     // 8軸は TASTE_AXES の順の配列になり、範囲外（buzz=2）は +1 に収まる
     expect(ideas).toEqual([
-      { title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null, profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0], persona: undefined, reading: 'ガチャガクショク' },
+      { title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null, profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0], persona: undefined, reading: 'ガチャガクショク', outline: { who: 'w', pain: 'p', how: 'h' } },
     ]);
     expect(calls[0]!.model).toBe('fast-model');
     expect(calls[0]!.config.responseMimeType).toBe('application/json');
@@ -54,8 +54,8 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { slot: 2, title: '両立案', reading: 'リョウリツアン', summary: 'a\nb', icon: '◎', inspiredBy: [], note: '', profile: P },
-          { slot: 1, title: '好み案', reading: 'コノミアン', summary: 'c\nd', icon: '☆', inspiredBy: [], note: '', profile: P },
+          { slot: 2, title: '両立案', reading: 'リョウリツアン', summary: 'a\nb', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
+          { slot: 1, title: '好み案', reading: 'コノミアン', summary: 'c\nd', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
         ],
       }),
     ]);
@@ -121,12 +121,12 @@ describe('GeminiGateway', () => {
     ]);
     expect(Object.keys(out.revisions).sort()).toEqual(['ch_a', 'ch_b']);
     expect(out.revisions.ch_b!.title).toBe('案B+');
-    expect(calls[0]!.model).toBe('refine-model');
+    expect(calls[0]!.model).toBe('fast-model'); // 相互批評（arrival）は速いモデル
     expect(calls[0]!.contents).not.toContain('ch_a'); // モデルには内部IDを渡さない
   });
 
   it('不正な出力は1回やり直す', async () => {
-    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ slot: 0, title: 'T', reading: '', summary: 'S', icon: '♡', inspiredBy: [], note: '', profile: P }] })]);
+    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ slot: 0, title: 'T', reading: '', summary: 'S', who: 'w', pain: 'p', how: 'h', icon: '♡', inspiredBy: [], note: '', profile: P }] })]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     expect(ideas).toHaveLength(1);

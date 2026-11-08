@@ -1,6 +1,6 @@
 import { ArrowRight, ChevronRight, Copy, Crown, Plus, Share2, Sparkles } from 'lucide-react';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { roomUrl, useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
@@ -15,16 +15,31 @@ export function Intro() {
   const room = useSession((s) => s.room);
   const roomId = useSession((s) => s.sessionId);
   const createRoom = useSession((s) => s.createRoom);
-  const { isSpectator } = useMe();
+  const { isSpectator, isHost } = useMe();
+  const themeDraft = useSession((s) => s.themeDraft);
+  const judgeCount = useSession((s) => s.snapshot?.judges.length ?? 0);
   const [theme, setTheme] = useState(DEMO_THEME);
   const [mode, setMode] = useState<'team' | 'solo'>('team');
   const aiAvailable = useSession((s) => s.snapshot?.ai.available ?? EMPTY);
   const [aiMode, setAiMode] = useState<'gemini' | 'fixture' | null>(null);
   const chosenAi = aiMode ?? aiAvailable[0] ?? 'fixture';
   const [busy, setBusy] = useState(false);
+  // ホストが入れているテーマと設定を、ほかの人の画面にもそのまま見せる（人が増えたときも送り直す）
+  useEffect(() => {
+    if (!isHost || room !== 'active' || connection !== 'open') return;
+    const t = setTimeout(
+      () => useSession.getState().client?.sendEphemeral('THEME_DRAFT', { theme: theme.slice(0, 120), mode, aiMode: chosenAi }),
+      200,
+    );
+    return () => clearTimeout(t);
+  }, [isHost, room, connection, theme, mode, chosenAi, judgeCount]);
+  const guest = room === 'active' && !isHost;
+  const shownTheme = guest ? (themeDraft?.theme ?? '') : theme;
+  const shownMode = guest ? (themeDraft?.mode ?? 'team') : mode;
+  const shownAi = guest ? (themeDraft?.aiMode ?? chosenAi) : chosenAi;
 
   async function start() {
-    if (!theme.trim() || busy) return;
+    if (!theme.trim() || busy || !isHost) return;
     setBusy(true);
     await send('START_AUDITION', { theme: theme.trim(), mode, aiMode: chosenAi });
     setBusy(false);
@@ -62,16 +77,24 @@ export function Intro() {
           <InviteLink url={roomUrl(roomId)} />
           <label htmlFor="theme">今回のオーディションテーマ</label>
           <div className={styles.themeInput}>
-            <input id="theme" value={theme} maxLength={120} onChange={(e) => setTheme(e.target.value)} />
+            <input
+              id="theme"
+              value={shownTheme}
+              maxLength={120}
+              readOnly={guest}
+              placeholder={guest ? 'ホストがテーマを入力しています…' : undefined}
+              onChange={(e) => setTheme(e.target.value)}
+            />
           </div>
           <div className={styles.actions}>
-            <select value={mode} onChange={(e) => setMode(e.target.value as 'team' | 'solo')} aria-label="参加モード">
+            <select value={shownMode} disabled={guest} onChange={(e) => setMode(e.target.value as 'team' | 'solo')} aria-label="参加モード">
               <option value="team">みんなで審査</option>
               <option value="solo">ひとりで審査</option>
             </select>
             {aiAvailable.length > 1 && (
               <select
-                value={chosenAi}
+                value={shownAi}
+                disabled={guest}
                 onChange={(e) => setAiMode(e.target.value as 'gemini' | 'fixture')}
                 aria-label="AIのモード"
                 title="Gemini はクレジットを使います。固定データは無料で、UIの確認やデモ向けです"
@@ -80,9 +103,13 @@ export function Intro() {
                 <option value="fixture">固定データ（無料）</option>
               </select>
             )}
-            <button className={styles.primary} disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
-              オーディションをはじめる <ArrowRight size={18} />
-            </button>
+            {guest ? (
+              <div className={styles.waiting}>ホストが始めるのを待っています</div>
+            ) : (
+              <button className={styles.primary} disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
+                オーディションをはじめる <ArrowRight size={18} />
+              </button>
+            )}
           </div>
           <small>
             {connection !== 'open'
