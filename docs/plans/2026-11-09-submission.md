@@ -68,7 +68,7 @@
 | プロダクト説明ドキュメント（テンプレートあり） | まだ無い。材料（ADR・構成図・仕様）はある | [#25](https://github.com/yuto-valiark/idea-audition/issues/25) |
 | デモ動画（オンライン会場はプレゼン動画） | まだ無い。どちらの会場かで中身が変わる | [#26](https://github.com/yuto-valiark/idea-audition/issues/26) |
 | 著作物利用シート | まだ無い。キャラの画像・ロゴ・フォント・ライブラリなどの出どころの一覧が要る | [#27](https://github.com/yuto-valiark/idea-audition/issues/27) |
-| ピッチ用スライド（現地会場の申込者だけ） | まだ無い | #16（P3） |
+| ピッチ用スライド（現地会場の申込者だけ） | まだ無い。11/10 中に作る | [#30](https://github.com/yuto-valiark/idea-audition/issues/30) |
 | 実行基盤 | **満たしている**：Cloud Run（asia-northeast1）。Firestore・Vertex AI の Gemini も使用 | — |
 | デプロイ URL を 11/14 まで | 動いている。クレジット（$20）と費用・見張りの備えが要る | [#29](https://github.com/yuto-valiark/idea-audition/issues/29) |
 

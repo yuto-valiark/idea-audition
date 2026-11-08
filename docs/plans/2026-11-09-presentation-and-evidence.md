@@ -101,7 +101,7 @@ DevFest（Google のイベント）なので、Gemini と Google Cloud の使い
 |---|---|---|---|
 | P1 | 発表の形と審査基準を確かめる | 持ち時間・質疑・審査の観点・ライブのデモの可否 | [#14](https://github.com/yuto-valiark/idea-audition/issues/14) |
 | P2 | 発表の構成と、強みを2〜3個に決める | 1章の構成と2章の候補から決める | [#15](https://github.com/yuto-valiark/idea-audition/issues/15) |
-| P3 | スライドを作る | P2 の構成で。構成図・数字のページを含む | [#16](https://github.com/yuto-valiark/idea-audition/issues/16) |
+| P3 | スライドを作る | P2 の構成で。構成図・数字のページを含む | [#30](https://github.com/yuto-valiark/idea-audition/issues/30)（#16 から移した。期限 11/10 19:00） |
 | P4 | デモの台本・録画の予備・リハーサル | 止まったときの切り替えも練習する | [#17](https://github.com/yuto-valiark/idea-audition/issues/17) |
 | M1 | 会議ごとの指標をログから自動で出す | 3-1。集計して優勝画面・企画書・管理用に出す | [#18](https://github.com/yuto-valiark/idea-audition/issues/18) |
 | M2 | 会議に入れたときのメリットを試算する | 3-2。前提と出典つき | [#19](https://github.com/yuto-valiark/idea-audition/issues/19) |
