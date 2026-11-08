@@ -58,6 +58,7 @@ GOOGLE_CLOUD_PROJECT=idea-audition
 GOOGLE_CLOUD_LOCATION=global
 LOCAL_GCLOUD_CONFIG=idea-audition
 # 手元では保存しない（本番の Firestore にテストのセッションが混ざらないように）
+# 保存も試したいときは PERSISTENCE=firestore と FIRESTORE_DATABASE=dev-local（開発用のデータベース。本番の (default) には絶対に向けない。権限は夢斗に頼む）
 PERSISTENCE=none
 # 下段の入れ替えが速いと Gemini を何度も呼ぶので、精度の確認中は止めてもよい
 # ROTATION=off

@@ -54,7 +54,7 @@ function createEmbedders(): Partial<Record<AiMode, EmbeddingPort>> {
 function createStore(): SessionStorePort {
   const kind = env('PERSISTENCE', 'none');
   if (kind === 'firestore') {
-    log('persistence: firestore');
+    log(`persistence: firestore (database ${process.env.FIRESTORE_DATABASE ?? '(default)'})`);
     return FirestoreSessionStore.fromEnv(process.env);
   }
   if (kind !== 'none') log(`PERSISTENCE=${kind} は不明です。保存しません。`);

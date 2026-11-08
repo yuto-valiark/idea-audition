@@ -20,6 +20,7 @@
 | 合言葉 | Secret Manager `idea-audition-access-code` を環境変数 `ACCESS_CODE` として渡す |
 | AI のモード | `AI_GATEWAY=gemini` なので Gemini と固定データの両方を選べる（既定は Gemini）。チーム向けの説明は `gemini-credits.md` |
 | 環境変数 | `AI_GATEWAY=gemini`、`GOOGLE_CLOUD_PROJECT=idea-audition`、`GOOGLE_CLOUD_LOCATION=global`、`PERSISTENCE=firestore` |
+| 保存先 | 本番は Firestore の `(default)` データベース。手元の開発は別のデータベース `dev-local`（`.env` の `FIRESTORE_DATABASE=dev-local`）。同じプロジェクト・同じ場所（asia-northeast1）だが、データは完全に別 |
 | 予算アラート | 請求先 VICTORY に ¥3,000（クレジット $20 相当）、50%・90%・100% でメール通知（クレジット適用前の金額で判定） |
 
 gcloud は IDEA AUDITION 用の設定 `victory` を使う。以下のコマンドはすべて先頭に `CLOUDSDK_ACTIVE_CONFIG_NAME=victory` を付けるか、先に `export` する。
