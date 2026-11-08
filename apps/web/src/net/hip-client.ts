@@ -1,4 +1,5 @@
 import {
+  HIP_CLOSE,
   HIP_VERSION,
   ServerMessage,
   type CommandMessage,
@@ -8,7 +9,9 @@ import {
   type EphemeralPayloads,
   type EphemeralType,
   type EventMessage,
+  type ProtocolErrorMessage,
   type RejectReason,
+  type SignalMessage,
   type WelcomeMessage,
 } from '@idea-audition/protocol';
 import type { z } from 'zod';
@@ -22,6 +25,12 @@ interface Handlers {
   onEvent(m: EventMessage): void;
   onEphemeral(m: EphemeralMessage): void;
   onState(s: ConnectionState): void;
+  onProtocolError?(m: ProtocolErrorMessage): void;
+}
+
+export interface SendOptions {
+  /** 画面で見ていた対象の版（違えばサーバーが STALE_VERSION で断る） */
+  expected?: { rev: string };
 }
 
 const COMMAND_TIMEOUT_MS = 8000;
@@ -81,9 +90,11 @@ export class HipClient {
       );
     };
     ws.onmessage = (e) => this.receive(e.data);
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
+      // バージョン違い・合言葉違いは再接続しても直らない（§11）
+      if (e.code === HIP_CLOSE.UNSUPPORTED_VERSION || e.code === HIP_CLOSE.ACCESS_DENIED) this.closed = true;
       if (this.closed) return;
       this.handlers.onState('reconnecting');
       const delay = Math.min(5000, 400 * 2 ** this.retry++);
@@ -96,13 +107,14 @@ export class HipClient {
     this.ws?.close();
   }
 
-  send<T extends CommandType>(type: T, payload: CommandPayload<T>): Promise<CommandOutcome> {
+  send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts: SendOptions = {}): Promise<CommandOutcome> {
     const message = {
       hip: HIP_VERSION,
       kind: 'command',
       type,
       commandId: uuid(),
       sentAt: new Date().toISOString(),
+      ...(opts.expected ? { expected: opts.expected } : {}),
       payload,
     } as CommandMessage;
     return new Promise((resolve) => {
@@ -120,6 +132,11 @@ export class HipClient {
     payload: z.infer<(typeof EphemeralPayloads)[T]>,
   ) {
     this.raw({ hip: HIP_VERSION, kind: 'ephemeral', type, payload });
+  }
+
+  /** 返事の無い Signal。届かなくてもよい（§3.7） */
+  sendSignal(payload: SignalMessage['payload']) {
+    this.raw({ hip: HIP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload });
   }
 
   private raw(message: unknown) {
@@ -167,6 +184,11 @@ export class HipClient {
       }
       case 'ephemeral':
         this.handlers.onEphemeral(m);
+        break;
+      case 'protocol_error':
+        console.warn('[hip] protocol error', m.code, m.detail);
+        if (m.code === 'UNSUPPORTED_VERSION') this.closed = true;
+        this.handlers.onProtocolError?.(m);
         break;
     }
   }

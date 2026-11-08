@@ -7,7 +7,7 @@ import {
   type EventMessage,
   type SessionSnapshot,
 } from '@idea-audition/protocol';
-import { HipClient, type CommandOutcome, type ConnectionState } from '../net/hip-client.ts';
+import { HipClient, type CommandOutcome, type ConnectionState, type SendOptions } from '../net/hip-client.ts';
 import { useDisplay } from './display-store.ts';
 import { anchorCenter } from '../shared/anchors.ts';
 
@@ -22,7 +22,7 @@ interface SessionState {
   accessDenied: 'required' | 'invalid' | null;
   connect(sessionId: string): void;
   submitAccessCode(code: string): void;
-  send<T extends CommandType>(type: T, payload: CommandPayload<T>): Promise<CommandOutcome>;
+  send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts?: SendOptions): Promise<CommandOutcome>;
 }
 
 const storageKey = (sessionId: string) => `idea-audition:judge:${sessionId}`;
@@ -86,6 +86,11 @@ export const useSession = create<SessionState>((set, get) => ({
         onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
         onEphemeral: handleEphemeral,
         onState: (connection) => set({ connection }),
+        onProtocolError: (m) => {
+          if (m.code === 'UNSUPPORTED_VERSION') {
+            useDisplay.getState().toast('サーバーが新しくなりました。画面を再読み込みしてください', 'warn');
+          }
+        },
       },
       readJudgeId(sessionId),
       sessionAccessCode ?? readAccessCode(),
@@ -101,10 +106,10 @@ export const useSession = create<SessionState>((set, get) => ({
     get().connect(get().sessionId);
   },
 
-  async send(type, payload) {
+  async send(type, payload, opts) {
     const client = get().client;
     if (!client) return { ok: false, reason: 'TIMEOUT' };
-    const outcome = await client.send(type, payload);
+    const outcome = await client.send(type, payload, opts);
     if (!outcome.ok) {
       const label =
         outcome.reason === 'TIMEOUT' ? '通信が不安定です。もう一度お試しください' : REJECT_REASON_LABEL[outcome.reason];

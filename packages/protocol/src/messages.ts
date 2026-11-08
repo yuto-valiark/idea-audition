@@ -3,6 +3,16 @@ import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
 export const HIP_VERSION = '1';
+/** このサーバー・クライアントが話せる HIP のメジャー版 */
+export const SUPPORTED_HIP_VERSIONS = [HIP_VERSION] as const;
+
+/** WebSocket の終了コード（docs/protocol/hip-v1.md §11） */
+export const HIP_CLOSE = {
+  UNSUPPORTED_VERSION: 4400,
+  ACCESS_DENIED: 4401,
+  HELLO_TIMEOUT: 4408,
+  RATE_LIMITED: 4429,
+} as const;
 
 const text = z.string().trim().min(1).max(400);
 const id = z.string().min(1).max(80);
@@ -50,6 +60,8 @@ const commandEnvelope = <T extends CommandType>(type: T) =>
     type: z.literal(type),
     commandId: id,
     sentAt: z.string(),
+    /** 画面で見ていた対象の版（違えば STALE_VERSION。§7.2） */
+    expected: z.object({ rev: id }).optional(),
     payload: CommandPayloads[type],
   });
 
@@ -120,7 +132,39 @@ export const EphemeralMessage = z.discriminatedUnion('type', [
 ]);
 export type EphemeralMessage = z.infer<typeof EphemeralMessage>;
 
-export const ClientMessage = z.union([HelloMessage, CommandMessage, EphemeralMessage]);
+/* ------------------------------------------------------------------ */
+/* Signal: Client → Server（返事なし・間引いてよい・状態はまとめた Event で返る）*/
+/* ------------------------------------------------------------------ */
+
+export const SoftSignalKind = z.enum(['hesitation', 'positive', 'laugh', 'silence']);
+export type SoftSignalKind = z.infer<typeof SoftSignalKind>;
+
+export const SignalPayloads = {
+  /** 言葉にならない反応（「うーん」・沈黙・笑い）と、そのとき見ていたカード（ADR-0009） */
+  SOFT_SIGNAL: z.object({
+    kind: SoftSignalKind,
+    targetInstanceId: id.nullable(),
+    /** きっかけになった短い言葉（例：「うーん」）。音声そのものは送らない */
+    cue: z.string().max(40).optional(),
+    features: z
+      .object({
+        silenceMs: z.number().min(0).max(60_000).optional(),
+        rms: z.number().min(0).max(1).optional(),
+      })
+      .optional(),
+  }),
+} as const;
+export type SignalType = keyof typeof SignalPayloads;
+
+export const SignalMessage = z.object({
+  hip: z.literal(HIP_VERSION),
+  kind: z.literal('signal'),
+  type: z.literal('SOFT_SIGNAL'),
+  payload: SignalPayloads.SOFT_SIGNAL,
+});
+export type SignalMessage = z.infer<typeof SignalMessage>;
+
+export const ClientMessage = z.union([HelloMessage, CommandMessage, EphemeralMessage, SignalMessage]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
 /* ------------------------------------------------------------------ */
@@ -150,6 +194,10 @@ export const EventType = z.enum([
   'VOTE_CAST',
   'TIE_DETECTED',
   'CHAMPION_SELECTED',
+  /** 好みエンジン（ADR-0009） */
+  'TASTE_UPDATED',
+  'CANDIDATE_REACTED',
+  'CANDIDATE_REVISED',
 ]);
 export type EventType = z.infer<typeof EventType>;
 
@@ -199,7 +247,21 @@ export const AccessDeniedMessage = z.object({
 });
 export type AccessDeniedMessage = z.infer<typeof AccessDeniedMessage>;
 
+/** 黙って捨てずに、相手が直せる情報を返す（§3.8） */
+export const ProtocolErrorCode = z.enum(['UNSUPPORTED_VERSION', 'MALFORMED', 'UNKNOWN_TYPE', 'NOT_JOINED', 'RATE_LIMITED']);
+export type ProtocolErrorCode = z.infer<typeof ProtocolErrorCode>;
+
+export const ProtocolErrorMessage = z.object({
+  hip: z.literal(HIP_VERSION),
+  kind: z.literal('protocol_error'),
+  code: ProtocolErrorCode,
+  detail: z.string(),
+  supported: z.array(z.string()),
+});
+export type ProtocolErrorMessage = z.infer<typeof ProtocolErrorMessage>;
+
 export const ServerMessage = z.union([
+  ProtocolErrorMessage,
   AccessDeniedMessage,
   WelcomeMessage,
   EventMessage,

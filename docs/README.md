@@ -31,6 +31,9 @@
 | [adr/ADR-0003-server-authority.md](adr/ADR-0003-server-authority.md) | サーバー権威：セッションアクター＋Firestore追記 | Accepted |
 | [adr/ADR-0004-hip-v1-minimum.md](adr/ADR-0004-hip-v1-minimum.md) | HIP v1最小仕様：Command/Event/Ephemeral/Snapshot | Accepted |
 | [adr/ADR-0005-ai-orchestration.md](adr/ADR-0005-ai-orchestration.md) | Gemini非同期オーケストレーション | Accepted |
+| [adr/ADR-0009-taste-engine.md](adr/ADR-0009-taste-engine.md) | 好みエンジン：言葉・行動・迷いから好みを読み、次の案の出し方を変える（図つき） | Proposed |
+| [adr/ADR-0010-hip-protocol-and-oss.md](adr/ADR-0010-hip-protocol-and-oss.md) | HIP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る | Proposed |
+| [protocol/hip-v1.md](protocol/hip-v1.md) | HIP v1 仕様書（メッセージ・順序・衝突・復旧・バージョン・終了コード） | Draft |
 | [adr/ADR-0008-proposal-pdf.md](adr/ADR-0008-proposal-pdf.md) | 優勝案の企画書と審査レポートを PDF で渡す | Accepted |
 | [adr/ADR-0007-consensus-ledger.md](adr/ADR-0007-consensus-ledger.md) | 合意台帳：会話の一貫性と時系列の合意を新しい案・改良・回答に反映 | Accepted |
 | [adr/ADR-0006-lower-stage-rotation.md](adr/ADR-0006-lower-stage-rotation.md) | 下段の入れ替え：注目度（会話での言及を含む）にもとづく退場 | Accepted |

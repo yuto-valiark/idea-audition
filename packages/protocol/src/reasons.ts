@@ -15,6 +15,7 @@ export const RejectReason = z.enum([
   'ALREADY_REFINING',
   'INVALID_PAYLOAD',
   'SPECTATOR',
+  'UNKNOWN_TYPE',
 ]);
 export type RejectReason = z.infer<typeof RejectReason>;
 
@@ -33,4 +34,5 @@ export const REJECT_REASON_LABEL: Record<RejectReason, string> = {
   ALREADY_REFINING: 'いまブラッシュアップ中です',
   INVALID_PAYLOAD: '入力を確認してください',
   SPECTATOR: '観覧モードでは操作できません',
+  UNKNOWN_TYPE: 'この操作はサーバーが対応していません。画面を再読み込みしてください',
 };

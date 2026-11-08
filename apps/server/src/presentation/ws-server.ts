@@ -2,7 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
   ClientMessage,
+  CommandPayloads,
+  HIP_CLOSE,
   HIP_VERSION,
+  SUPPORTED_HIP_VERSIONS,
+  type ProtocolErrorCode,
   type ServerMessage,
 } from '@idea-audition/protocol';
 import type { Connection, SessionActor } from '../application/session-actor.ts';
@@ -10,6 +14,15 @@ import { checkAccess } from './access.ts';
 import { createStaticHandler } from './static-files.ts';
 
 const HEARTBEAT_MS = 25_000;
+/** 接続してからこの時間内に hello が来なければ閉じる（§11 4408） */
+const HELLO_TIMEOUT_MS = 10_000;
+/** 1接続あたりの受信上限（カーソルは 20Hz 程度。超えたら 4429 で閉じる） */
+const RATE_WINDOW_MS = 1000;
+const RATE_LIMIT = 120;
+
+function describe(data: unknown): { kind?: unknown; type?: unknown; hip?: unknown; commandId?: unknown } {
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+}
 
 export interface ActorRegistry {
   /** 初回は保存先から復元するため非同期 */
@@ -23,6 +36,8 @@ export interface ActorRegistry {
  */
 export function startServer(opts: {
   port: number;
+  /** テスト用に上書きできる */
+  helloTimeoutMs?: number;
   registry: ActorRegistry;
   voice: WebSocketServer | null;
   /** 公開環境の合言葉（null なら不要） */
@@ -72,28 +87,63 @@ export function startServer(opts: {
       ws.ping();
     }, HEARTBEAT_MS);
 
+    const protocolError = (code: ProtocolErrorCode, detail: string) =>
+      conn.send({ hip: HIP_VERSION, kind: 'protocol_error', code, detail, supported: [...SUPPORTED_HIP_VERSIONS] });
+    const helloTimer = setTimeout(() => {
+      if (actorReady) return;
+      ws.close(HIP_CLOSE.HELLO_TIMEOUT, 'hello timeout');
+    }, opts.helloTimeoutMs ?? HELLO_TIMEOUT_MS);
+    let windowStart = Date.now();
+    let received = 0;
+
     ws.on('message', (raw) => {
+      const now = Date.now();
+      if (now - windowStart >= RATE_WINDOW_MS) {
+        windowStart = now;
+        received = 0;
+      }
+      if (++received > RATE_LIMIT) {
+        if (received === RATE_LIMIT + 1) {
+          protocolError('RATE_LIMITED', `more than ${RATE_LIMIT} messages per second`);
+          ws.close(HIP_CLOSE.RATE_LIMITED, 'rate limited');
+        }
+        return;
+      }
       let data: unknown;
       try {
         data = JSON.parse(raw.toString());
       } catch {
+        protocolError('MALFORMED', 'not JSON');
+        return;
+      }
+      const head = describe(data);
+      // バージョンは形の検証より先に見る（違う版の形はこちらの Zod では読めない）
+      if (head.hip !== HIP_VERSION) {
+        protocolError('UNSUPPORTED_VERSION', `hip ${JSON.stringify(head.hip ?? null)} is not supported`);
+        if (head.kind === 'hello' || !actorReady) ws.close(HIP_CLOSE.UNSUPPORTED_VERSION, 'unsupported version');
         return;
       }
       const parsed = ClientMessage.safeParse(data);
       if (!parsed.success) {
-        const commandId = (data as { commandId?: unknown })?.commandId;
-        if (typeof commandId === 'string') {
-          conn.send({ hip: HIP_VERSION, kind: 'result', commandId, ok: false, reason: 'INVALID_PAYLOAD' });
+        if (head.kind === 'command' && typeof head.commandId === 'string') {
+          // 知らない type は前方互換のため UNKNOWN_TYPE、知っている type の形違いは INVALID_PAYLOAD
+          const known = typeof head.type === 'string' && head.type in CommandPayloads;
+          conn.send({ hip: HIP_VERSION, kind: 'result', commandId: head.commandId, ok: false, reason: known ? 'INVALID_PAYLOAD' : 'UNKNOWN_TYPE' });
+        } else if (head.kind === 'ephemeral' || head.kind === 'signal' || head.kind === 'hello' || head.kind === 'command') {
+          protocolError('MALFORMED', `invalid ${String(head.kind)} message`);
+        } else {
+          protocolError('UNKNOWN_TYPE', `unknown kind ${JSON.stringify(head.kind ?? null)}`);
         }
         return;
       }
       const msg = parsed.data;
       if (msg.kind === 'hello') {
         if (actorReady) return;
+        clearTimeout(helloTimer);
         const access = checkAccess(opts.accessCode, msg.accessCode);
         if (access !== 'ok') {
           conn.send({ hip: HIP_VERSION, kind: 'access_denied', reason: access });
-          ws.close(4401, 'access denied');
+          ws.close(HIP_CLOSE.ACCESS_DENIED, 'access denied');
           return;
         }
         sessionId = msg.sessionId;
@@ -111,10 +161,17 @@ export function startServer(opts: {
         );
         return;
       }
-      if (!actorReady) return;
+      if (!actorReady) {
+        if (msg.kind === 'command') {
+          conn.send({ hip: HIP_VERSION, kind: 'result', commandId: msg.commandId, ok: false, reason: 'NOT_AUTHORIZED' });
+        }
+        protocolError('NOT_JOINED', 'send hello first');
+        return;
+      }
       void actorReady.then((actor) => {
         if (!actor) return;
         if (msg.kind === 'command') actor.receiveCommand(conn, msg);
+        else if (msg.kind === 'signal') actor.receiveSignal(conn, msg);
         else actor.receiveEphemeral(conn, msg);
       });
     });
@@ -123,6 +180,7 @@ export function startServer(opts: {
     ws.on('close', () => {
       closed = true;
       clearInterval(beat);
+      clearTimeout(helloTimer);
       void actorReady?.then((actor) => {
         if (!actor || !sessionId) return;
         actor.detach(conn);
@@ -131,6 +189,21 @@ export function startServer(opts: {
     });
   });
 
-  http.listen(opts.port, () => opts.log(`HIP server listening on :${opts.port} (ws path /hip)`));
-  return { close: () => new Promise<void>((r) => wss.close(() => http.close(() => r()))) };
+  // port: 0 なら空いているポートを使う（テスト用）。実際のポートを返す
+  const port = new Promise<number>((resolve) =>
+    http.listen(opts.port, () => {
+      const address = http.address();
+      const actual = typeof address === 'object' && address ? address.port : opts.port;
+      opts.log(`HIP server listening on :${actual} (ws path /hip)`);
+      resolve(actual);
+    }),
+  );
+  return {
+    port,
+    close: () =>
+      new Promise<void>((r) => {
+        for (const client of wss.clients) client.terminate();
+        wss.close(() => http.close(() => r()));
+      }),
+  };
 }

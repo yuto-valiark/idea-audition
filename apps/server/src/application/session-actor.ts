@@ -10,6 +10,7 @@ import {
   type HelloMessage,
   type RejectReason,
   type ServerMessage,
+  type SignalMessage,
 } from '@idea-audition/protocol';
 import { AuditionSession } from '../domain/session.ts';
 import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
@@ -86,6 +87,8 @@ const QUESTION_PATTERN = /[?？]\s*$|どう|なぜ|なに|何|どれ|いくら|�
 const REJECT_PATTERN =
   /却下|ボツ|[はも]パス|パスで|パス[。！!]*\s*$|いらない|要らない|交代|退場|見送|次の人|[はも](ナシ|なし)|ないわ|ないな[ぁあ。！!]*\s*$/;
 const RESULT_CACHE_LIMIT = 500;
+/** Signal は1人あたり毎秒この件数まで（§3.7） */
+const SIGNAL_RATE_PER_SEC = 2;
 const PERSIST_RETRY_MS = 5_000;
 
 /**
@@ -116,6 +119,7 @@ export class SessionActor {
   private replyTo = new Map<number, string>(); // 発言 seq → 返答先の論点ラベル
   private saving = false;
   private saveScheduled = false;
+  private signalTimes = new Map<string, number[]>(); // judgeId → 直近1秒の Signal の時刻
 
   constructor(
     sessionId: string,
@@ -233,6 +237,24 @@ export class SessionActor {
     for (const { conn } of this.connections.values()) if (conn.id !== from.id) conn.send(out);
   }
 
+  /* ------------------------------ Signal ------------------------------ */
+
+  /** 返事をしない。間引いた残りだけを好みエンジンに渡す（§3.7） */
+  receiveSignal(conn: Connection, msg: SignalMessage) {
+    const judgeId = this.connections.get(conn.id)?.judgeId;
+    if (!judgeId) return;
+    const now = this.deps.clock.now();
+    const recent = (this.signalTimes.get(judgeId) ?? []).filter((t) => now - t < 1000);
+    if (recent.length >= SIGNAL_RATE_PER_SEC) return;
+    recent.push(now);
+    this.signalTimes.set(judgeId, recent);
+    this.onSoftSignal(judgeId, msg.payload);
+  }
+
+  private onSoftSignal(_judgeId: string, _signal: SignalMessage['payload']) {
+    // 好みエンジン（ADR-0009）で中身を入れる
+  }
+
   /* ----------------------------- Command ----------------------------- */
 
   receiveCommand(conn: Connection, cmd: CommandMessage) {
@@ -327,6 +349,9 @@ export class SessionActor {
       case 'REQUEST_REFINEMENT': {
         if (s.status !== 'audition_active') return { ok: false, reason: 'SESSION_NOT_ACTIVE' };
         if (!s.finalist(cmd.payload.instanceId)) return { ok: false, reason: 'NOT_IN_UPPER' };
+        if (cmd.expected && !this.isCurrentRevision(cmd.payload.instanceId, cmd.expected.rev)) {
+          return { ok: false, reason: 'STALE_VERSION' };
+        }
         this.enqueueRefinement({ kind: 'instruction', instanceId: cmd.payload.instanceId, text: cmd.payload.text });
         return { ok: true };
       }
@@ -351,6 +376,12 @@ export class SessionActor {
       case 'SELECT_CHAMPION':
         return this.afterFinal(apply(s.selectChampion(judgeId, cmd.payload.instanceId)));
     }
+  }
+
+  /** 画面で見ていた版がいまの版か（§7.2 対象の版での判定） */
+  private isCurrentRevision(instanceId: string, rev: string): boolean {
+    const idea = this.session.ideaOf(instanceId);
+    return !!idea && this.session.currentRevision(idea.ideaId).revisionId === rev;
   }
 
   /**

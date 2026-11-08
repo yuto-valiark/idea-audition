@@ -156,7 +156,7 @@ export function DetailModal() {
                 <button
                   disabled={busy || isSpectator || !message.trim() || !active}
                   onClick={() =>
-                    void run(() => send('REQUEST_REFINEMENT', { instanceId: selected, text: message.trim() })).then(
+                    void run(() => send('REQUEST_REFINEMENT', { instanceId: selected, text: message.trim() }, { expected: { rev: current.revisionId } })).then(
                       (r) => {
                         if (!r.ok) return;
                         setMessage('');
