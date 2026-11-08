@@ -95,12 +95,12 @@ html{scroll-behavior:smooth}
     <li><a href="#seq-voice"><span>07</span>声・言及・迷い</a></li>
     <li><a href="#seq-final"><span>08</span>決勝から企画書まで</a></li>
     <li><a href="#er"><span>09</span>ER 図</a></li>
-    <li><a href="#hip"><span>10</span>HIP メッセージ</a></li>
+    <li><a href="#hip"><span>10</span>CAMP メッセージ</a></li>
     <li><a href="#deploy"><span>11</span>デプロイの流れ</a></li>
     <li><a href="#trust"><span>12</span>権限と境界</a></li>
     <li><a href="#cost"><span>13</span>Gemini とコスト</a></li>
     <li><a href="#tree"><span>14</span>フォルダ構成</a></li>
-    <li><a href="#protocol"><span>15</span>HIP とOSSへの道</a></li>
+    <li><a href="#protocol"><span>15</span>CAMP とOSSへの道</a></li>
   </ol>
 </nav>
 
@@ -124,7 +124,7 @@ html{scroll-behavior:smooth}
   <p>どのツールがどのツールと、何でつながっているか。点線は「毎回のやり取りではない」つながり（権限・監視・端末内の処理）です。</p>
   <div class="frame"><svg class="map" id="map" viewBox="0 0 1280 820" role="img" aria-label="サービス構成図"></svg></div>
   <div class="notes">
-    <div class="note"><b>コンテナは1つ</b>画面の配信、/hip、/voice、SessionActor が同じ Cloud Run の1台に入っています。最大1台・セッションアフィニティで、全員が同じメモリ上のセッションに入ります。</div>
+    <div class="note"><b>コンテナは1つ</b>画面の配信、/camp、/voice、SessionActor が同じ Cloud Run の1台に入っています。最大1台・セッションアフィニティで、全員が同じメモリ上のセッションに入ります。</div>
     <div class="note"><b>Gemini を呼ぶのはサーバーだけ</b>ブラウザは鍵もトークンも持ちません。サービスアカウント idea-audition-run の権限で Vertex AI と Firestore を呼びます。</div>
     <div class="note new"><b>増えるのは2本の線だけ</b>埋め込み（gemini-embedding-001）への呼び出しと、マイクから送る声の特徴です。外のサービスは増えません。</div>
   </div>
@@ -137,7 +137,7 @@ html{scroll-behavior:smooth}
   <div class="frame plain"><pre class="mermaid">
 flowchart TB
   subgraph P["presentation（入口）"]
-    WS["ws-server.ts&lt;br/&gt;/hip"]
+    WS["ws-server.ts&lt;br/&gt;/camp"]
     VS["voice-server.ts&lt;br/&gt;/voice"]
     AC["access.ts&lt;br/&gt;合言葉"]
     SF["static-files.ts"]
@@ -319,7 +319,7 @@ sequenceDiagram
   participant F as Firestore
   R->>SM: 起動時に合言葉を取得（環境変数として注入）
   B->>R: GET /（画面ファイル）
-  B->>R: WSS /hip 接続
+  B->>R: WSS /camp 接続
   B->>R: hello（judgeId・合言葉）
   alt 合言葉が違う / 空
     R-->>B: access_denied（required / invalid）
@@ -534,7 +534,7 @@ erDiagram
 
 <!-- 10 -->
 <section id="hip">
-  <h2>HIP メッセージ <small>10 / PROTOCOL v1</small></h2>
+  <h2>CAMP メッセージ <small>10 / PROTOCOL v1</small></h2>
   <p>すべて packages/protocol の Zod スキーマで検証します。Command と Event は Firestore に残り、Ephemeral（カーソルなど）は残しません。</p>
   <div class="frame plain">
   <table>
@@ -642,8 +642,8 @@ flowchart LR
   <h2>フォルダ構成 <small>14 / REPOSITORY</small></h2>
   <p><span class="tree"><span class="s">★</span></span> が新しく作るファイル、<span class="tree"><span class="c">（変更）</span></span>が手を入れる既存ファイルです。</p>
   <div class="frame plain"><pre class="tree">idea-audition/
-├─ packages/protocol/src/            <span class="c">HIP v1 の契約（Zod）</span>
-│  ├─ <span class="s">★ core/</span>                       <span class="c">アプリの言葉を知らない HIP の核（将来 OSS に）</span>
+├─ packages/protocol/src/            <span class="c">CAMP v1 の契約（Zod）</span>
+│  ├─ <span class="s">★ core/</span>                       <span class="c">アプリの言葉を知らない CAMP の核（将来 OSS に）</span>
 │  │  └─ version · envelope · idempotency（ResultCache）· sequence（SeqGate）
 │  └─ vocabulary/                    <span class="c">IDEA AUDITION の言葉</span>
 │     ├─ messages.ts                 <span class="c">（変更）Signal・TASTE_UPDATED・CANDIDATE_REACTED・CANDIDATE_REVISED</span>
@@ -676,7 +676,7 @@ flowchart LR
 │     ├─ persistence/                <span class="c">firestore-store · memory-store</span>
 │     └─ gcp-auth.ts · resilient-gateway.ts · runtime.ts
 ├─ apps/web/src/
-│  ├─ App.tsx · net/hip-client.ts · store/
+│  ├─ App.tsx · net/camp-client.ts · store/
 │  ├─ scene/
 │  │  ├─ LowerStage.tsx · FinalStage.tsx  <span class="c">（変更）🤔 と別案の演出</span>
 │  │  └─ <span class="s">★ PitchTag.tsx</span>               <span class="c">💡 🤝 🧭 🎲 と理由</span>
@@ -694,17 +694,17 @@ flowchart LR
 
 <!-- 15 -->
 <section id="protocol">
-  <h2>HIP とOSSへの道 <small>15 / PROTOCOL &amp; OSS</small> <span class="badge">NEW</span></h2>
-  <p>HIP は TCP や WebSocket の仲間ではなく、その上に載るアプリケーション層のプロトコルです。WebSocket は「届ける」だけで、4人が同時に昇格したら誰が勝つか、返事の前に切れた操作をどうするか、遅れて返った AI の結果をどう扱うかは決めてくれません。そこを決めているのが HIP です（ADR-0010、docs/protocol/hip-v1.md）。</p>
+  <h2>CAMP とOSSへの道 <small>15 / PROTOCOL &amp; OSS</small> <span class="badge">NEW</span></h2>
+  <p>CAMP は TCP や WebSocket の仲間ではなく、その上に載るアプリケーション層のプロトコルです。WebSocket は「届ける」だけで、4人が同時に昇格したら誰が勝つか、返事の前に切れた操作をどうするか、遅れて返った AI の結果をどう扱うかは決めてくれません。そこを決めているのが CAMP です（ADR-0010、docs/protocol/camp-v1.md）。</p>
   <div class="frame plain"><pre class="mermaid">
 flowchart TB
   APP["IDEA AUDITION の語彙&lt;br/&gt;REQUEST_PROMOTION · CANDIDATE_SPAWNED · SOFT_SIGNAL …"]
-  HIP["HIP v1（自作）&lt;br/&gt;8種類のメッセージ · 役割 · 直列処理と seq · result と理由コード&lt;br/&gt;commandId の重複排除 · 再接続と snapshot · epoch · バージョン · 終了コード"]:::new
+  CAMP["CAMP v1（自作）&lt;br/&gt;8種類のメッセージ · 役割 · 直列処理と seq · result と理由コード&lt;br/&gt;commandId の重複排除 · 再接続と snapshot · epoch · バージョン · 終了コード"]:::new
   WS["WebSocket（RFC 6455）&lt;br/&gt;双方向・メッセージ単位で届ける"]
   TLS["TLS（HTTPS / WSS）"]
   TCP["TCP&lt;br/&gt;順番どおり確実に届ける"]
   IP["IP"]
-  APP --> HIP --> WS --> TLS --> TCP --> IP
+  APP --> CAMP --> WS --> TLS --> TCP --> IP
   classDef new fill:#fff3cf,stroke:#e8a400,stroke-width:2px,color:#3a2800;
 </pre></div>
   <div class="frame plain">
@@ -802,7 +802,7 @@ flowchart LR
     N(40,430,230,60,'client','eye','観覧者（5人目〜）','同じ画面を見るだけ'),
     N(360,106,150,52,'run','folder','静的配信','web/dist'),
     N(530,106,150,52,'run','lock','合言葉ゲート','hello で照合'),
-    N(360,170,150,52,'run','ws','/hip','HIP v1 · JSON'),
+    N(360,170,150,52,'run','ws','/camp','CAMP v1 · JSON'),
     N(530,170,150,52,'run','wave','/voice','Live へ中継'),
     N(360,262,320,52,'run','layers','SessionActor','セッションごとに直列 · 状態の正本 · 失敗時は固定データ'),
     N(360,332,150,52,'run','radar','好みエンジン','好み · 選抜 · 迷い',true),
@@ -824,7 +824,7 @@ flowchart LR
   // [path, label, lx, ly, cls, both, anchor]
   const edges = [
     ['M270 120 H360','HTTPS · 画面',276,113,'',false],
-    ['M270 150 H320 V196 H360','WSS /hip',276,143,'',true],
+    ['M270 150 H320 V196 H360','WSS /camp',276,143,'',true],
     ['M270 332 H325 V242 H560 V222','WSS /voice · 16kHz PCM ＋ 声の特徴',392,257,'hot',false],
     ['M155 164 V200','優勝後',162,186,'dash',false],
     ['M605 158 V170','',0,0,'dash',false],

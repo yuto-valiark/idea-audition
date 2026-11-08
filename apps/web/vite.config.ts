@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      '/hip': { target: 'ws://localhost:8787', ws: true },
+      '/camp': { target: 'ws://localhost:8787', ws: true },
       '/voice': { target: 'ws://localhost:8787', ws: true },
     },
   },

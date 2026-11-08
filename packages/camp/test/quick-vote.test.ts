@@ -1,11 +1,11 @@
 /**
- * @hip/kit を IDEA AUDITION 以外のアプリ（examples/quick-vote）で使い、プロトコルの約束を確かめる。
+ * @camp-protocol/kit を IDEA AUDITION 以外のアプリ（examples/quick-vote）で使い、プロトコルの約束を確かめる。
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { HIP_CLOSE, HIP_VERSION } from '../src/core/index.ts';
-import { HipClient, type WebSocketLike } from '../src/client/index.ts';
-import { createHipServer } from '../src/server/index.ts';
+import { CAMP_CLOSE, CAMP_VERSION } from '../src/core/index.ts';
+import { CampClient, type WebSocketLike } from '../src/client/index.ts';
+import { createCampServer } from '../src/server/index.ts';
 import { pollRoom, type Summarize } from '../examples/quick-vote/room.ts';
 import { quickVote } from '../examples/quick-vote/vocabulary.ts';
 
@@ -16,16 +16,16 @@ const summarize: Summarize = (q, tally) =>
     release = () => r(`${q}:${tally.join('-')}`);
   });
 
-let server: ReturnType<typeof createHipServer<typeof quickVote, unknown>>;
+let server: ReturnType<typeof createCampServer<typeof quickVote, unknown>>;
 let url = '';
 beforeAll(async () => {
-  server = createHipServer(quickVote, { port: 0, room: pollRoom(summarize), helloTimeoutMs: 300 }) as never;
-  url = `ws://127.0.0.1:${await server.port}/hip`;
+  server = createCampServer(quickVote, { port: 0, room: pollRoom(summarize), helloTimeoutMs: 300 }) as never;
+  url = `ws://127.0.0.1:${await server.port}/camp`;
 });
 afterAll(() => server.close());
 
-type Client = HipClient<typeof quickVote> & { socket: () => WebSocket; snap: () => Snap | null; events: string[] };
-type Snap = Parameters<NonNullable<Parameters<HipClient<typeof quickVote>['on']>[0]['onSnapshot']>>[0];
+type Client = CampClient<typeof quickVote> & { socket: () => WebSocket; snap: () => Snap | null; events: string[] };
+type Snap = Parameters<NonNullable<Parameters<CampClient<typeof quickVote>['on']>[0]['onSnapshot']>>[0];
 
 let roomNo = 0;
 function join(room: string, participantId?: string): Promise<Client> {
@@ -33,7 +33,7 @@ function join(room: string, participantId?: string): Promise<Client> {
     let ws: WebSocket;
     let snap: Snap | null = null;
     const events: string[] = [];
-    const c = new HipClient(quickVote, {
+    const c = new CampClient(quickVote, {
       url,
       room,
       ...(participantId ? { participantId } : {}),
@@ -67,7 +67,7 @@ async function openRoom(n: number) {
   return { room, clients };
 }
 
-describe('@hip/kit × Quick Vote', () => {
+describe('@camp-protocol/kit × Quick Vote', () => {
   it('同時に投票しても、全員が同じ順番で同じ状態を受け取る', async () => {
     const { clients } = await openRoom(4);
     const results = await Promise.all(clients.map((c, i) => c.send('VOTE', { option: i % 3 })));
@@ -94,9 +94,9 @@ describe('@hip/kit × Quick Vote', () => {
     const got: { kind: string; type?: string; commandId?: string }[] = [];
     raw.on('message', (d) => got.push(JSON.parse(d.toString())));
     await new Promise((r) => raw.on('open', r));
-    raw.send(JSON.stringify({ hip: HIP_VERSION, kind: 'hello', sessionId: room }));
+    raw.send(JSON.stringify({ camp: CAMP_VERSION, kind: 'hello', sessionId: room }));
     await until(() => got.some((m) => m.kind === 'welcome'));
-    const vote = { hip: HIP_VERSION, kind: 'command', type: 'VOTE', commandId: 'same', sentAt: '', payload: { option: 2 } };
+    const vote = { camp: CAMP_VERSION, kind: 'command', type: 'VOTE', commandId: 'same', sentAt: '', payload: { option: 2 } };
     for (let i = 0; i < 3; i++) raw.send(JSON.stringify(vote));
     await until(() => got.filter((m) => m.kind === 'result').length === 3);
     const results = got.filter((m) => m.kind === 'result');
@@ -154,9 +154,9 @@ describe('@hip/kit × Quick Vote', () => {
     const got: { kind: string; reason?: string; code?: string }[] = [];
     raw.on('message', (d) => got.push(JSON.parse(d.toString())));
     await new Promise((r) => raw.on('open', r));
-    raw.send(JSON.stringify({ hip: HIP_VERSION, kind: 'hello', sessionId: `qv-${++roomNo}` }));
+    raw.send(JSON.stringify({ camp: CAMP_VERSION, kind: 'hello', sessionId: `qv-${++roomNo}` }));
     await until(() => got.some((m) => m.kind === 'welcome'));
-    raw.send(JSON.stringify({ hip: HIP_VERSION, kind: 'command', type: 'TELEPORT', commandId: 'x', sentAt: '', payload: {} }));
+    raw.send(JSON.stringify({ camp: CAMP_VERSION, kind: 'command', type: 'TELEPORT', commandId: 'x', sentAt: '', payload: {} }));
     await until(() => got.some((m) => m.kind === 'result'));
     expect(got.find((m) => m.kind === 'result')).toMatchObject({ ok: false, reason: 'UNKNOWN_TYPE' });
     raw.close();
@@ -164,7 +164,7 @@ describe('@hip/kit × Quick Vote', () => {
     const old = new WebSocket(url);
     const closed = new Promise<number>((r) => old.on('close', (code) => r(code)));
     await new Promise((r) => old.on('open', r));
-    old.send(JSON.stringify({ hip: '2', kind: 'hello', sessionId: 'x' }));
-    expect(await closed).toBe(HIP_CLOSE.UNSUPPORTED_VERSION);
+    old.send(JSON.stringify({ camp: '2', kind: 'hello', sessionId: 'x' }));
+    expect(await closed).toBe(CAMP_CLOSE.UNSUPPORTED_VERSION);
   });
 });

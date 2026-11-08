@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_DESIGNS, HIP_VERSION, type CommandMessage, type EventMessage, type EphemeralMessage } from '@idea-audition/protocol';
+import { CHARACTER_DESIGNS, CAMP_VERSION, type CommandMessage, type EventMessage, type EphemeralMessage } from '@idea-audition/protocol';
 import {
   DEFAULT_ROTATION_POLICY,
   addAttention,
@@ -68,8 +68,8 @@ describe('退場させる案の選び方', () => {
 describe('アクターの入れ替え', () => {
   let cid = 0;
   const cmd = (type: CommandMessage['type'], payload: object) =>
-    ({ hip: HIP_VERSION, kind: 'command', type, commandId: `a${++cid}`, sentAt: '', payload }) as CommandMessage;
-  const eph = (type: EphemeralMessage['type'], payload: object) => ({ hip: HIP_VERSION, kind: 'ephemeral', type, payload }) as EphemeralMessage;
+    ({ camp: CAMP_VERSION, kind: 'command', type, commandId: `a${++cid}`, sentAt: '', payload }) as CommandMessage;
+  const eph = (type: EphemeralMessage['type'], payload: object) => ({ camp: CAMP_VERSION, kind: 'ephemeral', type, payload }) as EphemeralMessage;
 
   async function setup() {
     const { scheduler, advance } = manualScheduler();
@@ -95,7 +95,7 @@ describe('アクターの入れ替え', () => {
       },
     });
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'r' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'r' });
     actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: 'テーマ', mode: 'team' }));
     await advance(0);
     const events = () => a.received.filter((m): m is EventMessage => m.kind === 'event');
@@ -155,7 +155,7 @@ describe('アクターの入れ替え', () => {
 describe('見送り（審査員がこの案はないと判断）', () => {
   let cid = 0;
   const cmd = (type: CommandMessage['type'], payload: object) =>
-    ({ hip: HIP_VERSION, kind: 'command', type, commandId: `j${++cid}`, sentAt: '', payload }) as CommandMessage;
+    ({ camp: CAMP_VERSION, kind: 'command', type, commandId: `j${++cid}`, sentAt: '', payload }) as CommandMessage;
 
   async function setup(rotation: { maxConcurrentLeaving: number } | null = null) {
     const { scheduler, advance } = manualScheduler();
@@ -174,7 +174,7 @@ describe('見送り（審査員がこの案はないと判断）', () => {
       },
     });
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'j' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'j' });
     actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: 'テーマ', mode: 'team' }));
     await advance(0);
     const tick = async (ms: number) => {

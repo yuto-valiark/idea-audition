@@ -1,8 +1,8 @@
 {
-  "name": "@hip/kit",
+  "name": "@camp-protocol/kit",
   "version": "0.1.0",
   "private": true,
-  "description": "HIP (Human Intent Protocol): a WebSocket application-layer protocol for rooms where several people act at once and slow AI results arrive in between.",
+  "description": "CAMP (Collaborative Agent Mediation Protocol): a WebSocket application-layer protocol for rooms where several people act at once and slow AI results arrive in between.",
   "type": "module",
   "exports": {
     ".": "./src/core/index.ts",

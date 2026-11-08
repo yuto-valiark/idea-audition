@@ -7,9 +7,9 @@ AIがプレゼン。あなたが審査員。— アイデア出しをオーデ�
 ## 構成
 
 ```text
-apps/web          React + TypeScript + Vite（ステージUI、HIPクライアント）
-apps/server       Node.js + TypeScript（セッションアクター、HIP の WebSocket 終端）
-packages/protocol HIP v1 の契約（Zod スキーマ・型・キャラ素材カタログ）
+apps/web          React + TypeScript + Vite（ステージUI、CAMPクライアント）
+apps/server       Node.js + TypeScript（セッションアクター、CAMP の WebSocket 終端）
+packages/protocol CAMP v1 の契約（Zod スキーマ・型・キャラ素材カタログ）
 reference/        ChatGPT で作ったモックアプリ（参考資料。ビルド対象外）
 ```
 
@@ -22,8 +22,8 @@ pnpm install
 pnpm dev
 ```
 
-- Web: http://localhost:5173 （`/hip` を Vite が server の 8787 番へプロキシ）
-- Server: ws://localhost:8787/hip、ヘルスチェック http://localhost:8787/health
+- Web: http://localhost:5173 （`/camp` を Vite が server の 8787 番へプロキシ）
+- Server: ws://localhost:8787/camp、ヘルスチェック http://localhost:8787/health
 - 同じセッションに入るには同じ URL を開きます。`?s=<セッション名>` で別のセッションになります（省略時は `demo`）
 - 審査員は1つのセッションに4人まで。5人目以降は観覧モード
 

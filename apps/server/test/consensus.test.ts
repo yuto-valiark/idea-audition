@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
 import { applyOps, emptyLedger, quorum, type Ledger } from '../src/domain/consensus.ts';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { AuditionSession } from '../src/domain/session.ts';
@@ -90,7 +90,7 @@ describe('合意台帳（ドメイン）', () => {
 describe('合意台帳とアクター', () => {
   let cid = 0;
   const cmd = (type: CommandMessage['type'], payload: object) =>
-    ({ hip: HIP_VERSION, kind: 'command', type, commandId: `k${++cid}`, sentAt: '', payload }) as CommandMessage;
+    ({ camp: CAMP_VERSION, kind: 'command', type, commandId: `k${++cid}`, sentAt: '', payload }) as CommandMessage;
 
   async function setup() {
     const { scheduler, advance } = manualScheduler();
@@ -110,7 +110,7 @@ describe('合意台帳とアクター', () => {
       },
     });
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'c' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'c' });
     actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '学食', mode: 'solo' }));
     await advance(0);
     const events = () => a.received.filter((m): m is EventMessage => m.kind === 'event');

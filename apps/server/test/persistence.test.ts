@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIP_VERSION, type CommandMessage, type EventMessage, type WelcomeMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage, type WelcomeMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { AuditionSession } from '../src/domain/session.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
@@ -7,7 +7,7 @@ import { StubAi, drafts, fakeClock, fakeConnection, manualScheduler, seqIds } fr
 
 let cid = 0;
 const cmd = (type: CommandMessage['type'], payload: object) =>
-  ({ hip: HIP_VERSION, kind: 'command', type, commandId: `p${++cid}`, sentAt: '', payload }) as CommandMessage;
+  ({ camp: CAMP_VERSION, kind: 'command', type, commandId: `p${++cid}`, sentAt: '', payload }) as CommandMessage;
 
 function deps(store: MemorySessionStore) {
   const { scheduler, advance } = manualScheduler();
@@ -48,7 +48,7 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     const first = deps(store);
     const actor = await SessionActor.open('demo', first.deps);
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
     actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '学食', mode: 'team' }));
     await first.advance(0);
     const target = actor.session.lowerSlots[0]!;
@@ -67,7 +67,7 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     const second = deps(store);
     const reopened = await SessionActor.open('demo', second.deps);
     const b = fakeConnection('b');
-    reopened.attach(b.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo', judgeId });
+    reopened.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo', judgeId });
     const welcome = b.received.find((m) => m.kind === 'welcome') as WelcomeMessage;
     expect(welcome.judgeId).toBe(judgeId);
     expect(welcome.snapshot.seq).toBe(lastEvent.seq);
@@ -96,7 +96,7 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     const d = deps(store);
     const actor = await SessionActor.open('x', d.deps);
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'x' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'x' });
     await d.advance(100);
     expect(store.sessions.has('x')).toBe(false);
     await d.advance(6000);

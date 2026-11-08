@@ -8,7 +8,7 @@ const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]));
 const importsOf = (file: string) => [...readFileSync(file, 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]!);
 
-describe('@hip/kit の境界（ADR-0010 §5）', () => {
+describe('@camp-protocol/kit の境界（ADR-0010 §5）', () => {
   it('どのファイルも IDEA AUDITION（@idea-audition/*）を import しない', () => {
     for (const f of files(src)) for (const spec of importsOf(f)) expect(spec.startsWith('@idea-audition'), `${f} → ${spec}`).toBe(false);
   });

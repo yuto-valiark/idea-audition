@@ -12,7 +12,7 @@
 | URL | https://idea-audition-852280753109.asia-northeast1.run.app （合言葉が必要） |
 | GCP プロジェクト | `idea-audition`（請求先 VICTORY） |
 | サービス | Cloud Run `idea-audition`（`asia-northeast1`） |
-| 中身 | 1つのコンテナで、画面（`apps/web/dist`）と HIP サーバー（`/hip`・`/voice`）を同じ URL から配る（`Dockerfile`） |
+| 中身 | 1つのコンテナで、画面（`apps/web/dist`）と CAMP サーバー（`/camp`・`/voice`）を同じ URL から配る（`Dockerfile`） |
 | 台数 | 最大1台（`--max-instances 1`）。待機は通常0台、本番前だけ1台（下記） |
 | 接続の上限 | 60分（`--timeout 3600`、WebSocket 用）。セッションアフィニティ有効 |
 | 実行アカウント | `idea-audition-run@idea-audition.iam.gserviceaccount.com`（Vertex AI 利用者・Firestore 利用者・合言葉の Secret の読み取りのみ） |

@@ -1,5 +1,5 @@
-/** HIP の核（どのアプリでも使える部分）。packages/hip（@hip/kit）にある */
-export * from '@hip/kit';
+/** CAMP の核（どのアプリでも使える部分）。packages/camp（@camp-protocol/kit）にある */
+export * from '@camp-protocol/kit';
 /** IDEA AUDITION の言葉（Command・Event の一覧と、snapshot の形） */
 export * from './vocabulary/model.ts';
 export * from './vocabulary/messages.ts';

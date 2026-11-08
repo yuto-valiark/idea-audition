@@ -1,4 +1,6 @@
-# HIP v1 — Human Intent Protocol 仕様書
+# CAMP v1 — Collaborative Agent Mediation Protocol 仕様書
+
+> 旧称 HIP（Human Intent Protocol）。2026-11-08 に CAMP に改名した（Host Identity Protocol などとの名前の重なりを避けるため。経緯は ADR-0010 の末尾）。通信のフィールド名も `hip` から `camp`、WebSocket のパスも `/hip` から `/camp` に変えた。
 
 - Status: Draft（2026-11-08）。ADR-0010 の a〜f は実装済み。適合テストは `apps/server/test/conformance.test.ts`
 - 正本のスキーマ：`packages/protocol/src/messages.ts`（Zod）
@@ -6,11 +8,11 @@
 
 ## 1. 何のためのプロトコルか
 
-HIP は、**複数の人間が同じ場を同時に操作し、そこに AI の遅い処理が割り込んでくる**セッションで、全員の画面を矛盾なく保つためのアプリケーション層プロトコルです。WebSocket（RFC 6455）の上で、テキストフレームに JSON を1つずつ載せて送ります。
+CAMP は、**複数の人間が同じ場を同時に操作し、そこに AI の遅い処理が割り込んでくる**セッションで、全員の画面を矛盾なく保つためのアプリケーション層プロトコルです。WebSocket（RFC 6455）の上で、テキストフレームに JSON を1つずつ載せて送ります。
 
-WebSocket が決めるのは「バイト列を双方向に順番どおり届ける」ことだけです。HIP はその上で次を決めます。
+WebSocket が決めるのは「バイト列を双方向に順番どおり届ける」ことだけです。CAMP はその上で次を決めます。
 
-| 決めること | HIP での答え |
+| 決めること | CAMP での答え |
 |---|---|
 | 送れるメッセージ | 8種類（§3） |
 | 誰が送れるか | 審査員・ホスト・観覧者の役割と、Command ごとの条件（§6） |
@@ -35,7 +37,7 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 
 ## 3. メッセージの種類
 
-すべてのメッセージに `hip: "1"` と `kind` が入ります。
+すべてのメッセージに `camp: "1"` と `kind` が入ります。
 
 | kind | 向き | 返事 | 順序 | 保存 | 実装 |
 |---|---|---|---|---|---|

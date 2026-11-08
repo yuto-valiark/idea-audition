@@ -1,6 +1,6 @@
 import {
   CHARACTER_DESIGNS,
-  HIP_VERSION,
+  CAMP_VERSION,
   LOWER_SLOT_COUNT,
   ResultCache,
   type AiMode,
@@ -216,7 +216,7 @@ export class SessionActor {
     const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
     if (wasEmpty) this.resumeAfterEmpty();
-    conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
 
@@ -229,7 +229,7 @@ export class SessionActor {
     if (stillConnected) return;
     this.held.delete(entry.judgeId);
     this.focus.delete(entry.judgeId);
-    this.relay(conn, { hip: HIP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: null });
+    this.relay(conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: null });
     const left = this.session.leave(entry.judgeId);
     if (left.ok) this.emit(left.events, { actorJudgeId: entry.judgeId });
   }
@@ -396,7 +396,7 @@ export class SessionActor {
     }
     const result = judgeId ? this.execute(judgeId, cmd) : { ok: false as const, reason: 'SPECTATOR' as const };
     const message: CommandResultMessage = {
-      hip: HIP_VERSION,
+      camp: CAMP_VERSION,
       kind: 'result',
       commandId: cmd.commandId,
       ok: result.ok,
@@ -1044,7 +1044,7 @@ export class SessionActor {
   private emit(events: DomainEvent[], meta: { actorJudgeId: string | null; correlationId?: string }) {
     if (events.length === 0) return;
     const messages: EventMessage[] = events.map((e) => ({
-      hip: HIP_VERSION,
+      camp: CAMP_VERSION,
       kind: 'event',
       type: e.type,
       seq: ++this.seq,

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { HIP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
 import { StubAi, fakeClock, fakeConnection, manualScheduler, seqIds } from './helpers.ts';
 
 let cid = 0;
 const cmd = (type: CommandMessage['type'], payload: object) =>
-  ({ hip: HIP_VERSION, kind: 'command', type, commandId: `m${++cid}`, sentAt: '', payload }) as CommandMessage;
+  ({ camp: CAMP_VERSION, kind: 'command', type, commandId: `m${++cid}`, sentAt: '', payload }) as CommandMessage;
 
 async function setup(aiMode?: 'gemini' | 'fixture') {
   const { scheduler, advance } = manualScheduler();
@@ -23,8 +23,8 @@ async function setup(aiMode?: 'gemini' | 'fixture') {
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');
-  actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'm' });
-  actor.attach(b.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'm' });
+  actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'm' });
+  actor.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'm' });
   actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: 't', mode: 'team', ...(aiMode ? { aiMode } : {}) }));
   await advance(0);
   const events = () => a.received.filter((m): m is EventMessage => m.kind === 'event');

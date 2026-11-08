@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "zod": "^4.6.7",
-    "@hip/kit": "workspace:*"
+    "@camp-protocol/kit": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

@@ -1,8 +1,8 @@
 import {
-  HipClient as GenericHipClient,
+  CampClient as GenericCampClient,
   type CommandOutcome as GenericOutcome,
   type SendOptions,
-} from '@hip/kit/client';
+} from '@camp-protocol/kit/client';
 import {
   vocabulary,
   type CommandPayload,
@@ -31,23 +31,23 @@ interface Handlers {
   onProtocolError?(m: ProtocolErrorMessage): void;
 }
 
-function hipUrl() {
-  const configured = import.meta.env.VITE_HIP_URL as string | undefined;
+function campUrl() {
+  const configured = import.meta.env.VITE_CAMP_URL as string | undefined;
   if (configured) return configured;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}/hip`;
+  return `${proto}://${location.host}/camp`;
 }
 
 /**
- * IDEA AUDITION 用の HIP クライアント。再接続・再送・順序の管理は @hip/kit の HipClient が受け持ち、
+ * IDEA AUDITION 用の CAMP クライアント。再接続・再送・順序の管理は @camp-protocol/kit の CampClient が受け持ち、
  * ここでは接続先と、画面の store に合わせた呼び出し方だけを決める。
  */
-export class HipClient {
-  private readonly inner: GenericHipClient<typeof vocabulary>;
+export class CampClient {
+  private readonly inner: GenericCampClient<typeof vocabulary>;
 
   constructor(sessionId: string, handlers: Handlers, initialJudgeId?: string, accessCode?: string) {
-    this.inner = new GenericHipClient(vocabulary, {
-      url: hipUrl(),
+    this.inner = new GenericCampClient(vocabulary, {
+      url: campUrl(),
       room: sessionId,
       ...(initialJudgeId ? { participantId: initialJudgeId } : {}),
       ...(accessCode ? { accessCode } : {}),

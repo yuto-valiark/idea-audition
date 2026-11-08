@@ -1,4 +1,4 @@
-import { HIP_CLOSE, HIP_VERSION } from '../core/version.ts';
+import { CAMP_CLOSE, CAMP_VERSION } from '../core/version.ts';
 import { SeqGate } from '../core/sequence.ts';
 import type { AccessDeniedMessage, ProtocolErrorMessage } from '../core/envelope.ts';
 import type {
@@ -18,7 +18,7 @@ import type {
 } from '../core/vocabulary.ts';
 
 /**
- * HIP のクライアント（docs/protocol/hip-v1.md §5・§8）。ブラウザでも Node でも動く。
+ * CAMP のクライアント（docs/protocol/camp-v1.md §5・§8）。ブラウザでも Node でも動く。
  *  - 切断したら指数バックオフ（400ms → 最大5秒）で再接続し、参加者 ID と lastSeq を付けて hello を送る
  *  - result が来ていない Command は、同じ commandId で送り直す（サーバーが重複を排除する）
  *  - 古い・重複した Event は捨てる（SeqGate）
@@ -43,7 +43,7 @@ export interface WebSocketLike {
   onclose: ((ev: { code: number }) => void) | null;
 }
 
-export interface HipClientOptions {
+export interface CampClientOptions {
   url: string;
   /** 部屋（セッション）の ID */
   room: string;
@@ -57,7 +57,7 @@ export interface HipClientOptions {
   maxBackoffMs?: number;
 }
 
-export interface HipClientHandlers<V extends AnyVocabulary> {
+export interface CampClientHandlers<V extends AnyVocabulary> {
   onWelcome?(m: WelcomeMessageOf<V>): void;
   onEvent?(m: EventMessageOf<V>): void;
   /** welcome と Event のたびに、最新の状態の全体 */
@@ -74,13 +74,13 @@ function uuid() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export class HipClient<V extends AnyVocabulary> {
+export class CampClient<V extends AnyVocabulary> {
   private ws: WebSocketLike | null = null;
   private retry = 0;
   private closed = false;
   private participantId: string | undefined;
   private seq = new SeqGate();
-  private handlers: HipClientHandlers<V> = {};
+  private handlers: CampClientHandlers<V> = {};
   private pending = new Map<
     string,
     { message: unknown; resolve: (o: CommandOutcome<RejectReasonOf<V>>) => void; timer: ReturnType<typeof setTimeout> }
@@ -88,7 +88,7 @@ export class HipClient<V extends AnyVocabulary> {
 
   constructor(
     private readonly vocabulary: V,
-    private readonly opts: HipClientOptions,
+    private readonly opts: CampClientOptions,
   ) {
     this.participantId = opts.participantId;
   }
@@ -102,7 +102,7 @@ export class HipClient<V extends AnyVocabulary> {
     return this.seq.lastSeq;
   }
 
-  on(handlers: HipClientHandlers<V>) {
+  on(handlers: CampClientHandlers<V>) {
     this.handlers = { ...this.handlers, ...handlers };
     return this;
   }
@@ -117,7 +117,7 @@ export class HipClient<V extends AnyVocabulary> {
       this.retry = 0;
       ws.send(
         JSON.stringify({
-          hip: HIP_VERSION,
+          camp: CAMP_VERSION,
           kind: 'hello',
           sessionId: this.opts.room,
           judgeId: this.participantId,
@@ -130,7 +130,7 @@ export class HipClient<V extends AnyVocabulary> {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      if (e.code === HIP_CLOSE.UNSUPPORTED_VERSION || e.code === HIP_CLOSE.ACCESS_DENIED) this.closed = true;
+      if (e.code === CAMP_CLOSE.UNSUPPORTED_VERSION || e.code === CAMP_CLOSE.ACCESS_DENIED) this.closed = true;
       if (this.closed) {
         this.handlers.onState?.('closed');
         return;
@@ -150,7 +150,7 @@ export class HipClient<V extends AnyVocabulary> {
   /** Command を送り、result を待つ。切断中に送った分は再接続後に同じ commandId で送り直す */
   send<T extends CommandTypeOf<V>>(type: T, payload: CommandPayloadOf<V, T>, opts: SendOptions = {}): Promise<CommandOutcome<RejectReasonOf<V>>> {
     const message = {
-      hip: HIP_VERSION,
+      camp: CAMP_VERSION,
       kind: 'command',
       type,
       commandId: uuid(),
@@ -170,12 +170,12 @@ export class HipClient<V extends AnyVocabulary> {
 
   /** 保存しない一時的な共有（カーソルなど）。届かなくてもよい */
   sendEphemeral<T extends EphemeralTypeOf<V>>(type: T, payload: EphemeralPayloadOf<V, T>) {
-    this.raw({ hip: HIP_VERSION, kind: 'ephemeral', type, payload });
+    this.raw({ camp: CAMP_VERSION, kind: 'ephemeral', type, payload });
   }
 
   /** 返事のいらない曖昧な反応（§3.7）。届かなくてもよい */
   signal<T extends SignalTypeOf<V>>(type: T, payload: SignalPayloadOf<V, T>) {
-    this.raw({ hip: HIP_VERSION, kind: 'signal', type, payload });
+    this.raw({ camp: CAMP_VERSION, kind: 'signal', type, payload });
   }
 
   private raw(message: unknown) {
@@ -191,7 +191,7 @@ export class HipClient<V extends AnyVocabulary> {
     }
     const parsed = this.vocabulary.ServerMessage.safeParse(json);
     if (!parsed.success) {
-      console.warn('[hip] invalid server message', parsed.error.issues[0]);
+      console.warn('[camp] invalid server message', parsed.error.issues[0]);
       return;
     }
     const m = parsed.data as { kind: string } & Record<string, unknown>;

@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { defineVocabulary } from '@hip/kit';
+import { defineVocabulary } from '@camp-protocol/kit';
 import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
 /**
- * IDEA AUDITION の語彙（vocabulary）。HIP（@hip/kit）の defineVocabulary に Command・Event・理由コード・snapshot を渡し、
- * メッセージ一式を組み立てる。封筒・順序・重複排除・再接続は @hip/kit が受け持つ。
+ * IDEA AUDITION の語彙（vocabulary）。CAMP（@camp-protocol/kit）の defineVocabulary に Command・Event・理由コード・snapshot を渡し、
+ * メッセージ一式を組み立てる。封筒・順序・重複排除・再接続は @camp-protocol/kit が受け持つ。
  */
 
 
@@ -153,4 +153,4 @@ export const CommandResultMessage = vocabulary.ResultMessage;
 export type CommandResultMessage = z.infer<typeof CommandResultMessage>;
 export const ServerMessage = vocabulary.ServerMessage;
 export type ServerMessage = z.infer<typeof ServerMessage>;
-export type { HelloMessage } from '@hip/kit';
+export type { HelloMessage } from '@camp-protocol/kit';

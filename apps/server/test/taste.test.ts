@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
 import { applySignal, divergence, emptyTaste, normalized, HALF_LIFE_MS, TASTE_SCALE } from '../src/domain/taste.ts';
 import { sample, type Candidate, type SelectionContext } from '../src/domain/selection.ts';
 import { computeMetrics } from '../src/domain/metrics.ts';
@@ -106,7 +106,7 @@ describe('迷いの判定', () => {
 
 let cid = 0;
 function cmd<T extends CommandMessage['type']>(type: T, payload: Extract<CommandMessage, { type: T }>['payload']) {
-  return { hip: HIP_VERSION, kind: 'command', type, commandId: `t${++cid}`, sentAt: '', payload } as CommandMessage;
+  return { camp: CAMP_VERSION, kind: 'command', type, commandId: `t${++cid}`, sentAt: '', payload } as CommandMessage;
 }
 const events = (msgs: ServerMessage[]) => msgs.filter((m): m is EventMessage => m.kind === 'event');
 
@@ -129,7 +129,7 @@ async function setup() {
     config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
   });
   const a = fakeConnection('a');
-  actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo' });
+  actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
   actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '学食', mode: 'team' }));
   await tick(0);
   return { actor, ai, a, tick };
@@ -163,7 +163,7 @@ describe('好みエンジン（アクター）', () => {
   it('見ている案に「うーん」と言うと、キャラが 🤔 で反応し、別案の版が足される', async () => {
     const { actor, ai, a, tick } = await setup();
     const target = actor.session.lowerSlots[1]!;
-    actor.receiveEphemeral(a.conn, { hip: HIP_VERSION, kind: 'ephemeral', type: 'FOCUS_CHANGED', payload: { hover: target, detail: null } });
+    actor.receiveEphemeral(a.conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'FOCUS_CHANGED', payload: { hover: target, detail: null } });
     actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: 'うーん、なんか違うな', source: 'live' }));
     await tick(10);
     const reacted = events(a.received).find((e) => e.type === 'CANDIDATE_REACTED')!;
@@ -181,7 +181,7 @@ describe('好みエンジン（アクター）', () => {
   it('SOFT_SIGNAL の迷いでも反応し、続けて来ても間隔をあける', async () => {
     const { actor, a, tick } = await setup();
     const target = actor.session.lowerSlots[0]!;
-    const signal = { hip: HIP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload: { kind: 'hesitation', targetInstanceId: target, cue: 'hum' } } as const;
+    const signal = { camp: CAMP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload: { kind: 'hesitation', targetInstanceId: target, cue: 'hum' } } as const;
     actor.receiveSignal(a.conn, signal);
     await tick(600);
     actor.receiveSignal(a.conn, signal);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_DESIGNS, HIP_VERSION, type CommandMessage, type EventMessage, type WelcomeMessage } from '@idea-audition/protocol';
+import { CHARACTER_DESIGNS, CAMP_VERSION, type CommandMessage, type EventMessage, type WelcomeMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { normalizeTranscript } from '../src/infrastructure/gemini/live-transcriber.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
@@ -28,15 +28,15 @@ describe('発言の宛先と意図（AC-14）', () => {
       config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 10, persistDelayMs: 10, consensus: null },
     });
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'v' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'v' });
     const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).judgeId!;
     actor.receiveCommand(a.conn, {
-      hip: HIP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 't', mode: 'team' },
+      camp: CAMP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 't', mode: 'team' },
     } as CommandMessage);
     await advance(0);
     const finalistId = actor.session.lowerSlots[0]!;
     actor.receiveCommand(a.conn, {
-      hip: HIP_VERSION, kind: 'command', type: 'REQUEST_PROMOTION', commandId: 'c2', sentAt: '', payload: { instanceId: finalistId },
+      camp: CAMP_VERSION, kind: 'command', type: 'REQUEST_PROMOTION', commandId: 'c2', sentAt: '', payload: { instanceId: finalistId },
     } as CommandMessage);
     await advance(100);
     const nameOf = (id: string) => CHARACTER_DESIGNS[actor.session.characters.get(id)!.designId]!;

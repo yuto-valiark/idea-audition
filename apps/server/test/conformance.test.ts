@@ -1,10 +1,10 @@
 /**
- * HIP v1 の適合テスト（docs/protocol/hip-v1.md、ADR-0010 §4）。
+ * CAMP v1 の適合テスト（docs/protocol/camp-v1.md、ADR-0010 §4）。
  * 実際にサーバーを立て、WebSocket で話して、プロトコルとしての振る舞いを確かめる。
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { HIP_CLOSE, HIP_VERSION, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
+import { CAMP_CLOSE, CAMP_VERSION, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
 import { nodeScheduler, randomIds, systemClock } from '../src/infrastructure/runtime.ts';
@@ -73,7 +73,7 @@ interface Client {
 
 function open(): Promise<Client> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/hip`);
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/camp`);
     const received: ServerMessage[] = [];
     const waiters: { pred: (m: ServerMessage) => boolean; resolve: (m: ServerMessage) => void }[] = [];
     const closed = new Promise<number>((r) => ws.on('close', (code) => r(code)));
@@ -105,14 +105,14 @@ function open(): Promise<Client> {
 let sessionNo = 0;
 async function join(sessionId: string, judgeId?: string, lastSeq?: number) {
   const c = await open();
-  c.send({ hip: HIP_VERSION, kind: 'hello', sessionId, judgeId, lastSeq });
+  c.send({ camp: CAMP_VERSION, kind: 'hello', sessionId, judgeId, lastSeq });
   await c.waitFor((m) => m.kind === 'welcome');
   return c;
 }
 
 let cid = 0;
 const command = (type: string, payload: unknown, extra: Record<string, unknown> = {}) => ({
-  hip: HIP_VERSION,
+  camp: CAMP_VERSION,
   kind: 'command',
   type,
   commandId: `cmd-${++cid}`,
@@ -144,7 +144,7 @@ const settle = (ms = 80) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------------------------- テスト ---------------------------------- */
 
-describe('HIP v1 適合テスト', () => {
+describe('CAMP v1 適合テスト', () => {
   it('同時昇格：4人が同時に別々のキャラを昇格 → 成功は3人、1人は UPPER_FULL、上段は3体を超えない', async () => {
     const { clients } = await startSession(4);
     const lower = lastSnapshot(clients[0]!)!.lowerSlots.filter((x): x is string => !!x);
@@ -258,12 +258,12 @@ describe('HIP v1 適合テスト', () => {
     expect(await resultOf(c, fresh.commandId)).toMatchObject({ ok: true });
   });
 
-  it('バージョン違い：hip "2" の hello → protocol_error UNSUPPORTED_VERSION と 4400 で切断', async () => {
+  it('バージョン違い：camp "2" の hello → protocol_error UNSUPPORTED_VERSION と 4400 で切断', async () => {
     const c = await open();
-    c.send({ hip: '2', kind: 'hello', sessionId: 'x' });
+    c.send({ camp: '2', kind: 'hello', sessionId: 'x' });
     const err = await c.waitFor((m) => m.kind === 'protocol_error');
-    expect(err).toMatchObject({ code: 'UNSUPPORTED_VERSION', supported: [HIP_VERSION] });
-    expect(await c.closed).toBe(HIP_CLOSE.UNSUPPORTED_VERSION);
+    expect(err).toMatchObject({ code: 'UNSUPPORTED_VERSION', supported: [CAMP_VERSION] });
+    expect(await c.closed).toBe(CAMP_CLOSE.UNSUPPORTED_VERSION);
   });
 
   it('知らない Command type には UNKNOWN_TYPE、形の違う Command には INVALID_PAYLOAD を返す', async () => {
@@ -289,7 +289,7 @@ describe('HIP v1 適合テスト', () => {
 
   it('hello が来なければ 4408 で切断', async () => {
     const c = await open();
-    expect(await c.closed).toBe(HIP_CLOSE.HELLO_TIMEOUT);
+    expect(await c.closed).toBe(CAMP_CLOSE.HELLO_TIMEOUT);
   });
 
   it('Signal は返事なしで間引かれ、続く Command は普通に処理される', async () => {
@@ -297,7 +297,7 @@ describe('HIP v1 適合テスト', () => {
     const c = clients[0]!;
     const before = c.received.length;
     for (let i = 0; i < 50; i++) {
-      c.send({ hip: HIP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload: { kind: 'hesitation', targetInstanceId: null } });
+      c.send({ camp: CAMP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload: { kind: 'hesitation', targetInstanceId: null } });
     }
     const next = command('NEXT_IDEA', {});
     c.send(next);
@@ -309,9 +309,9 @@ describe('HIP v1 適合テスト', () => {
   it('送りすぎ：1秒に上限を超えて送ると RATE_LIMITED を返して 4429 で切断', async () => {
     const c = await join(`conf-${++sessionNo}`);
     for (let i = 0; i < 200; i++) {
-      c.send({ hip: HIP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: { x: 0.5, y: 0.5 } });
+      c.send({ camp: CAMP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: { x: 0.5, y: 0.5 } });
     }
     expect(await c.waitFor((m) => m.kind === 'protocol_error')).toMatchObject({ code: 'RATE_LIMITED' });
-    expect(await c.closed).toBe(HIP_CLOSE.RATE_LIMITED);
+    expect(await c.closed).toBe(CAMP_CLOSE.RATE_LIMITED);
   });
 });

@@ -1,4 +1,4 @@
-import { HIP_VERSION } from '../core/version.ts';
+import { CAMP_VERSION } from '../core/version.ts';
 import { ResultCache } from '../core/idempotency.ts';
 import type { HelloMessage } from '../core/envelope.ts';
 import type {
@@ -82,7 +82,7 @@ export interface RoomDefinition<V extends AnyVocabulary, S> {
   signalsPerSecond?: number;
 }
 
-export class HipRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
+export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
   private seq = 0;
   private epoch = 0;
   private nextParticipant = 0;
@@ -157,7 +157,7 @@ export class HipRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
     }
     this.ensureHost();
     this.connections.set(conn.id, { conn, participantId: person?.id ?? null });
-    conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId: person?.id ?? null, snapshot: this.snapshot() });
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', judgeId: person?.id ?? null, snapshot: this.snapshot() });
     if (person) this.def.onJoin?.(this.api, person.id, rejoined);
   }
 
@@ -181,7 +181,7 @@ export class HipRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
     const cached = this.results.get(sender, msg.commandId);
     if (cached) return conn.send(cached);
     const reason = this.execute(pid, msg);
-    const result = { hip: HIP_VERSION, kind: 'result', commandId: msg.commandId, ok: reason === null, reason };
+    const result = { camp: CAMP_VERSION, kind: 'result', commandId: msg.commandId, ok: reason === null, reason };
     this.results.set(sender, msg.commandId, result);
     conn.send(result);
   }
@@ -194,7 +194,7 @@ export class HipRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
       const out = handler(this.api, msg.payload as never, { actor: pid, commandId: msg.commandId, expected: msg.expected });
       return out && out.rejected ? out.reason : null;
     } catch (e) {
-      console.error('[hip] command handler failed', e);
+      console.error('[camp] command handler failed', e);
       return 'INVALID_PAYLOAD';
     }
   }
@@ -221,7 +221,7 @@ export class HipRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
   private emit(type: string, detail: Record<string, unknown>, actor: string | null, correlationId: string | null) {
     this.seq++;
     const event = {
-      hip: HIP_VERSION,
+      camp: CAMP_VERSION,
       kind: 'event',
       type,
       seq: this.seq,

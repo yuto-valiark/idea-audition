@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineVocabulary } from '../../src/core/index.ts';
 
 /**
- * 例：みんなで投票（Quick Vote）。IDEA AUDITION とは関係のない、最小の HIP アプリ。
+ * 例：みんなで投票（Quick Vote）。IDEA AUDITION とは関係のない、最小の CAMP アプリ。
  * ホストが質問を出し、参加者が投票し、ホストが締め切ると「AI のまとめ」（遅い処理の代わり）が届く。
  */
 export const quickVote = defineVocabulary({

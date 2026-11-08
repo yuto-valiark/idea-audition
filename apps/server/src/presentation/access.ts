@@ -1,1 +1,1 @@
-export { checkAccess } from '@hip/kit/server';
+export { checkAccess } from '@camp-protocol/kit/server';

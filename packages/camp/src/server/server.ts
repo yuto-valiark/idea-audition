@@ -1,15 +1,15 @@
 import { createServer } from 'node:http';
 import type { AnyVocabulary } from '../core/vocabulary.ts';
-import { HipRoom, type RoomDefinition } from './room.ts';
-import { createHipTransport, type RoomRegistry } from './transport.ts';
+import { CampRoom, type RoomDefinition } from './room.ts';
+import { createCampTransport, type RoomRegistry } from './transport.ts';
 
 /**
- * いちばん短い始め方。http サーバー・/hip の WebSocket・部屋の管理をまとめて立てる。
+ * いちばん短い始め方。http サーバー・/camp の WebSocket・部屋の管理をまとめて立てる。
  *
- *   const server = createHipServer(quiz, { port: 8787, room: { initialState, commands: { ANSWER(room, p, ctx) { … } } } });
+ *   const server = createCampServer(quiz, { port: 8787, room: { initialState, commands: { ANSWER(room, p, ctx) { … } } } });
  *   await server.port;
  */
-export function createHipServer<V extends AnyVocabulary, S>(
+export function createCampServer<V extends AnyVocabulary, S>(
   vocabulary: V,
   opts: {
     room: RoomDefinition<V, S>;
@@ -23,12 +23,12 @@ export function createHipServer<V extends AnyVocabulary, S>(
     log?: (m: string) => void;
   },
 ) {
-  const rooms = new Map<string, { room: HipRoom<V, S>; timer?: ReturnType<typeof setTimeout> }>();
+  const rooms = new Map<string, { room: CampRoom<V, S>; timer?: ReturnType<typeof setTimeout> }>();
   const registry: RoomRegistry<V> = {
     async get(id) {
       let entry = rooms.get(id);
       if (!entry) {
-        entry = { room: new HipRoom(id, opts.room) };
+        entry = { room: new CampRoom(id, opts.room) };
         rooms.set(id, entry);
       }
       if (entry.timer) clearTimeout(entry.timer);
@@ -41,14 +41,14 @@ export function createHipServer<V extends AnyVocabulary, S>(
       entry.timer = setTimeout(() => rooms.delete(id), opts.idleReleaseMs ?? 10 * 60_000);
     },
   };
-  const transport = createHipTransport({
+  const transport = createCampTransport({
     vocabulary,
     rooms: registry,
     accessCode: opts.accessCode ?? null,
     ...(opts.helloTimeoutMs ? { helloTimeoutMs: opts.helloTimeoutMs } : {}),
     ...(opts.log ? { log: opts.log } : {}),
   });
-  const path = opts.path ?? '/hip';
+  const path = opts.path ?? '/camp';
   const http = createServer((req, res) => {
     if (req.url === '/health') return void res.writeHead(200).end('ok');
     res.writeHead(404).end();

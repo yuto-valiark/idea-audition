@@ -1,17 +1,17 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { WebSocketServer } from 'ws';
-import { createHipTransport, type RoomRegistry } from '@hip/kit/server';
+import { createCampTransport, type RoomRegistry } from '@camp-protocol/kit/server';
 import { vocabulary } from '@idea-audition/protocol';
 import type { SessionActor } from '../application/session-actor.ts';
 import { createStaticHandler } from './static-files.ts';
 
-/** 部屋（セッション）の管理。SessionActor が HIP の RoomEndpoint を実装する */
+/** 部屋（セッション）の管理。SessionActor が CAMP の RoomEndpoint を実装する */
 export interface ActorRegistry extends RoomRegistry<typeof vocabulary> {
   get(sessionId: string): Promise<SessionActor>;
 }
 
 /**
- * http サーバー。/hip は HIP（@hip/kit の transport が形・版・合言葉・時間切れ・送りすぎを受け持つ）、
+ * http サーバー。/camp は CAMP（@camp-protocol/kit の transport が形・版・合言葉・時間切れ・送りすぎを受け持つ）、
  * /voice は音声、それ以外は画面のファイルと /health。
  */
 export function startServer(opts: {
@@ -36,17 +36,17 @@ export function startServer(opts: {
     if (serveStatic && (await serveStatic(req, res))) return;
     res.writeHead(404).end();
   });
-  const hip = createHipTransport({
+  const camp = createCampTransport({
     vocabulary,
     rooms: opts.registry,
     accessCode: opts.accessCode,
     ...(opts.helloTimeoutMs ? { helloTimeoutMs: opts.helloTimeoutMs } : {}),
     log: opts.log,
   });
-  // パスで振り分ける：/hip は操作、/voice は音声（別経路、仕様書 9.2）
+  // パスで振り分ける：/camp は操作、/voice は音声（別経路、仕様書 9.2）
   http.on('upgrade', (req, socket, head) => {
     const path = (req.url ?? '').split('?')[0];
-    if (path === '/hip') return hip.handleUpgrade(req, socket, head);
+    if (path === '/camp') return camp.handleUpgrade(req, socket, head);
     const voice = opts.voice;
     if (path === '/voice' && voice) return voice.handleUpgrade(req, socket, head, (ws) => voice.emit('connection', ws, req));
     socket.destroy();
@@ -56,14 +56,14 @@ export function startServer(opts: {
     http.listen(opts.port, () => {
       const address = http.address();
       const actual = typeof address === 'object' && address ? address.port : opts.port;
-      opts.log(`HIP server listening on :${actual} (ws path /hip)`);
+      opts.log(`CAMP server listening on :${actual} (ws path /camp)`);
       resolve(actual);
     }),
   );
   return {
     port,
     close: async () => {
-      await hip.close();
+      await camp.close();
       await new Promise<void>((r) => http.close(() => r()));
     },
   };

@@ -1,10 +1,10 @@
-# @hip/kit — Human Intent Protocol
+# @camp-protocol/kit — Collaborative Agent Mediation Protocol
 
 数人が同じ画面を同時に操作し、そこに AI の遅い処理が割り込んでくるアプリのための、WebSocket 上のアプリケーション層プロトコルとその実装です。
 
-WebSocket は「1対1で届ける」だけです。HIP はその上で次を決めて、実装しています。
+WebSocket は「1対1で届ける」だけです。CAMP はその上で次を決めて、実装しています。
 
-| 決めること | HIP |
+| 決めること | CAMP |
 |---|---|
 | 誰が先か | サーバーが部屋ごとに1件ずつ処理し、連番 `seq` を振って全員に同じ順番で配る |
 | 失敗の返し方 | 操作（Command）には必ず成否と理由コードが返る |
@@ -14,7 +14,7 @@ WebSocket は「1対1で届ける」だけです。HIP はその上で次を決�
 | 高頻度の情報 | カーソルなどは Ephemeral（保存しない・最新だけ）、「うーん」などは Signal（返事なし・間引く） |
 | バージョン違い・壊れたメッセージ・送りすぎ | 理由を返して、決まった終了コードで閉じる |
 
-仕様書：[docs/protocol/hip-v1.md](../../docs/protocol/hip-v1.md)
+仕様書：[docs/protocol/camp-v1.md](../../docs/protocol/camp-v1.md)
 
 ## 使い方
 
@@ -22,7 +22,7 @@ WebSocket は「1対1で届ける」だけです。HIP はその上で次を決�
 
 ```ts
 import { z } from 'zod';
-import { defineVocabulary } from '@hip/kit';
+import { defineVocabulary } from '@camp-protocol/kit';
 
 export const quickVote = defineVocabulary({
   commands: {
@@ -40,9 +40,9 @@ export const quickVote = defineVocabulary({
 ### 2. サーバー：操作ごとのルールだけ書く
 
 ```ts
-import { createHipServer } from '@hip/kit/server';
+import { createCampServer } from '@camp-protocol/kit/server';
 
-createHipServer(quickVote, {
+createCampServer(quickVote, {
   port: 8790,
   room: {
     initialState: () => ({ status: 'idle', question: '', options: [], votes: {}, summary: null }),
@@ -70,22 +70,22 @@ createHipServer(quickVote, {
 ### 3. 画面：送る・受け取るだけ
 
 ```ts
-import { HipClient } from '@hip/kit/client';
+import { CampClient } from '@camp-protocol/kit/client';
 
-const hip = new HipClient(quickVote, { url: 'wss://example.com/hip', room: 'class-3b' })
+const camp = new CampClient(quickVote, { url: 'wss://example.com/camp', room: 'class-3b' })
   .on({ onSnapshot: (s) => render(s) })       // 届いた状態をそのまま描く
   .connect();
 
-const r = await hip.send('VOTE', { option: 1 });
+const r = await camp.send('VOTE', { option: 1 });
 if (!r.ok) alert(r.reason);                   // 'ALREADY_VOTED' など
-hip.signal('HMM', {});                        // 返事のいらない反応
+camp.signal('HMM', {});                        // 返事のいらない反応
 ```
 
 Node で使うときは `createSocket: (url) => new WebSocket(url)`（`ws` パッケージ）を渡します。
 
 ### 状態を保存したい・独自の処理順が要るとき
 
-`createHipTransport({ vocabulary, rooms })` に、`RoomEndpoint`（attach / detach / receiveCommand / receiveEphemeral / receiveSignal）を実装した自分の部屋を渡します。IDEA AUDITION の `SessionActor` はこの形で、Firestore への保存・AI の生成計画・合意台帳を持っています。
+`createCampTransport({ vocabulary, rooms })` に、`RoomEndpoint`（attach / detach / receiveCommand / receiveEphemeral / receiveSignal）を実装した自分の部屋を渡します。IDEA AUDITION の `SessionActor` はこの形で、Firestore への保存・AI の生成計画・合意台帳を持っています。
 
 ## 例
 
@@ -97,13 +97,13 @@ Node で使うときは `createSocket: (url) => new WebSocket(url)`（`ws` パ�
 
 | 入口 | 中身 | 動く場所 |
 |---|---|---|
-| `@hip/kit` | 版・終了コード、封筒、`defineVocabulary`、`ResultCache`、`SeqGate` | どこでも（zod だけに依存） |
-| `@hip/kit/client` | 再接続・再送・順序つきのクライアント | ブラウザ・Node |
-| `@hip/kit/server` | WebSocket の終端（`createHipTransport`）、すぐ使える部屋（`HipRoom`）、`createHipServer` | Node（ws） |
+| `@camp-protocol/kit` | 版・終了コード、封筒、`defineVocabulary`、`ResultCache`、`SeqGate` | どこでも（zod だけに依存） |
+| `@camp-protocol/kit/client` | 再接続・再送・順序つきのクライアント | ブラウザ・Node |
+| `@camp-protocol/kit/server` | WebSocket の終端（`createCampTransport`）、すぐ使える部屋（`CampRoom`）、`createCampServer` | Node（ws） |
 
 ## テスト
 
-`pnpm --filter @hip/kit test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・遅い AI・観覧・Signal・版違い。
+`pnpm --filter @camp-protocol/kit test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・遅い AI・観覧・Signal・版違い。
 
 ## 状態
 

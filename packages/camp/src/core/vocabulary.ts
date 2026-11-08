@@ -10,10 +10,10 @@ import {
   resultMessage,
   welcomeMessage,
 } from './envelope.ts';
-import type { HIP_VERSION } from './version.ts';
+import type { CAMP_VERSION } from './version.ts';
 
 /**
- * アプリの「語彙」を渡すと、HIP のメッセージ一式（検証用のスキーマと型）を組み立てる。
+ * アプリの「語彙」を渡すと、CAMP のメッセージ一式（検証用のスキーマと型）を組み立てる。
  *
  *   const quiz = defineVocabulary({
  *     commands: { ANSWER: z.object({ choice: z.number() }) },
@@ -31,11 +31,11 @@ export type CoreRejectReason = (typeof CORE_REJECT_REASONS)[number];
 
 type Schemas = Record<string, z.ZodType>;
 type Names = readonly string[];
-type Hip = typeof HIP_VERSION;
+type Camp = typeof CAMP_VERSION;
 
 export type CommandOf<C extends Schemas> = {
   [K in keyof C & string]: {
-    hip: Hip;
+    camp: Camp;
     kind: 'command';
     type: K;
     commandId: string;
@@ -46,15 +46,15 @@ export type CommandOf<C extends Schemas> = {
 }[keyof C & string];
 
 export type EphemeralOf<P extends Schemas> = {
-  [K in keyof P & string]: { hip: Hip; kind: 'ephemeral'; type: K; senderId?: string | undefined; payload: z.output<P[K]> };
+  [K in keyof P & string]: { camp: Camp; kind: 'ephemeral'; type: K; senderId?: string | undefined; payload: z.output<P[K]> };
 }[keyof P & string];
 
 export type SignalOf<G extends Schemas> = {
-  [K in keyof G & string]: { hip: Hip; kind: 'signal'; type: K; payload: z.output<G[K]> };
+  [K in keyof G & string]: { camp: Camp; kind: 'signal'; type: K; payload: z.output<G[K]> };
 }[keyof G & string];
 
 export interface EventOf<E extends Names, S extends z.ZodType> {
-  hip: Hip;
+  camp: Camp;
   kind: 'event';
   type: E[number];
   seq: number;
@@ -65,14 +65,14 @@ export interface EventOf<E extends Names, S extends z.ZodType> {
 }
 
 export interface WelcomeOf<S extends z.ZodType> {
-  hip: Hip;
+  camp: Camp;
   kind: 'welcome';
   judgeId: string | null;
   snapshot: z.output<S>;
 }
 
 export interface ResultOf<R extends Names> {
-  hip: Hip;
+  camp: Camp;
   kind: 'result';
   commandId: string;
   ok: boolean;

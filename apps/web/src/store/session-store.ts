@@ -7,7 +7,7 @@ import {
   type EventMessage,
   type SessionSnapshot,
 } from '@idea-audition/protocol';
-import { HipClient, type CommandOutcome, type ConnectionState, type SendOptions } from '../net/hip-client.ts';
+import { CampClient, type CommandOutcome, type ConnectionState, type SendOptions } from '../net/camp-client.ts';
 import { useDisplay } from './display-store.ts';
 import { anchorCenter } from '../shared/anchors.ts';
 
@@ -17,7 +17,7 @@ interface SessionState {
   judgeId: string | null;
   snapshot: SessionSnapshot | null;
   connection: ConnectionState;
-  client: HipClient | null;
+  client: CampClient | null;
   /** 合言葉が必要・違うとき（公開環境） */
   accessDenied: 'required' | 'invalid' | null;
   connect(sessionId: string): void;
@@ -72,7 +72,7 @@ export const useSession = create<SessionState>((set, get) => ({
 
   connect(sessionId) {
     get().client?.close();
-    const client = new HipClient(
+    const client = new CampClient(
       sessionId,
       {
         onAccessDenied: (reason) => {

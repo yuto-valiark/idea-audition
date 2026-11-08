@@ -15,10 +15,10 @@
  │  ├ 状態：Zustand                                        │
  │  │   ├ サーバーから届いた状態の写し（判定はしない）       │
  │  │   └ 表示用の状態（ドラッグ中・移動演出・吹き出し）     │
- │  ├ 通信：HIPクライアント（再接続・未確定の操作の再送）    │
+ │  ├ 通信：CAMPクライアント（再接続・未確定の操作の再送）    │
  │  └ 音声：マイク → 16kHz PCM（AudioWorklet）→ /voice       │
  └──────┬──────────────────────────────┬──────────────────┘
-        │ 画面ファイル（HTML/JS/画像）  │ WebSocket：/hip（操作）・/voice（音声）
+        │ 画面ファイル（HTML/JS/画像）  │ WebSocket：/camp（操作）・/voice（音声）
         ▼                              │  ・操作要求 / 結果通知（全員へ）
  ┌──────────────────┐                  │  ・カーソル（保存しない）
  │ Firebase Hosting │                  │  ・発言（文字にしたもの）
@@ -26,7 +26,7 @@
  └──────────────────┘   ┌────────────────────────────────────┐
                         │ Cloud Run（Node.js + TS、インスタンス1台）│
                         │  ┌──────────────────────────────┐  │
-                        │  │ WebSocket の窓口（/hip・/voice）  │  │
+                        │  │ WebSocket の窓口（/camp・/voice）  │  │
                         │  └──────────────┬───────────────┘  │
                         │  ┌──────────────▼───────────────┐  │
                         │  │ セッションアクター（セッションごと）│  │
@@ -54,7 +54,7 @@
 |---|---|
 | 画面・表示用の状態 | `apps/web/src/scene`、`apps/web/src/features`、`apps/web/src/store/display-store.ts` |
 | サーバー状態の写し | `apps/web/src/store/session-store.ts` |
-| HIPクライアント | `apps/web/src/net/hip-client.ts` |
+| CAMPクライアント | `apps/web/src/net/camp-client.ts` |
 | 通信の型（共有） | `packages/protocol` |
 | WebSocket の窓口 | `apps/server/src/presentation/ws-server.ts` |
 | セッションアクター | `apps/server/src/application/session-actor.ts` |
@@ -72,7 +72,7 @@
 |---|---|---|
 | フロント | React 19 + TypeScript + Vite、CSS Modules + CSS変数、Motion、Zustand | 実装済み |
 | 通信の型 | Zod（`packages/protocol` を web と server で共有） | 実装済み |
-| リアルタイム通信 | WebSocket（`ws`）＋ 独自のメッセージ仕様 HIP v1 | 実装済み |
+| リアルタイム通信 | WebSocket（`ws`）＋ 独自のメッセージ仕様 CAMP v1 | 実装済み |
 | サーバー | Node.js + TypeScript（tsup で1ファイルにまとめる） | 実装済み（ローカルのみ） |
 | 実行環境 | Cloud Run（東京、最大1台、待機は通常0台・本番前だけ1台）。画面とサーバーを1つのコンテナから配る | デプロイ済み（2026-11-08） |
 | 画面の配信 | Cloud Run から直接配る（ハッシュ付きファイルは1年キャッシュ）。Firebase Hosting を前に置くのは任意 | デプロイ済み |

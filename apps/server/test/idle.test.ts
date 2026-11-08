@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ROTATION_POLICY } from '../src/domain/attention.ts';
-import { HIP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
 import { StubAi, fakeConnection, manualScheduler, seqIds } from './helpers.ts';
@@ -37,9 +37,9 @@ describe('誰も接続していない間は AI を使わない', () => {
       },
     });
     const a = fakeConnection('a');
-    actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'idle' });
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'idle' });
     actor.receiveCommand(a.conn, {
-      hip: HIP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 't', mode: 'solo' },
+      camp: CAMP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 't', mode: 'solo' },
     } as CommandMessage);
     await tick(20_000);
     const archivedWhileHere = a.received.filter((m) => m.kind === 'event' && m.type === 'CANDIDATE_ARCHIVED').length;
@@ -54,7 +54,7 @@ describe('誰も接続していない間は AI を使わない', () => {
 
     // 戻ってきたら再開する
     const b = fakeConnection('b');
-    actor.attach(b.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'idle' });
+    actor.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'idle' });
     await tick(20_000);
     const events = b.received.filter((m): m is EventMessage => m.kind === 'event');
     expect(events.some((e) => e.type === 'CANDIDATE_ARCHIVED')).toBe(true);

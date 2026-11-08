@@ -1,13 +1,13 @@
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { HIP_CLOSE, HIP_VERSION, SUPPORTED_HIP_VERSIONS } from '../core/version.ts';
+import { CAMP_CLOSE, CAMP_VERSION, SUPPORTED_CAMP_VERSIONS } from '../core/version.ts';
 import type { HelloMessage, ProtocolErrorCode } from '../core/envelope.ts';
 import type { AnyVocabulary, CommandMessageOf, EphemeralMessageOf, SignalMessageOf } from '../core/vocabulary.ts';
 import { checkAccess } from './access.ts';
 
 /**
- * HIP の WebSocket 終端（docs/protocol/hip-v1.md §3・§10・§11）。
+ * CAMP の WebSocket 終端（docs/protocol/camp-v1.md §3・§10・§11）。
  * 形の検証・バージョン・合言葉・hello の時間切れ・送りすぎ・生存確認をここで受け持ち、
  * 判定（状態を変えるかどうか）は部屋（RoomEndpoint）に渡す。
  */
@@ -17,7 +17,7 @@ export interface Connection {
   send(message: unknown): void;
 }
 
-/** 部屋の側が実装するもの。HipRoom（room.ts）か、アプリ独自の実装 */
+/** 部屋の側が実装するもの。CampRoom（room.ts）か、アプリ独自の実装 */
 export interface RoomEndpoint<V extends AnyVocabulary> {
   attach(conn: Connection, hello: HelloMessage): void;
   detach(conn: Connection): void;
@@ -47,11 +47,11 @@ export interface TransportOptions<V extends AnyVocabulary> {
   log?: (m: string) => void;
 }
 
-function describe(data: unknown): { kind?: unknown; type?: unknown; hip?: unknown; commandId?: unknown } {
+function describe(data: unknown): { kind?: unknown; type?: unknown; camp?: unknown; commandId?: unknown } {
   return data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
 }
 
-export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptions<V>) {
+export function createCampTransport<V extends AnyVocabulary>(opts: TransportOptions<V>) {
   const helloTimeoutMs = opts.helloTimeoutMs ?? 10_000;
   const rateLimit = opts.rateLimitPerSec ?? 120;
   const heartbeatMs = opts.heartbeatMs ?? 25_000;
@@ -67,7 +67,7 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
       },
     };
     const protocolError = (code: ProtocolErrorCode, detail: string) =>
-      conn.send({ hip: HIP_VERSION, kind: 'protocol_error', code, detail, supported: [...SUPPORTED_HIP_VERSIONS] });
+      conn.send({ camp: CAMP_VERSION, kind: 'protocol_error', code, detail, supported: [...SUPPORTED_CAMP_VERSIONS] });
     // hello 以降のメッセージは、部屋の準備（復元）が終わってから順番どおりに処理する
     let roomReady: Promise<RoomEndpoint<V> | null> | null = null;
     let roomId: string | null = null;
@@ -80,7 +80,7 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
       ws.ping();
     }, heartbeatMs);
     const helloTimer = setTimeout(() => {
-      if (!roomReady) ws.close(HIP_CLOSE.HELLO_TIMEOUT, 'hello timeout');
+      if (!roomReady) ws.close(CAMP_CLOSE.HELLO_TIMEOUT, 'hello timeout');
     }, helloTimeoutMs);
     let windowStart = Date.now();
     let received = 0;
@@ -94,7 +94,7 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
       if (++received > rateLimit) {
         if (received === rateLimit + 1) {
           protocolError('RATE_LIMITED', `more than ${rateLimit} messages per second`);
-          ws.close(HIP_CLOSE.RATE_LIMITED, 'rate limited');
+          ws.close(CAMP_CLOSE.RATE_LIMITED, 'rate limited');
         }
         return;
       }
@@ -107,9 +107,9 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
       }
       const head = describe(data);
       // バージョンは形の検証より先に見る（違う版の形はこちらでは読めない）
-      if (head.hip !== HIP_VERSION) {
-        protocolError('UNSUPPORTED_VERSION', `hip ${JSON.stringify(head.hip ?? null)} is not supported`);
-        if (head.kind === 'hello' || !roomReady) ws.close(HIP_CLOSE.UNSUPPORTED_VERSION, 'unsupported version');
+      if (head.camp !== CAMP_VERSION) {
+        protocolError('UNSUPPORTED_VERSION', `camp ${JSON.stringify(head.camp ?? null)} is not supported`);
+        if (head.kind === 'hello' || !roomReady) ws.close(CAMP_CLOSE.UNSUPPORTED_VERSION, 'unsupported version');
         return;
       }
       const parsed = opts.vocabulary.ClientMessage.safeParse(data);
@@ -117,7 +117,7 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
         if (head.kind === 'command' && typeof head.commandId === 'string') {
           // 知らない type は前方互換のため UNKNOWN_TYPE、知っている type の形違いは INVALID_PAYLOAD
           const reason = opts.vocabulary.hasCommand(head.type) ? 'INVALID_PAYLOAD' : 'UNKNOWN_TYPE';
-          conn.send({ hip: HIP_VERSION, kind: 'result', commandId: head.commandId, ok: false, reason });
+          conn.send({ camp: CAMP_VERSION, kind: 'result', commandId: head.commandId, ok: false, reason });
         } else if (['ephemeral', 'signal', 'hello', 'command'].includes(String(head.kind))) {
           protocolError('MALFORMED', `invalid ${String(head.kind)} message`);
         } else {
@@ -132,8 +132,8 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
         const hello = msg as unknown as HelloMessage;
         const access = checkAccess(opts.accessCode, hello.accessCode);
         if (access !== 'ok') {
-          conn.send({ hip: HIP_VERSION, kind: 'access_denied', reason: access });
-          ws.close(HIP_CLOSE.ACCESS_DENIED, 'access denied');
+          conn.send({ camp: CAMP_VERSION, kind: 'access_denied', reason: access });
+          ws.close(CAMP_CLOSE.ACCESS_DENIED, 'access denied');
           return;
         }
         roomId = hello.sessionId;
@@ -153,7 +153,7 @@ export function createHipTransport<V extends AnyVocabulary>(opts: TransportOptio
       }
       if (!roomReady) {
         if (msg.kind === 'command') {
-          conn.send({ hip: HIP_VERSION, kind: 'result', commandId: msg.commandId, ok: false, reason: 'NOT_AUTHORIZED' });
+          conn.send({ camp: CAMP_VERSION, kind: 'result', commandId: msg.commandId, ok: false, reason: 'NOT_AUTHORIZED' });
         }
         protocolError('NOT_JOINED', 'send hello first');
         return;

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { HIP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
+import { CAMP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
 import { SessionActor } from '../src/application/session-actor.ts';
 import { MemorySessionStore } from '../src/infrastructure/persistence/memory-store.ts';
 import { StubAi, fakeClock, fakeConnection, manualScheduler, seqIds } from './helpers.ts';
 
 let cid = 0;
 function cmd<T extends CommandMessage['type']>(type: T, payload: Extract<CommandMessage, { type: T }>['payload']) {
-  return { hip: HIP_VERSION, kind: 'command', type, commandId: `c${++cid}`, sentAt: '', payload } as CommandMessage;
+  return { camp: CAMP_VERSION, kind: 'command', type, commandId: `c${++cid}`, sentAt: '', payload } as CommandMessage;
 }
 const events = (msgs: ServerMessage[]) => msgs.filter((m): m is EventMessage => m.kind === 'event');
 const results = (msgs: ServerMessage[]) => msgs.filter((m) => m.kind === 'result');
@@ -24,8 +24,8 @@ async function setup() {
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');
-  actor.attach(a.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo' });
-  actor.attach(b.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo' });
+  actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
+  actor.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
   actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '大学の学食', mode: 'team' }));
   await advance(0);
   return { actor, ai, a, b, advance };
@@ -97,7 +97,7 @@ describe('SessionActor', () => {
   it('観覧者（5人目）の操作は SPECTATOR で拒否', async () => {
     const { actor } = await setup();
     const extra = ['c', 'd', 'e'].map((id) => fakeConnection(id));
-    for (const x of extra) actor.attach(x.conn, { hip: HIP_VERSION, kind: 'hello', sessionId: 'demo' });
+    for (const x of extra) actor.attach(x.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
     const fifth = extra[2]!;
     const welcome = fifth.received.find((m) => m.kind === 'welcome');
     expect(welcome).toMatchObject({ judgeId: null });
