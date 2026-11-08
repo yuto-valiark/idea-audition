@@ -44,6 +44,10 @@
 - 公開前に合わせて直したこと：通信の欄名 `judgeId`→`participantId`、`actorJudgeId`→`actorId`。`server.close()` 後にプロセスが終わらない不具合。Dockerfile の `packages/hip`
 - 残り：1-1 合意（著作者は牧 夢斗に決定。チームには一言伝える）、1-2 名前の確保、1-6 の push、1-8 の `pnpm publish`
 
+方針（2026-11-08 夜、牧が決定）：
+- 公開リポジトリ `camp-protocol/camp` と npm の組織 `@camp-protocol` は作成済み。公開リポジトリへの push は最初の1回（合言葉の廃止より前の版）だけにとどめ、**これ以上の push と npm への公開は、CAMP の更新と精度の改良をやり切ってから**まとめて行う（公開リポジトリの履歴を細かく汚さないため）
+- それまでアプリは `workspace:*` で `packages/camp` を直接使う。最後に npm に出し、アプリの3つの package.json を npm の版に切り替える（コードの import は変えなくてよい）
+
 注意：
 - 公開は外向きの操作なので、1-6 と 1-8 は牧が実行するか、実行してよいとはっきり言われてから行う
 - 公開リポジトリに `.env`・合言葉・GCP のプロジェクト情報が入らないことを、push 前に `git grep` で確かめる
