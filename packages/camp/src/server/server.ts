@@ -24,6 +24,7 @@ export function createCampServer<V extends AnyVocabulary, S>(
   },
 ) {
   const rooms = new Map<string, { room: CampRoom<V, S>; timer?: ReturnType<typeof setTimeout> }>();
+  let closing = false;
   const registry: RoomRegistry<V> = {
     async get(id) {
       let entry = rooms.get(id);
@@ -38,7 +39,10 @@ export function createCampServer<V extends AnyVocabulary, S>(
     release(id) {
       const entry = rooms.get(id);
       if (!entry) return;
+      if (closing) return void rooms.delete(id);
       entry.timer = setTimeout(() => rooms.delete(id), opts.idleReleaseMs ?? 10 * 60_000);
+      // 空き部屋の片付けのためだけに、プロセスの終了を引き止めない
+      entry.timer.unref?.();
     },
   };
   const transport = createCampTransport({
@@ -69,9 +73,11 @@ export function createCampServer<V extends AnyVocabulary, S>(
       get: (id: string) => rooms.get(id)?.room,
     },
     async close() {
+      closing = true;
       for (const e of rooms.values()) if (e.timer) clearTimeout(e.timer);
       await transport.close();
       await new Promise<void>((r) => http.close(() => r()));
+      rooms.clear();
     },
   };
 }

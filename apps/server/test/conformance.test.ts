@@ -94,7 +94,7 @@ function open(): Promise<Client> {
     ws.on('message', (raw) => {
       const m = JSON.parse(raw.toString()) as ServerMessage;
       received.push(m);
-      if (m.kind === 'welcome') client.judgeId = m.judgeId;
+      if (m.kind === 'welcome') client.judgeId = m.participantId;
       for (const w of [...waiters]) if (w.pred(m)) (waiters.splice(waiters.indexOf(w), 1), w.resolve(m));
     });
     ws.on('open', () => resolve(client));
@@ -105,7 +105,7 @@ function open(): Promise<Client> {
 let sessionNo = 0;
 async function join(sessionId: string, judgeId?: string, lastSeq?: number) {
   const c = await open();
-  c.send({ camp: CAMP_VERSION, kind: 'hello', sessionId, judgeId, lastSeq });
+  c.send({ camp: CAMP_VERSION, kind: 'hello', sessionId, participantId: judgeId, lastSeq });
   await c.waitFor((m) => m.kind === 'welcome');
   return c;
 }
@@ -217,7 +217,7 @@ describe('CAMP v1 適合テスト', () => {
     if (welcome?.kind !== 'welcome') throw new Error('no welcome');
     expect(welcome.snapshot.seq).toBeGreaterThan(seqBefore);
     expect(welcome.snapshot.upper).toHaveLength(1);
-    expect(welcome.judgeId).toBe(a.judgeId);
+    expect(welcome.participantId).toBe(a.judgeId);
   });
 
   it('古い AI の結果：生成中にリセット → 遅れて返った案は反映されない', async () => {

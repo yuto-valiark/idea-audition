@@ -3,7 +3,7 @@
  * 実行：npx tsx packages/camp/examples/quick-vote/demo.ts （先に server.ts を起動しておく）
  */
 import WebSocket from 'ws';
-import { CampClient, type WebSocketLike } from '../../src/client/index.ts';
+import { CampClient, type WebSocketLike } from '@camp-protocol/kit/client';
 import { quickVote } from './vocabulary.ts';
 
 const url = process.env.CAMP_URL ?? 'ws://localhost:8790/camp';

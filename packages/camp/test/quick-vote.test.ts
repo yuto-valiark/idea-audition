@@ -167,4 +167,15 @@ describe('@camp-protocol/kit × Quick Vote', () => {
     old.send(JSON.stringify({ camp: '2', kind: 'hello', sessionId: 'x' }));
     expect(await closed).toBe(CAMP_CLOSE.UNSUPPORTED_VERSION);
   });
+
+  it('close() 中に切れた部屋は片付けられ、プロセスを引き止めるタイマーを残さない', async () => {
+    const own = createCampServer(quickVote, { port: 0, room: pollRoom(summarize) });
+    const ownUrl = `ws://127.0.0.1:${await own.port}/camp`;
+    const ws = new WebSocket(ownUrl);
+    await new Promise((r) => ws.on('open', r));
+    ws.send(JSON.stringify({ camp: CAMP_VERSION, kind: 'hello', sessionId: 'closing' }));
+    await until(() => !!own.rooms.get('closing'));
+    await own.close();
+    await until(() => !own.rooms.get('closing'));
+  });
 });

@@ -100,7 +100,7 @@ describe('SessionActor', () => {
     for (const x of extra) actor.attach(x.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });
     const fifth = extra[2]!;
     const welcome = fifth.received.find((m) => m.kind === 'welcome');
-    expect(welcome).toMatchObject({ judgeId: null });
+    expect(welcome).toMatchObject({ participantId: null });
     actor.receiveCommand(fifth.conn, cmd('NEXT_IDEA', {}));
     expect(results(fifth.received).at(-1)).toMatchObject({ ok: false, reason: 'SPECTATOR' });
   });

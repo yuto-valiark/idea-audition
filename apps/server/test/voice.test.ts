@@ -29,7 +29,7 @@ describe('発言の宛先と意図（AC-14）', () => {
     });
     const a = fakeConnection('a');
     actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'v' });
-    const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).judgeId!;
+    const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).participantId!;
     actor.receiveCommand(a.conn, {
       camp: CAMP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 't', mode: 'team' },
     } as CommandMessage);

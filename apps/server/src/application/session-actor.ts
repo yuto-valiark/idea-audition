@@ -210,13 +210,13 @@ export class SessionActor {
   /* --------------------------- 接続・切断 --------------------------- */
 
   attach(conn: Connection, hello: HelloMessage) {
-    const joined = this.session.join(hello.judgeId);
+    const joined = this.session.join(hello.participantId);
     this.session.refreshLedgerStatuses();
     const judgeId = joined.ok ? joined.value.judgeId : null;
     const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
     if (wasEmpty) this.resumeAfterEmpty();
-    conn.send({ camp: CAMP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
 
@@ -1049,7 +1049,7 @@ export class SessionActor {
       type: e.type,
       seq: ++this.seq,
       correlationId: meta.correlationId ?? null,
-      actorJudgeId: meta.actorJudgeId,
+      actorId: meta.actorJudgeId,
       detail: e.detail,
       snapshot: undefined as never,
     }));
@@ -1062,7 +1062,7 @@ export class SessionActor {
         seq: m.seq,
         type: m.type,
         detail: m.detail,
-        actorJudgeId: m.actorJudgeId,
+        actorJudgeId: m.actorId,
         correlationId: m.correlationId,
         at,
       });

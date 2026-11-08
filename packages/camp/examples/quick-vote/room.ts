@@ -1,4 +1,4 @@
-import type { RoomDefinition } from '../../src/server/index.ts';
+import type { RoomDefinition } from '@camp-protocol/kit/server';
 import type { quickVote } from './vocabulary.ts';
 
 export interface PollState {

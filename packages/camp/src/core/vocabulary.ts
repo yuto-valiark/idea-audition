@@ -59,7 +59,7 @@ export interface EventOf<E extends Names, S extends z.ZodType> {
   type: E[number];
   seq: number;
   correlationId: string | null;
-  actorJudgeId: string | null;
+  actorId: string | null;
   detail: Record<string, unknown>;
   snapshot: z.output<S>;
 }
@@ -67,7 +67,7 @@ export interface EventOf<E extends Names, S extends z.ZodType> {
 export interface WelcomeOf<S extends z.ZodType> {
   camp: Camp;
   kind: 'welcome';
-  judgeId: string | null;
+  participantId: string | null;
   snapshot: z.output<S>;
 }
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineVocabulary } from '../../src/core/index.ts';
+import { defineVocabulary } from '@camp-protocol/kit';
 
 /**
  * 例：みんなで投票（Quick Vote）。IDEA AUDITION とは関係のない、最小の CAMP アプリ。

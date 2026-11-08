@@ -1,6 +1,6 @@
 # CAMP v1 — Collaborative Agent Mediation Protocol 仕様書
 
-> 旧称 HIP（Human Intent Protocol）。2026-11-08 に CAMP に改名した（Host Identity Protocol などとの名前の重なりを避けるため。経緯は ADR-0010 の末尾）。通信のフィールド名も `hip` から `camp`、WebSocket のパスも `/hip` から `/camp` に変えた。
+> 旧称 HIP（Human Intent Protocol）。2026-11-08 に CAMP に改名した（Host Identity Protocol などとの名前の重なりを避けるため。経緯は ADR-0010 の末尾）。通信のフィールド名も `hip` から `camp`、WebSocket のパスも `/hip` から `/camp` に変えた。OSS 公開に合わせて、hello と welcome の `judgeId` を `participantId`、event の `actorJudgeId` を `actorId` に変えた（アプリの言葉を通信から外すため）。汎用の仕様（英語）は `packages/camp/SPEC.md`。この文書は IDEA AUDITION での使い方（語彙・役割）を含む。
 
 - Status: Draft（2026-11-08）。ADR-0010 の a〜f は実装済み。適合テストは `apps/server/test/conformance.test.ts`
 - 正本のスキーマ：`packages/protocol/src/messages.ts`（Zod）
@@ -22,7 +22,7 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 | 二重送信 | `commandId` で重複を排除（§5.2） |
 | 切断からの復旧 | 再接続・再送・snapshot での取り直し（§8） |
 | AI の遅れた結果 | 世代番号 `epoch` で古い結果を捨てる（§9） |
-| バージョン違い | `hip` の値で判定し、`protocol_error` で伝える（§10） |
+| バージョン違い | `camp` の値で判定し、`protocol_error` で伝える（§10） |
 
 ## 2. 用語
 
@@ -54,26 +54,26 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.1 hello
 
 ```json
-{ "hip": "1", "kind": "hello", "sessionId": "main", "judgeId": "j_…", "lastSeq": 128, "accessCode": "…" }
+{ "camp": "1", "kind": "hello", "sessionId": "main", "participantId": "j_…", "lastSeq": 128, "accessCode": "…" }
 ```
 
-- `judgeId`：前回もらった ID。あれば同じ審査員として戻る。
+- `participantId`：前回もらった ID。あれば同じ審査員として戻る。
 - `lastSeq`：最後に反映した Event の `seq`。
 - `accessCode`：サーバーに合言葉が設定されているときだけ必要。
 
 ### 3.2 welcome
 
 ```json
-{ "hip": "1", "kind": "welcome", "judgeId": "j_… | null", "snapshot": { "seq": 131, "…": "…" } }
+{ "camp": "1", "kind": "welcome", "participantId": "j_… | null", "snapshot": { "seq": 131, "…": "…" } }
 ```
 
-`judgeId` が `null` なら観覧者です。
+`participantId` が `null` なら観覧者です。
 
 ### 3.3 command
 
 ```json
 {
-  "hip": "1", "kind": "command", "type": "REQUEST_PROMOTION",
+  "camp": "1", "kind": "command", "type": "REQUEST_PROMOTION",
   "commandId": "c7f1…", "sentAt": "2026-11-08T10:00:00.000Z",
   "expected": { "rev": "r_3" },
   "payload": { "instanceId": "i_42" }
@@ -86,15 +86,15 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.4 result
 
 ```json
-{ "hip": "1", "kind": "result", "commandId": "c7f1…", "ok": false, "reason": "UPPER_FULL" }
+{ "camp": "1", "kind": "result", "commandId": "c7f1…", "ok": false, "reason": "UPPER_FULL" }
 ```
 
 ### 3.5 event
 
 ```json
 {
-  "hip": "1", "kind": "event", "type": "PROMOTION_CONFIRMED",
-  "seq": 132, "correlationId": "c7f1…", "actorJudgeId": "j_…",
+  "camp": "1", "kind": "event", "type": "PROMOTION_CONFIRMED",
+  "seq": 132, "correlationId": "c7f1…", "actorId": "j_…",
   "detail": { "instanceId": "i_42", "fromSlot": 2 },
   "snapshot": { "seq": 132, "…": "…" }
 }
@@ -106,7 +106,7 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.6 ephemeral
 
 ```json
-{ "hip": "1", "kind": "ephemeral", "type": "CURSOR_MOVED", "senderId": "j_…", "payload": { "x": 0.42, "y": 0.7 } }
+{ "camp": "1", "kind": "ephemeral", "type": "CURSOR_MOVED", "senderId": "j_…", "payload": { "x": 0.42, "y": 0.7 } }
 ```
 
 座標はアリーナに対して 0〜1 に正規化します。`senderId` はサーバーが付け直します（送る側の値は信用しない）。
@@ -114,7 +114,7 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.7 signal
 
 ```json
-{ "hip": "1", "kind": "signal", "type": "SOFT_SIGNAL", "payload": { "kind": "hesitation", "targetInstanceId": "i_7", "features": { "silenceMs": 1800, "rms": 0.04 } } }
+{ "camp": "1", "kind": "signal", "type": "SOFT_SIGNAL", "payload": { "kind": "hesitation", "targetInstanceId": "i_7", "features": { "silenceMs": 1800, "rms": 0.04 } } }
 ```
 
 - 「うーん」・沈黙・笑いなど、**1件ずつは失われてもよいが、積み重なると状態（好み）に効く**情報のための種類です。
@@ -125,8 +125,8 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.8 access_denied / protocol_error
 
 ```json
-{ "hip": "1", "kind": "access_denied", "reason": "required | invalid" }
-{ "hip": "1", "kind": "protocol_error", "code": "UNSUPPORTED_VERSION", "detail": "…", "supported": ["1"] }
+{ "camp": "1", "kind": "access_denied", "reason": "required | invalid" }
+{ "camp": "1", "kind": "protocol_error", "code": "UNSUPPORTED_VERSION", "detail": "…", "supported": ["1"] }
 ```
 
 ## 4. 順序
@@ -237,14 +237,14 @@ sequenceDiagram
   loop 400ms・800ms・1.6秒…最大5秒
     C->>S: 再接続
   end
-  C->>S: hello(judgeId, lastSeq)
+  C->>S: hello(participantId, lastSeq)
   S-->>C: welcome(snapshot)
   C->>S: result が来ていない Command を同じ commandId で再送
   S-->>C: 実行済みなら前回の result、未実行なら実行して result
 ```
 
 - サーバーは差分の再送をせず、**常に snapshot で全体を渡します**。snapshot は小さく（数十KB）、差分の欠落を考えなくてよいためです。
-- 同じ `judgeId` で戻れば、審査員の席とホストの権限は元に戻ります（ホストが移っていれば移ったまま）。
+- 同じ `participantId` で戻れば、審査員の席とホストの権限は元に戻ります（ホストが移っていれば移ったまま）。
 - 審査員の接続がすべて切れると、AI の生成と下段の入れ替えを止めます。最初の1人が戻ると再開します。
 
 ## 9. AI の遅れた結果
@@ -259,9 +259,9 @@ Gemini の呼び出しは数百ミリ秒〜数十秒かかり、その間に人�
 
 ## 10. バージョン
 
-- `hip` はメジャー番号の文字列です。破壊的な変更（フィールドの意味を変える・必須を増やす）で上げます。
+- `camp` はメジャー番号の文字列です。破壊的な変更（フィールドの意味を変える・必須を増やす）で上げます。
 - フィールドや type を**足す**変更では上げません。受け取る側は知らないフィールドを無視します。
-- hello の `hip` をサーバーが扱えないときは `protocol_error{UNSUPPORTED_VERSION, supported}` を返して 4400 で閉じます。
+- hello の `camp` をサーバーが扱えないときは `protocol_error{UNSUPPORTED_VERSION, supported}` を返して 4400 で閉じます。
 - 知らない Command type には `result{ok:false, reason:"UNKNOWN_TYPE"}`。クライアントは知らない Event type でも snapshot は反映し、演出だけ飛ばします。
 
 ## 11. 終了コード
@@ -277,7 +277,7 @@ Gemini の呼び出しは数百ミリ秒〜数十秒かかり、その間に人�
 
 ## 12. 安全
 
-- サーバーは送り手の申告（`senderId` など）を信用せず、接続に結び付いた `judgeId` で判断します。
+- サーバーは送り手の申告（`senderId` など）を信用せず、接続に結び付いた `participantId` で判断します。
 - 合言葉は hello で1回だけ照合します。値はサーバーの環境変数（Secret Manager）にだけあります。
 - 文字列は長さを制限します（発言は400文字、ID は80文字）。
 

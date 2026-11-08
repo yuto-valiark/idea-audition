@@ -120,7 +120,7 @@ export class CampClient<V extends AnyVocabulary> {
           camp: CAMP_VERSION,
           kind: 'hello',
           sessionId: this.opts.room,
-          judgeId: this.participantId,
+          participantId: this.participantId,
           lastSeq: this.seq.lastSeq,
           accessCode: this.opts.accessCode,
         }),
@@ -202,7 +202,7 @@ export class CampClient<V extends AnyVocabulary> {
         break;
       case 'welcome': {
         const w = m as unknown as WelcomeMessageOf<V>;
-        this.participantId = (w.judgeId as string | null) ?? this.participantId;
+        this.participantId = (w.participantId as string | null) ?? this.participantId;
         this.seq.reset((w.snapshot as { seq?: number }).seq ?? 0);
         this.handlers.onWelcome?.(w);
         this.handlers.onSnapshot?.(w.snapshot as SnapshotOf<V>);

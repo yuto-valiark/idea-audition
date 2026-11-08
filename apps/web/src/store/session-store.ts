@@ -80,8 +80,8 @@ export const useSession = create<SessionState>((set, get) => ({
           set({ accessDenied: reason });
         },
         onWelcome: (m) => {
-          if (m.judgeId) writeJudgeId(sessionId, m.judgeId);
-          set({ judgeId: m.judgeId, snapshot: m.snapshot, accessDenied: null });
+          if (m.participantId) writeJudgeId(sessionId, m.participantId);
+          set({ judgeId: m.participantId, snapshot: m.snapshot, accessDenied: null });
         },
         onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
         onEphemeral: handleEphemeral,

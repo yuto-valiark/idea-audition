@@ -33,12 +33,12 @@ export const SignalBase = z.object({
   kind: z.literal('signal'),
 });
 
-/** 接続直後に1回。再接続時は参加者 ID と lastSeq を付ける（v1 では参加者 ID を judgeId と呼ぶ） */
+/** 接続直後に1回。再接続時は参加者 ID と lastSeq を付ける */
 export const HelloMessage = z.object({
   camp: z.literal(CAMP_VERSION),
   kind: z.literal('hello'),
   sessionId: id,
-  judgeId: id.optional(),
+  participantId: id.optional(),
   lastSeq: z.number().int().optional(),
   /** 公開環境の合言葉（サーバーに設定されているときだけ必要） */
   accessCode: z.string().max(100).optional(),
@@ -53,7 +53,7 @@ export const eventMessage = <E extends z.ZodType, S extends z.ZodType>(type: E, 
     type,
     seq: z.number().int(),
     correlationId: z.string().nullable(),
-    actorJudgeId: z.string().nullable(),
+    actorId: z.string().nullable(),
     /** 演出の手がかり。状態の正本は snapshot */
     detail: z.record(z.string(), z.unknown()),
     snapshot,
@@ -64,7 +64,7 @@ export const welcomeMessage = <S extends z.ZodType>(snapshot: S) =>
     camp: z.literal(CAMP_VERSION),
     kind: z.literal('welcome'),
     /** null は満員による観覧 */
-    judgeId: z.string().nullable(),
+    participantId: z.string().nullable(),
     snapshot,
   });
 

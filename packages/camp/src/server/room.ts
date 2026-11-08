@@ -76,7 +76,7 @@ export interface RoomDefinition<V extends AnyVocabulary, S> {
   snapshot?: (state: S, info: { seq: number; participants: readonly Participant[] }) => SnapshotOf<V>;
   onJoin?: (room: RoomApi<V, S>, participantId: string, rejoined: boolean) => void;
   onLeave?: (room: RoomApi<V, S>, participantId: string) => void;
-  /** 操作できる人数。超えた人は観覧（judgeId: null） */
+  /** 操作できる人数。超えた人は観覧（participantId: null） */
   maxParticipants?: number;
   /** Signal を1人あたり1秒に受け付ける件数 */
   signalsPerSecond?: number;
@@ -141,7 +141,7 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
 
   attach(conn: Connection, hello: HelloMessage) {
     const max = this.def.maxParticipants ?? 8;
-    let person = hello.judgeId ? this.people.find((p) => p.id === hello.judgeId) : undefined;
+    let person = hello.participantId ? this.people.find((p) => p.id === hello.participantId) : undefined;
     const rejoined = !!person;
     if (person) person.connected = true;
     else {
@@ -157,7 +157,7 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
     }
     this.ensureHost();
     this.connections.set(conn.id, { conn, participantId: person?.id ?? null });
-    conn.send({ camp: CAMP_VERSION, kind: 'welcome', judgeId: person?.id ?? null, snapshot: this.snapshot() });
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: person?.id ?? null, snapshot: this.snapshot() });
     if (person) this.def.onJoin?.(this.api, person.id, rejoined);
   }
 
@@ -226,7 +226,7 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
       type,
       seq: this.seq,
       correlationId,
-      actorJudgeId: actor,
+      actorId: actor,
       detail,
       snapshot: this.snapshot(),
     };

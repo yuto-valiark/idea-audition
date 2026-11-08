@@ -61,15 +61,15 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     expect(store.events.get('demo')!.map((e) => e.seq)).toEqual(
       Array.from({ length: lastEvent.seq }, (_, i) => i + 1),
     );
-    const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).judgeId!;
+    const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).participantId!;
 
     // サーバー再起動：新しいアクターを保存先から開く
     const second = deps(store);
     const reopened = await SessionActor.open('demo', second.deps);
     const b = fakeConnection('b');
-    reopened.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo', judgeId });
+    reopened.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo', participantId: judgeId });
     const welcome = b.received.find((m) => m.kind === 'welcome') as WelcomeMessage;
-    expect(welcome.judgeId).toBe(judgeId);
+    expect(welcome.participantId).toBe(judgeId);
     expect(welcome.snapshot.seq).toBe(lastEvent.seq);
     expect(welcome.snapshot.upper.map((f) => f.instanceId)).toEqual([target]);
     expect(welcome.snapshot.lowerSlots).toEqual(lastEvent.snapshot.lowerSlots);
