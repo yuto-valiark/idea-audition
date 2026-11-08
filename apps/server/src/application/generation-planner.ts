@@ -43,7 +43,10 @@ const judgeLabel = (s: AuditionSession, judgeId: string) => {
   return j ? JUDGE_SLOTS[j.slotIndex]!.label : '審査員';
 };
 /** カードに出す短い呼び方（「審査員 A」→「Aさん」） */
-const shortLabel = (s: AuditionSession, judgeId: string) => judgeLabel(s, judgeId).replace('審査員 ', '') + 'さん';
+const shortLabel = (s: AuditionSession, judgeId: string) => {
+  const name = s.judges.find((x) => x.judgeId === judgeId)?.name;
+  return `${name || judgeLabel(s, judgeId).replace('審査員 ', '')}さん`;
+};
 
 function describeAxis(axis: number, value: number) {
   return `${AXIS_LABEL[axis]}${value > 0 ? '高め' : '控えめ'}`;

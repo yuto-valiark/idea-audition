@@ -256,6 +256,17 @@ export class AuditionSession {
     return [{ type: 'HOST_CHANGED', detail: { judgeId: next.judgeId } }];
   }
 
+  /** 審査員の名前を決める（同じ名前の人がいても構わない。席の記号で区別できる） */
+  setJudgeName(judgeId: string, name: string): DomainResult {
+    const judge = this.judges.find((j) => j.judgeId === judgeId);
+    if (!judge) return reject('SPECTATOR');
+    const clean = name.replace(/\s+/g, ' ').trim().slice(0, 16);
+    if (!clean) return reject('INVALID_PAYLOAD');
+    if (judge.name === clean) return ok([]);
+    judge.name = clean;
+    return ok([{ type: 'JUDGE_RENAMED', detail: { judgeId, name: clean } }]);
+  }
+
   private isHost(judgeId: string) {
     return this.judges.some((j) => j.judgeId === judgeId && j.isHost);
   }

@@ -139,7 +139,7 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       </button>
       <div className={styles.podium} />
       <div className={styles.name}>
-        <span /> {character.name} <small>AI CREATOR</small>
+        <span /> {character.name}
         <MentionBadge count={character.mentions} />
       </div>
       {holder && <span className={styles.heldTag}>{holder.label} がつかみ中</span>}

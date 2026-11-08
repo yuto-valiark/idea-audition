@@ -162,6 +162,8 @@ export interface Critique {
 
 export interface Judge {
   judgeId: string;
+  /** 本人が入れた名前（未入力なら無し） */
+  name?: string | null;
   slotIndex: number;
   isHost: boolean;
   connected: boolean;

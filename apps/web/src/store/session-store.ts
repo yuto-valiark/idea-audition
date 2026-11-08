@@ -131,8 +131,9 @@ export const useSession = create<SessionState>((set, get) => ({
 function whoDid(snapshot: SessionSnapshot, actorId: string | null) {
   if (!actorId) return null;
   if (actorId === useSession.getState().judgeId) return 'あなた';
-  const label = snapshot.judges.find((j) => j.judgeId === actorId)?.label;
-  return label ? `${label.replace('審査員 ', '')}さん` : null;
+  const j = snapshot.judges.find((x) => x.judgeId === actorId);
+  if (!j) return null;
+  return `${j.name || j.letter || j.label.replace('審査員 ', '')}さん`;
 }
 
 function nameOf(snapshot: SessionSnapshot, instanceId: unknown) {

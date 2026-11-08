@@ -447,6 +447,8 @@ export class SessionActor {
     };
 
     switch (cmd.type) {
+      case 'SET_JUDGE_NAME':
+        return apply(s.setJudgeName(judgeId, cmd.payload.name));
       case 'START_AUDITION': {
         // テーマを決めて始めるのはホストだけ（ロビーでほかの人はホストの入力を見ている）
         if (!s.judges.some((j) => j.judgeId === judgeId && j.isHost)) return { ok: false, reason: 'NOT_HOST' };

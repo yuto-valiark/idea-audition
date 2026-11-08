@@ -74,7 +74,9 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
       .sort((a, b) => a.slotIndex - b.slotIndex)
       .map((j) => ({
         judgeId: j.judgeId,
-        label: JUDGE_SLOTS[j.slotIndex]!.label,
+        label: j.name || JUDGE_SLOTS[j.slotIndex]!.label,
+        name: j.name ?? null,
+        letter: JUDGE_SLOTS[j.slotIndex]!.label.slice(-1),
         color: JUDGE_SLOTS[j.slotIndex]!.color,
         isHost: j.isHost,
         connected: j.connected,

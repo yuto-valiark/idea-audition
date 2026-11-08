@@ -484,28 +484,38 @@
 }
 
 .name {
-  margin-top: 15px;
-  font-size: 9px;
-  letter-spacing: 1.1px;
+  /* キャラの名前札：ステージの光の上でも読めるよう、濃い地に白い太字で */
+  margin-top: 10px;
+  font-size: clamp(11px, 0.85vw, 14px);
+  font-weight: 800;
+  letter-spacing: 1.2px;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
-  color: #dbc8ed;
+  color: #ffffff;
+  background: #120a22e6;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 2px 10px 2px 8px;
+  box-shadow: 0 2px 8px #0008;
+  text-shadow: 0 1px 2px #000;
 }
 
 .name > span {
-  width: 4px;
-  height: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
 }
 
 .name small {
-  color: #8c699e;
-  font-size: 7px;
-  letter-spacing: 0.6px;
-  margin-left: 3px;
+  color: #f5d28b;
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  margin-left: 2px;
 }
 
 .speech {

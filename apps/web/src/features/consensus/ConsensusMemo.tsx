@@ -73,7 +73,7 @@ function ClaimRow({ claim, snapshot }: { claim: ClaimView; snapshot: SessionSnap
     const j = judgeId ? judgeById(snapshot, judgeId) : null;
     return j ? (
       <span className={styles.judge} style={{ ['--judge' as string]: j.color }}>
-        {j.label.slice(-1)}
+        {j.letter ?? j.label.slice(-1)}
       </span>
     ) : null;
   };

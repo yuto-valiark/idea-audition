@@ -160,4 +160,18 @@ describe('SessionActor', () => {
     actor.receiveCommand(host.conn, cmd('START_AUDITION', { theme: '学食', mode: 'team' }));
     expect(results(host.received).at(-1)).toMatchObject({ ok: true });
   });
+
+  it('審査員は名前を入れられ、全員の画面に名前で出る（席の記号は A〜D のまま）', async () => {
+    const { actor, a, b, advance } = await setup();
+    actor.receiveCommand(a.conn, cmd('SET_JUDGE_NAME', { name: '  ゆうと ' }));
+    await advance(0);
+    const ev = events(b.received).find((e) => e.type === 'JUDGE_RENAMED')!;
+    const me = ev.snapshot.judges.find((j) => j.judgeId === ev.detail.judgeId)!;
+    expect(me).toMatchObject({ label: 'ゆうと', name: 'ゆうと', letter: 'A' });
+    // 名前を入れていない人は「審査員 B」のまま
+    expect(ev.snapshot.judges.find((j) => j.judgeId !== ev.detail.judgeId)).toMatchObject({ label: '審査員 B', name: null, letter: 'B' });
+    // 空の名前は断る
+    actor.receiveCommand(a.conn, cmd('SET_JUDGE_NAME', { name: '   ' }));
+    expect(results(a.received).at(-1)).toMatchObject({ ok: false, reason: 'INVALID_PAYLOAD' });
+  });
 });

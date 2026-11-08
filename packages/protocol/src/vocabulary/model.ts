@@ -89,7 +89,12 @@ export type CritiqueView = z.infer<typeof CritiqueView>;
 
 export const JudgeView = z.object({
   judgeId: z.string(),
+  /** 画面に出す呼び名。名前を入れていれば名前、なければ「審査員 A」 */
   label: z.string(),
+  /** 入れた名前（未入力なら null） */
+  name: z.string().nullable().optional(),
+  /** 席の記号（A〜D）。丸いアイコンに使う */
+  letter: z.string().optional(),
   color: z.string(),
   isHost: z.boolean(),
   connected: z.boolean(),

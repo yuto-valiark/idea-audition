@@ -7,6 +7,7 @@ import { Footer, Header, Toasts } from './features/collaboration/Chrome.tsx';
 import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx';
 import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
+import { NameGate } from './features/audition/NameGate.tsx';
 import styles from './App.module.css';
 
 /** URL の /a/<部屋 ID> から部屋を読む（Google Meet と同じく、リンクを開いた人がその部屋に入る） */
@@ -60,6 +61,7 @@ export function App() {
       <DragLayer />
       <Toasts />
       <RoomNotFound />
+      <NameGate />
     </main>
   );
 }

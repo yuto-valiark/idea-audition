@@ -17,6 +17,8 @@ const id = z.string().min(1).max(80);
 /* ------------------------------------------------------------------ */
 
 export const CommandPayloads = {
+  /** 自分の名前（画面に出す呼び名）。参加したときに入れる。前後の空白は除く */
+  SET_JUDGE_NAME: z.object({ name: z.string().trim().min(1).max(16) }),
   START_AUDITION: z.object({ theme: text, mode: SessionMode, aiMode: AiMode.optional() }),
   /** AI のモードを切り替える（ホストのみ。途中でも可） */
   SET_AI_MODE: z.object({ mode: AiMode }),
@@ -95,6 +97,7 @@ export type SignalType = keyof typeof SignalPayloads;
 /* ------------------------------------------------------------------ */
 
 export const EVENT_TYPES = [
+  'JUDGE_RENAMED',
   'SESSION_STARTED',
   'SESSION_RESET',
   'JUDGE_JOINED',

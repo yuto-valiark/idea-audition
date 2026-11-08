@@ -78,7 +78,7 @@ export function Footer() {
             data-offline={!j.connected || undefined}
             style={{ ['--judge' as string]: j.color }}
           >
-            <span className={styles.avatar}>{j.label.slice(-1)}</span>
+            <span className={styles.avatar}>{j.letter ?? j.label.slice(-1)}</span>
             <div>
               <strong>
                 {j.label}
