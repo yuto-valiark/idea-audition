@@ -61,7 +61,7 @@ gcloud run services describe idea-audition --project idea-audition --region asia
 
 - ホストがトップで「オーディションを作る」を押すと、`POST /api/rooms` が部屋を作り、`/a/<部屋 ID>`（例 `/a/kqd-rmzw-tbe`）に移る。このリンクを参加者に送る。
 - 部屋は作った時点で Firestore に保存されるので、デプロイや再起動のあとも同じリンクで入れる。誰もいない部屋は30分でメモリから片付ける。
-- 合言葉（Secret Manager の `idea-audition-access-code`）は使わなくなった。サービスに残っている設定は、次のコマンドで1回だけ外す（Secret 自体の削除は別途）：`gcloud run services update idea-audition --project idea-audition --region asia-northeast1 --remove-secrets ACCESS_CODE`
+- 合言葉は 2026-11-08 に廃止した。Cloud Run の `ACCESS_CODE` を外し（revision 00008）、Secret Manager の `idea-audition-access-code` も削除済み。
 
 ## 本番・リハーサルの前後
 
