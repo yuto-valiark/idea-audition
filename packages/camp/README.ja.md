@@ -107,7 +107,7 @@ Node で使うときは `createSocket: (url) => new WebSocket(url)`（`ws` パ�
 
 ## テスト
 
-`npm test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・遅い AI・観覧・Signal・版違い。
+`pnpm test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・遅い AI・観覧・Signal・版違い。
 
 ## 状態
 

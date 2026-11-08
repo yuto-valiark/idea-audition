@@ -156,17 +156,21 @@ Planned:
 
 ## Development
 
+Use pnpm. Publishing must go through pnpm because `publishConfig` points the published entry points at `dist/`; `npm pack` is refused on purpose.
+
 ```bash
-npm install
+pnpm install
 ```
 
 ```bash
-npm test
+pnpm test
 ```
 
 ```bash
-npm run build
+pnpm run check:pack
 ```
+
+`check:pack` packs the package, installs the tarball into an empty project and imports every entry point.
 
 ## License
 

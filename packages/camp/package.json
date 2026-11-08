@@ -65,7 +65,8 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "prepack": "npm run build"
+    "prepack": "node scripts/prepack.mjs && pnpm run build",
+    "check:pack": "node scripts/check-pack.mjs"
   },
   "dependencies": {
     "ws": "^8.22.1",
