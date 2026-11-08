@@ -3,6 +3,7 @@
 - Date: 2026-11-09（締切 2026-11-10）
 - Status: Proposed（チームで決める）
 - 出どころ：牧の口頭メモ。アプリの機能は [backlog/2026-11-09-remaining-tasks.md](../backlog/2026-11-09-remaining-tasks.md)（#1〜#13）で進め、こちらは発表と数字を扱う
+- 提出物（ドキュメント・動画・著作物利用シート・フォーム）は [2026-11-09-submission.md](2026-11-09-submission.md)（#24〜#29）
 - 前の計画：[2026-11-08-camp-oss-and-dialogue-metrics.md](2026-11-08-camp-oss-and-dialogue-metrics.md)（CAMP の実測・予備実験。ここでは発表から見た優先度に並べ直す）
 
 ## ゴール
