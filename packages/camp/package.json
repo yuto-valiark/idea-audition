@@ -62,8 +62,7 @@
     "SPEC.md",
     "README.md",
     "README.ja.md",
-    "LICENSE",
-    "assets"
+    "LICENSE"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",

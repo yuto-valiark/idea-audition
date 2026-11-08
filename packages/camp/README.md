@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/camp-logo.webp" alt="CAMP" width="360"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/camp-protocol/camp/main/assets/camp-logo.webp" alt="CAMP" width="220"></p>
 
 # CAMP — Collaborative Agent Mediation Protocol
 
