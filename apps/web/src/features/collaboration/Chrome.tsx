@@ -1,5 +1,5 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2 } from 'lucide-react';
-import { shareInvite } from '../../shared/invite.ts';
+import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
+import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
@@ -41,9 +41,14 @@ export function Header() {
         <span>{connected}人で参加中</span>
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
         <AiModeBadge />
-        <button type="button" className={styles.invite} onClick={() => void shareInvite()} title="この部屋のリンクを共有">
-          <Share2 size={14} /> 招待
+        <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
+          <Copy size={14} /> コピー
         </button>
+        {canShareInvite() && (
+          <button type="button" className={styles.invite} onClick={() => void shareInvite()} title="この部屋のリンクを共有（AirDrop・LINE など）">
+            <Share2 size={14} /> 招待
+          </button>
+        )}
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
       </div>
       )}

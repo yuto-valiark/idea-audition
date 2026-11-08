@@ -334,3 +334,9 @@
     display: none;
   }
 }
+
+.invite .share {
+  border-color: #c785ff;
+  background: linear-gradient(105deg, #9a45e8, #7736db);
+  color: white;
+}

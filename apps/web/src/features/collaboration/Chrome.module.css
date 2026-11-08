@@ -289,7 +289,8 @@
   cursor: default;
 }
 
-.invite {
+.invite,
+.copy {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -326,4 +327,10 @@
   .brand strong {
     font-size: 16px;
   }
+}
+
+.copy {
+  border: 1px solid #694284;
+  background: #251537;
+  color: #e5d6f5;
 }

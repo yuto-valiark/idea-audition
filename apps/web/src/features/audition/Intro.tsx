@@ -1,5 +1,5 @@
-import { ArrowRight, ChevronRight, Crown, Plus, Share2, Sparkles } from 'lucide-react';
-import { shareInvite } from '../../shared/invite.ts';
+import { ArrowRight, ChevronRight, Copy, Crown, Plus, Share2, Sparkles } from 'lucide-react';
+import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { useState, type CSSProperties } from 'react';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { roomUrl, useSession } from '../../store/session-store.ts';
@@ -142,15 +142,20 @@ export function Intro() {
   );
 }
 
-/** 招待リンク。共有シート（ない環境ではコピー）で参加者に送る（Google Meet のリンクと同じ使い方） */
+/** 招待リンク。コピーするか、共有シート（AirDrop・LINE など）で参加者に送る（Google Meet のリンクと同じ使い方） */
 function InviteLink({ url }: { url: string }) {
   return (
     <div className={styles.invite}>
       <span className={styles.inviteLabel}>招待リンク</span>
       <code>{url.replace(/^https?:\/\//, '')}</code>
-      <button type="button" onClick={() => void shareInvite(url)} aria-label="招待リンクを共有">
-        <Share2 size={15} /> 招待
+      <button type="button" onClick={() => void copyInvite(url)} aria-label="招待リンクをコピー">
+        <Copy size={15} /> コピー
       </button>
+      {canShareInvite(url) && (
+        <button type="button" className={styles.share} onClick={() => void shareInvite(url)} aria-label="招待リンクを共有">
+          <Share2 size={15} /> 招待
+        </button>
+      )}
     </div>
   );
 }

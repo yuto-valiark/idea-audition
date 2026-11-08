@@ -2,22 +2,28 @@ import { useDisplay } from '../store/display-store.ts';
 
 const INVITE_TEXT = 'IDEA AUDITION に招待されました。このリンクから一緒に審査しよう！';
 
-/**
- * 招待：いま開いている部屋のリンクを配る。
- * 端末の共有シート（AirDrop・LINE・メッセージ・メールなど、端末にあるもの）を開く。共有シートがない環境ではリンクをコピーする。
- */
+type ShareNavigator = Navigator & { share?: (d: ShareData) => Promise<void>; canShare?: (d: ShareData) => boolean };
+
+const shareData = (url: string) => ({ title: 'IDEA AUDITION', text: INVITE_TEXT, url });
+
+/** この端末・ブラウザに共有シートがあるか（ない環境では「招待」ボタンを出さず、コピーだけにする） */
+export function canShareInvite(url: string = location.href): boolean {
+  const nav = navigator as ShareNavigator;
+  return !!nav.share && (!nav.canShare || nav.canShare(shareData(url)));
+}
+
+/** 招待：端末の共有シート（AirDrop・LINE・メッセージ・メールなど、端末にあるもの）で部屋のリンクを送る */
 export async function shareInvite(url: string = location.href): Promise<void> {
-  const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void>; canShare?: (d: ShareData) => boolean };
-  const data = { title: 'IDEA AUDITION', text: INVITE_TEXT, url };
-  if (nav.share && (!nav.canShare || nav.canShare(data))) {
-    try {
-      await nav.share(data);
-      return;
-    } catch (e) {
-      if ((e as DOMException).name === 'AbortError') return; // 共有シートを閉じただけ
-    }
+  const nav = navigator as ShareNavigator;
+  if (!canShareInvite(url)) {
+    await copyInvite(url);
+    return;
   }
-  await copyInvite(url);
+  try {
+    await nav.share!(shareData(url));
+  } catch (e) {
+    if ((e as DOMException).name !== 'AbortError') await copyInvite(url); // 閉じただけなら何もしない
+  }
 }
 
 export async function copyInvite(url: string = location.href): Promise<boolean> {
