@@ -34,6 +34,31 @@ async function crowned(failFirst = false, store = new MemorySessionStore()) {
 }
 
 describe('企画書', () => {
+  it('決勝の案の企画書は優勝が決まる前に作っておき、優勝が決まったらそれをすぐ使う（作り直さない）', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const ai = new StubAi();
+    const actor = await SessionActor.open('pre', {
+      ai,
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: fakeClock(),
+      ids: seqIds(),
+      config: { stockTarget: 3, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'pre' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '学食', mode: 'solo' }));
+    await advance(0);
+    const id = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+    await advance(5_000);
+    expect(ai.proposalCalls).toHaveLength(1); // 優勝が決まる前に作っておいた
+    actor.receiveCommand(a.conn, cmd('SELECT_CHAMPION', { instanceId: id }));
+    await advance(0);
+    expect(ai.proposalCalls).toHaveLength(1); // 作り直していない
+    expect(actor.session.proposal?.status).toBe('ready');
+  });
+
   it('優勝が決まると自動で作り始め、できたら全員に配られる', async () => {
     const { ai, advance, events } = await crowned();
     const selected = events().find((e) => e.type === 'CHAMPION_SELECTED')!;

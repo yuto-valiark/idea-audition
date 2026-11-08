@@ -66,7 +66,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
 
       <Section title="背景">{content.background}</Section>
       <Section title="解決したい課題">{content.problem}</Section>
-      <div className={styles.twoCol}>
+      <div className={styles.twoCol} data-keep>
         <Section title="対象者">{content.target}</Section>
         <Section title="提供する価値">{content.value}</Section>
       </div>
@@ -104,7 +104,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         </tbody>
       </table>
 
-      <div className={styles.twoCol}>
+      <div className={styles.twoCol} data-keep>
         <Section title="体制">{content.resources}</Section>
         <Section title="予算の目安">{content.budget}</Section>
       </div>
@@ -121,7 +121,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         </tbody>
       </table>
 
-      <div className={styles.twoCol}>
+      <div className={styles.twoCol} data-keep>
         <ListSection title="成果の測り方" items={content.kpis} />
         <ListSection title="次の一手" items={content.nextActions} />
       </div>
@@ -136,9 +136,13 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
           {date(snapshot.startedAt)} 〜 ／ テーマ：{snapshot.theme} ／ 審査員：{snapshot.judges.map((j) => j.label).join('・')}（
           {snapshot.mode === 'solo' ? 'ひとりで審査' : 'みんなで審査'}）
         </p>
+        {/* 最後のページに注記だけが残らないよう、第2部の頭に置く */}
+        <p className={styles.footer}>
+          第1部の企画書は、審査の記録をもとに {authorLabel(snapshot.proposal?.generatedBy)} が作成した案です。「要検証の前提」を確認してから進めてください。第2部は審査中の記録をそのまま載せています。
+        </p>
       </header>
 
-      <div className={styles.stats}>
+      <div className={styles.stats} data-keep>
         {stats.map(([label, value]) => (
           <div key={label}>
             <b>{value}</b>
@@ -152,7 +156,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         <p className={styles.muted}>合意として記録された方針はありません。</p>
       ) : (
         agreed.map((c) => (
-          <div key={c.label} className={`${styles.claim} ${styles.avoid}`}>
+          <div key={c.label} className={`${styles.claim} ${styles.avoid}`} data-keep>
             <b>{c.label}</b> {c.text}
             {c.pinned && <span className={styles.tag}>確定</span>}
             <div className={styles.timeline}>
@@ -178,7 +182,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
 
       <h2 className={styles.h2}>改良の経緯</h2>
       {revisions.map((r) => (
-        <div key={r.revisionId} className={`${styles.rev} ${styles.avoid}`}>
+        <div key={r.revisionId} className={`${styles.rev} ${styles.avoid}`} data-keep>
           <div className={styles.revHead}>
             <b>Ver.{r.version}</b> {r.title}
             <span>{time(r.createdAt)}</span>
@@ -255,10 +259,6 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         </>
       )}
 
-      <footer className={styles.footer}>
-        第1部の企画書は、審査の記録をもとに AI（{snapshot.proposal?.generatedBy ?? 'AI'}）が作成した案です。「要検証の前提」を確認してから進めてください。
-        第2部は審査中の記録をそのまま載せています。 — IDEA AUDITION
-      </footer>
     </div>
   );
 }
@@ -362,7 +362,7 @@ function TasteReport({ snapshot }: { snapshot: SessionSnapshot }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-keep>
       <h2 className={styles.h2}>{title}</h2>
       <p>{children}</p>
     </section>
@@ -371,7 +371,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function ListSection({ title, items, tone }: { title: string; items: string[]; tone?: 'warn' }) {
   return (
-    <section className={styles.section} data-tone={tone}>
+    <section className={styles.section} data-tone={tone} data-keep>
       <h2 className={styles.h2}>{title}</h2>
       <ul className={styles.list}>
         {items.map((t, i) => (
@@ -380,4 +380,12 @@ function ListSection({ title, items, tone }: { title: string; items: string[]; t
       </ul>
     </section>
   );
+}
+
+/** 企画書を書いたものの表示名（内部の名前 gemini(fallback:fixture) などは見せない） */
+function authorLabel(generatedBy: string | null | undefined) {
+  if (!generatedBy) return 'AI';
+  if (generatedBy.startsWith('gemini')) return 'AI（Gemini）';
+  if (generatedBy.startsWith('fixture')) return '固定データ';
+  return 'AI';
 }

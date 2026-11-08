@@ -1,4 +1,5 @@
 import { useDisplay } from '../store/display-store.ts';
+import { copyText } from './copy-text.ts';
 
 const INVITE_TEXT = 'IDEA AUDITION に招待されました。このリンクから一緒に審査しよう！';
 
@@ -27,12 +28,8 @@ export async function shareInvite(url: string = location.href): Promise<void> {
 }
 
 export async function copyInvite(url: string = location.href): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(url);
-    useDisplay.getState().toast('招待リンクをコピーしました');
-    return true;
-  } catch {
-    useDisplay.getState().toast(`コピーできませんでした。このリンクを送ってください：${url}`, 'warn');
-    return false;
-  }
+  const ok = await copyText(url);
+  if (ok) useDisplay.getState().toast('招待リンクをコピーしました');
+  else useDisplay.getState().toast(`コピーできませんでした。このリンクを送ってください：${url}`, 'warn');
+  return ok;
 }

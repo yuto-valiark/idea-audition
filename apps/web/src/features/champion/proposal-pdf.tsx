@@ -30,8 +30,11 @@ export async function downloadProposalPdf(snapshot: SessionSnapshot) {
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        // 表の行や合意のカードの途中でページが切れないようにする
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h2'] },
+        // 行の途中でページが切れないよう、表の行・段落・2列の段・箇条書き・カード・数字の並びを、まとまりごとに次のページへ送る
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['tr', 'li', 'h2', '[data-keep]', '.keep'],
+        },
     };
     await html2pdf()
       .set(options as never)

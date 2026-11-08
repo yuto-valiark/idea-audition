@@ -152,4 +152,16 @@ describe('GeminiGateway', () => {
       g.refine({ theme: 't', trigger: 'promotion', participants: participants.slice(0, 1), targets: ['ch_a'], rounds: 0, instruction: null }),
     ).rejects.toThrow();
   });
+
+  it('回答：意味が通らない質問は null（聞き直す）、通じる質問は答えを返す', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({ understood: false, answer: '' }),
+      JSON.stringify({ understood: true, answer: '月500円です' }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const input = { theme: 't', idea: { title: 'a', summary: 'b' }, characterName: 'MOMO', spoken: true };
+    await expect(g.answer({ ...input, question: '学食一粒競りバトル分だけの' })).resolves.toBeNull();
+    await expect(g.answer({ ...input, question: 'いくら？' })).resolves.toBe('月500円です');
+    expect(calls[0]!.contents).toContain('声の文字起こしなので');
+  });
 });

@@ -783,6 +783,14 @@ export class AuditionSession {
     });
   }
 
+  /** 聞き間違いで意味が通らなかった質問を取り消す（記録にも企画書にも残さない） */
+  dropAnswer(answerId: string, reply: string): DomainEvent[] {
+    const a = this.answers.find((x) => x.answerId === answerId);
+    if (!a) return [];
+    this.answers = this.answers.filter((x) => x.answerId !== answerId);
+    return [{ type: 'CANDIDATE_ANSWERED', detail: { answerId, instanceId: a.instanceId, pending: false, misheard: true, text: reply } }];
+  }
+
   fillAnswer(answerId: string, text: string): DomainEvent[] {
     const a = this.answers.find((x) => x.answerId === answerId);
     if (!a) return [];

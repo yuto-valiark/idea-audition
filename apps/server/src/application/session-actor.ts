@@ -3,6 +3,8 @@ import {
   CAMP_VERSION,
   LOWER_SLOT_COUNT,
   ResultCache,
+  UPPER_CAPACITY,
+  type ProposalContent,
   type AiMode,
   type CommandMessage,
   type CommandResultMessage,
@@ -16,7 +18,7 @@ import {
 import { AuditionSession } from '../domain/session.ts';
 import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
-import type { EmbeddingPort, IdeaGenerationPort, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
+import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
 import { chooseFromStock, newPlannerState, planSlots, tasteHint, type PlannerState } from './generation-planner.ts';
 import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
@@ -105,6 +107,10 @@ const REJECT_PATTERN =
 const RESULT_CACHE_LIMIT = 500;
 /** ストック（選抜の候補）の上限。古いものから捨てる */
 const STOCK_LIMIT = 12;
+/** 決勝の案が落ち着いてから企画書を作り始めるまでの待ち時間 */
+const PROPOSAL_DRAFT_DELAY_MS = 3_000;
+/** 企画書の作り置きを見直すきっかけ */
+const DRAFT_TRIGGERS = new Set<string>(['PROMOTION_CONFIRMED', 'FINALIST_VERSION_PUBLISHED', 'CHAMPION_VOTE_STARTED']);
 /** 案の生成を1回で頼む件数の上限（多いと返事が遅く、時間切れになる） */
 const GENERATION_CHUNK = 3;
 /** 好みの更新をまとめて知らせるまでの待ち時間 */
@@ -128,6 +134,9 @@ export class SessionActor {
   private lastWarningAt = 0;
   private generating = false;
   private refineQueue: RefineTrigger[] = [];
+  /** 決勝の案ごとに作っておいた企画書（どの版で作ったか） */
+  private proposalDrafts = new Map<string, { revisionId: string; promise: Promise<ProposalContent> }>();
+  private draftTimer: (() => void) | null = null;
   private refining = false;
   private stopRotation: (() => void) | null = null;
   private pendingTimers = new Set<() => void>();
@@ -583,7 +592,9 @@ export class SessionActor {
       corrections = repaired.corrections;
       if (corrections.length) this.deps.log?.(`[voice] repaired ${corrections.map((c) => `${c.from}→${c.to}(${c.score})`).join(', ')}`);
     }
-    const targetInstanceId = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
+    // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ
+    const named = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
+    const targetInstanceId = named ?? (QUESTION_PATTERN.test(text) ? this.focusedTarget(judgeId) : null);
     // 会話で取り上げられた案の注目度を上げる（名前・企画名）。宛先として話しかけた案も含める
     const mentions = s.registerUtterance(text);
     const mentionEvents = [...mentions.events];
@@ -677,7 +688,7 @@ export class SessionActor {
     }
     const target = s.characters.get(targetInstanceId);
     if (target?.location === 'archived') return { ok: true };
-    return this.ask(judgeId, targetInstanceId, text, meta);
+    return this.ask(judgeId, targetInstanceId, text, meta, source === 'live');
   }
 
   /** 発言の中にステージ上のキャラ名（英字名か読み）があれば、そのキャラを宛先にする */
@@ -709,15 +720,14 @@ export class SessionActor {
     return r;
   }
 
-  /** 優勝案の企画書を AI に作らせる。審査の記録を材料として渡す */
-  private runProposal() {
+  /** 企画書の材料（審査の記録）。instanceId の案を優勝案として組み立てる */
+  private proposalInput(instanceId: string): ProposalInput | null {
     const s = this.session;
-    const champion = s.champion;
-    if (!champion) return;
-    const character = s.characters.get(champion.instanceId)!;
-    const idea = s.ideas.get(champion.ideaId)!;
+    const character = s.characters.get(instanceId);
+    const idea = character ? s.ideas.get(character.ideaId) : undefined;
+    if (!character || !idea) return null;
     const nameOf = (id: string) => this.characterName(id);
-    const input = {
+    return {
       theme: s.theme,
       context: buildConsensusContext(s),
       champion: {
@@ -732,21 +742,68 @@ export class SessionActor {
         })),
       },
       critiques: s.critiques
-        .filter((c) => c.fromInstanceId === champion.instanceId || c.toInstanceId === champion.instanceId)
+        .filter((c) => c.fromInstanceId === instanceId || c.toInstanceId === instanceId)
         .map((c) => `${nameOf(c.fromInstanceId)} → ${nameOf(c.toInstanceId)}：${c.text}`),
-      qa: s.answers
-        .filter((a) => a.instanceId === champion.instanceId && a.answer)
-        .map((a) => ({ question: a.question, answer: a.answer! })),
+      qa: s.answers.filter((a) => a.instanceId === instanceId && a.answer).map((a) => ({ question: a.question, answer: a.answer! })),
       otherFinalists: s.upper
-        .filter((f) => f.instanceId !== champion.instanceId)
+        .filter((f) => f.instanceId !== instanceId)
         .map((f) => s.currentRevision(s.characters.get(f.instanceId)!.ideaId).title),
     };
+  }
+
+  /**
+   * 決勝の案ぶんの企画書を、優勝が決まる前に作っておく（誰が優勝しても、すぐ企画書を出せるように）。
+   * 決勝の案が改良されたら、その案の分だけ作り直す。決勝がそろった・投票が始まった・ひとりで審査、のときだけ作る（費用を抑える）
+   */
+  private scheduleProposalDrafts() {
+    this.draftTimer?.();
+    this.draftTimer = this.later(() => {
+      this.draftTimer = null;
+      this.prepareProposalDrafts();
+    }, PROPOSAL_DRAFT_DELAY_MS);
+  }
+
+  private prepareProposalDrafts() {
+    const s = this.session;
+    if (s.status !== 'audition_active' && s.status !== 'champion_selection') return;
+    const worth = s.status === 'champion_selection' || s.upper.length >= UPPER_CAPACITY || s.mode === 'solo';
+    if (!worth) return;
+    for (const f of s.upper) {
+      if (f.status !== 'ready') continue;
+      const revisionId = s.currentRevision(s.characters.get(f.instanceId)!.ideaId).revisionId;
+      if (this.proposalDrafts.get(f.instanceId)?.revisionId === revisionId) continue;
+      const input = this.proposalInput(f.instanceId);
+      if (!input) continue;
+      const epoch = this.epoch;
+      const promise = this.ai.generateProposal(input);
+      const entry = { revisionId, promise };
+      this.proposalDrafts.set(f.instanceId, entry);
+      promise.then(
+        () => this.deps.log?.(`[proposal] draft ready for ${this.characterName(f.instanceId)}`),
+        () => {
+          if (epoch === this.epoch && this.proposalDrafts.get(f.instanceId) === entry) this.proposalDrafts.delete(f.instanceId);
+        },
+      );
+    }
+  }
+
+  /** 優勝案の企画書を出す。作っておいた分があればそれを使い、無ければ作る */
+  private runProposal() {
+    const s = this.session;
+    const champion = s.champion;
+    if (!champion) return;
+    const revisionId = s.currentRevision(champion.ideaId).revisionId;
+    const draft = this.proposalDrafts.get(champion.instanceId);
+    const input = this.proposalInput(champion.instanceId);
+    if (!input) return;
+    const prepared = draft?.revisionId === revisionId;
+    const promise = prepared ? draft!.promise.catch(() => this.ai.generateProposal(input)) : this.ai.generateProposal(input);
     const epoch = this.epoch;
     const started = this.deps.clock.now();
-    this.ai.generateProposal(input).then(
+    promise.then(
       (content) => {
         if (epoch !== this.epoch || s.champion?.ideaId !== champion.ideaId) return;
-        this.deps.log?.(`[proposal] ready ${this.deps.clock.now() - started}ms (${this.ai.name})`);
+        this.deps.log?.(`[proposal] ready ${this.deps.clock.now() - started}ms (${prepared ? 'prepared' : 'fresh'}, ${this.ai.name})`);
         this.emit(s.finishProposal(content, this.ai.name), { actorJudgeId: null });
       },
       (e) => {
@@ -757,11 +814,13 @@ export class SessionActor {
     );
   }
 
+
   private ask(
     judgeId: string,
     instanceId: string,
     question: string,
     meta: { actorJudgeId: string; correlationId: string },
+    spoken = false,
   ): { ok: true } | { ok: false; reason: RejectReason } {
     const s = this.session;
     const r = s.ask(judgeId, instanceId, question);
@@ -772,6 +831,7 @@ export class SessionActor {
     const rev = s.currentRevision(idea.ideaId);
     const epoch = this.epoch;
     const name = this.characterName(instanceId);
+    const started = this.deps.clock.now();
     this.ai
       .answer({
         theme: s.theme,
@@ -779,14 +839,22 @@ export class SessionActor {
         characterName: name,
         question,
         context: buildConsensusContext(s),
+        spoken,
       })
-      .catch((e) => {
+      .catch((e): string | null | undefined => {
         this.deps.log?.('answer failed', e);
-        return 'ごめんなさい、いまうまく答えられませんでした。もう一度聞いてください。';
+        return undefined;
       })
       .then((text) => {
         if (epoch !== this.epoch) return;
-        this.emit(s.fillAnswer(r.value.answerId, text), { actorJudgeId: null, correlationId: meta.correlationId });
+        this.deps.log?.(`[answer] ${this.deps.clock.now() - started}ms ${text === null ? '(misheard)' : ''}`);
+        if (text === null) {
+          // 聞き間違いで意味が通らない質問は、記録にも企画書にも残さず、キャラが聞き直す
+          this.emit(s.dropAnswer(r.value.answerId, 'うまく聞き取れなかったよ。もう一度言ってみて？'), { actorJudgeId: null, correlationId: meta.correlationId });
+          return;
+        }
+        const answer = text ?? 'ごめんなさい、いまうまく答えられませんでした。もう一度聞いてください。';
+        this.emit(s.fillAnswer(r.value.answerId, answer), { actorJudgeId: null, correlationId: meta.correlationId });
       });
     return { ok: true };
   }
@@ -799,6 +867,7 @@ export class SessionActor {
     this.hesitation.reset();
     this.hoverSince.clear();
     this.refineQueue = [];
+    this.proposalDrafts.clear();
     this.refining = false;
     this.ensureStock();
     this.startRotation();
@@ -1124,6 +1193,7 @@ export class SessionActor {
 
   private emit(events: DomainEvent[], meta: { actorJudgeId: string | null; correlationId?: string }) {
     if (events.length === 0) return;
+    if (events.some((e) => DRAFT_TRIGGERS.has(e.type))) this.scheduleProposalDrafts();
     const messages: EventMessage[] = events.map((e) => ({
       camp: CAMP_VERSION,
       kind: 'event',

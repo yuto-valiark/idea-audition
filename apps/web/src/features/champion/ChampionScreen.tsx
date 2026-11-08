@@ -1,4 +1,6 @@
-import { Check, Crown, FileDown, Loader2, RotateCcw } from 'lucide-react';
+import { Check, Copy, Crown, FileDown, Loader2, RotateCcw, Share2 } from 'lucide-react';
+import { championText } from './share-text.ts';
+import { copyText } from '../../shared/copy-text.ts';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
@@ -21,6 +23,16 @@ export function ChampionScreen() {
   if (!character || !idea || !rev) return null;
   const allPoints = idea.revisions.flatMap((r) => r.improvementPoints);
   const tally = snapshot.vote?.tally;
+  // 企画書ができていれば中身を、まだなら案の説明と改善点を、チャットに貼れる文章にする
+  const shareText = () =>
+    championText({
+      theme: snapshot.theme,
+      title: rev.title,
+      summary: rev.summary,
+      points: allPoints,
+      proposal: snapshot.proposal?.status === 'ready' ? snapshot.proposal.content : null,
+    });
+  const canShare = typeof navigator !== 'undefined' && typeof (navigator as { share?: unknown }).share === 'function';
 
   return (
     <section className={styles.champion}>
@@ -69,15 +81,27 @@ export function ChampionScreen() {
         <button
           className={styles.secondary}
           onClick={() => {
-            const text = [rev.title, rev.summary, ...allPoints.map((p) => `・${p}`)].join('\n');
-            navigator.clipboard?.writeText(text).then(
-              () => toast('優勝アイデアをコピーしました', 'gold'),
-              () => toast('コピーできませんでした', 'warn'),
+            void copyText(shareText()).then((ok) =>
+              ok
+                ? toast(snapshot.proposal?.content ? '企画書の文章をコピーしました' : '優勝アイデアの文章をコピーしました', 'gold')
+                : toast('コピーできませんでした。ブラウザのコピーの許可を確かめてください', 'warn'),
             );
           }}
         >
-          アイデアをコピー
+          <Copy size={16} /> 文章をコピー
         </button>
+        {canShare && (
+          <button
+            className={styles.secondary}
+            onClick={() => {
+              void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
+                .share({ title: `IDEA AUDITION 優勝案：${rev.title}`, text: shareText() })
+                .catch(() => {});
+            }}
+          >
+            <Share2 size={16} /> 共有
+          </button>
+        )}
       </div>
     </section>
   );

@@ -115,7 +115,7 @@ const RefineSchema = z.object({
     .min(1),
 });
 
-const AnswerSchema = z.object({ answer: z.string().min(1) });
+const AnswerSchema = z.object({ understood: z.boolean(), answer: z.string() });
 
 const ConsensusSchema = z.object({
   ops: z.array(
@@ -431,14 +431,18 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
     characterName: string;
     question: string;
     context?: ConsensusContext;
-  }): Promise<string> {
+    spoken?: boolean;
+  }): Promise<string | null> {
     const prompt = `${renderContext(input.theme, input.context)}
 
 # 今回の依頼
 あなたはキャラ「${input.characterName}」で、企画「${input.idea.title}」（${input.idea.summary.replace(/\n/g, ' ')}）をプレゼンしています。
 審査員からの質問：「${input.question}」
-キャラとして、質問に具体的に答えてください。100文字以内。企画の内容は変えずに説明する。合意している論点との関係に触れられるなら触れる。`;
+キャラとして、質問に具体的に答えてください。100文字以内。企画の内容は変えずに説明する。合意している論点との関係に触れられるなら触れる。
+- understood：質問の意味が通じるなら true。${input.spoken ? '声の文字起こしなので、' : ''}言葉が崩れていて何を聞いているのか分からない（聞き間違い・言葉の切れ端・つながらない単語の並び）ときは false にし、answer は空文字にする
+- answer：understood が true のときの答え`;
     const out = await this.call('answer', this.config.fast, prompt, AnswerSchema);
+    if (!out.understood || !out.answer.trim()) return null;
     return clean(out.answer, 140);
   }
 

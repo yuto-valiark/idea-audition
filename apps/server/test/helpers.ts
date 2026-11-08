@@ -116,6 +116,8 @@ export class StubAi implements IdeaGenerationPort {
   answerCalls: string[] = [];
   async answer(input: { question: string }) {
     this.answerCalls.push(input.question);
+    // 「もにゃもにゃ」を含む質問は、意味が通らないものとして扱う（聞き間違いのテスト用）
+    if (input.question.includes('もにゃもにゃ')) return null;
     return `回答:${input.question}`;
   }
   varyCalls: VaryInput[] = [];

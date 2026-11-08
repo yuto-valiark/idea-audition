@@ -107,7 +107,10 @@ export interface IdeaGenerationPort {
     characterName: string;
     question: string;
     context?: ConsensusContext;
-  }): Promise<string>;
+    /** 声の文字起こしか（聞き間違いで意味が通らないことがある） */
+    spoken?: boolean;
+  }): Promise<string | null>;
+  // 戻り値が null：質問が聞き間違いなどで意味が通らなかった（答えず、聞き直す）
 }
 
 export interface RefineParticipant {

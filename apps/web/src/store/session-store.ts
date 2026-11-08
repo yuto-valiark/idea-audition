@@ -196,8 +196,30 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
         setTimeout(() => useDisplay.getState().setBubble(id, null), 2500);
       }
       break;
-    case 'CANDIDATE_ANSWERED':
+    case 'CANDIDATE_ANSWERED': {
+      // 質問を受けたらすぐ「考え中…」、答えが来たら吹き出しで見せる（全員の画面）
+      const answerId = typeof d.answerId === 'string' ? d.answerId : null;
+      const a = answerId ? e.snapshot.answers.find((x) => x.answerId === answerId) : null;
+      const instanceId = a?.instanceId ?? (typeof d.instanceId === 'string' ? d.instanceId : null);
+      if (!instanceId) break;
+      const key = `answer:${answerId ?? e.seq}`;
+      const text = d.misheard
+        ? `🙉 ${String(d.text ?? 'うまく聞き取れなかったよ。もう一度言ってみて？')}`
+        : d.pending
+          ? '💭 考え中…'
+          : a?.answer
+            ? `💬 ${a.answer}`
+            : null;
+      if (!text) break;
+      display.setBubble(instanceId, { text, toInstanceId: '', critiqueId: key });
+      if (!d.pending) {
+        const ms = Math.min(14_000, 4_000 + text.length * 80);
+        setTimeout(() => {
+          if (useDisplay.getState().bubbles[instanceId]?.critiqueId === key) useDisplay.getState().setBubble(instanceId, null);
+        }, ms);
+      }
       break;
+    }
     case 'CANDIDATE_REACTED':
       // 「うーん」に気づいたキャラが 🤔 で一言（ADR-0009 ③）
       if (typeof d.instanceId === 'string') {
@@ -234,9 +256,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
           corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
-        if (d.intent === 'question' && typeof d.targetInstanceId === 'string' && d.judgeId === myJudgeId) {
-          display.select(d.targetInstanceId); // 回答が見えるよう詳細を開く
-        }
+        // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       }
       break;
     case 'CONSENSUS_UPDATED': {

@@ -174,4 +174,25 @@ describe('SessionActor', () => {
     actor.receiveCommand(a.conn, cmd('SET_JUDGE_NAME', { name: '   ' }));
     expect(results(a.received).at(-1)).toMatchObject({ ok: false, reason: 'INVALID_PAYLOAD' });
   });
+
+  it('意味が通らない質問（聞き間違い）は記録に残さず、キャラが聞き直す', async () => {
+    const { actor, a, advance } = await setup();
+    const target = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('ASK_CANDIDATE', { instanceId: target, text: '学食もにゃもにゃ分だけの？' }));
+    await advance(10);
+    const misheard = events(a.received).find((e) => e.type === 'CANDIDATE_ANSWERED' && e.detail.misheard === true)!;
+    expect(misheard.detail).toMatchObject({ instanceId: target, pending: false });
+    expect(misheard.snapshot.answers).toHaveLength(0);
+    expect(actor.session.answers).toHaveLength(0);
+  });
+
+  it('宛先の無い質問は、いま見ているキャラに向ける', async () => {
+    const { actor, ai, a, advance } = await setup();
+    const target = actor.session.lowerSlots[1]!;
+    actor.receiveEphemeral(a.conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'FOCUS_CHANGED', payload: { hover: target, detail: null } });
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: '費用はどれくらい？', source: 'text' }));
+    await advance(10);
+    expect(ai.answerCalls.at(-1)).toBe('費用はどれくらい？');
+    expect(actor.session.answers.at(-1)?.instanceId).toBe(target);
+  });
 });
