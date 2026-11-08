@@ -1,6 +1,6 @@
 # ADR-0010: HIP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る
 
-- Status: Proposed（2026-11-08）
+- Status: Accepted（2026-11-08。2〜5 を実装、6 は締切後）
 - Owner: 牧 夢斗
 - 関連：ADR-0003（サーバー権威）／ADR-0004（HIP v1 最小仕様）／ADR-0009（好みエンジン）／[HIP v1 仕様書](../protocol/hip-v1.md)
 
@@ -84,6 +84,8 @@
 | 未知の type・壊れたメッセージ・hello の時間切れ | `UNKNOWN_TYPE`・`MALFORMED`・`NOT_JOINED`・4408 |
 
 ### 5. OSS に切り出せる境界を、今はフォルダで作る
+
+> 実装（2026-11-08）：`core/` には version（版・終了コード）・envelope（封筒と protocol_error）・idempotency（`ResultCache`）・sequence（`SeqGate`）を置いた。サーバーとクライアントがこれを使う。再接続つきのクライアント本体（`hip-client.ts`）と直列キューは、まだアプリ側にある（締切後に core へ移す）。境界は `apps/server/test/protocol-boundary.test.ts` で検査する。
 
 ハッカソン中はパッケージを分けず、`packages/protocol/src/` の中を2つに分ける。アプリ側の import は変えない。
 

@@ -1,18 +1,22 @@
 import { z } from 'zod';
+import {
+  HelloMessage,
+  CommandBase,
+  EphemeralBase,
+  SignalBase,
+  eventMessage,
+  resultMessage,
+  welcomeMessage,
+  AccessDeniedMessage,
+  ProtocolErrorMessage,
+} from '../core/index.ts';
 import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
-export const HIP_VERSION = '1';
-/** このサーバー・クライアントが話せる HIP のメジャー版 */
-export const SUPPORTED_HIP_VERSIONS = [HIP_VERSION] as const;
+/**
+ * IDEA AUDITION の語彙（vocabulary）。封筒は core のものを使い、ここでは Command・Event の一覧と中身だけを決める。
+ */
 
-/** WebSocket の終了コード（docs/protocol/hip-v1.md §11） */
-export const HIP_CLOSE = {
-  UNSUPPORTED_VERSION: 4400,
-  ACCESS_DENIED: 4401,
-  HELLO_TIMEOUT: 4408,
-  RATE_LIMITED: 4429,
-} as const;
 
 const text = z.string().trim().min(1).max(400);
 const id = z.string().min(1).max(80);
@@ -54,16 +58,7 @@ export type CommandType = keyof typeof CommandPayloads;
 export type CommandPayload<T extends CommandType> = z.infer<(typeof CommandPayloads)[T]>;
 
 const commandEnvelope = <T extends CommandType>(type: T) =>
-  z.object({
-    hip: z.literal(HIP_VERSION),
-    kind: z.literal('command'),
-    type: z.literal(type),
-    commandId: id,
-    sentAt: z.string(),
-    /** 画面で見ていた対象の版（違えば STALE_VERSION。§7.2） */
-    expected: z.object({ rev: id }).optional(),
-    payload: CommandPayloads[type],
-  });
+  CommandBase.extend({ type: z.literal(type), payload: CommandPayloads[type] });
 
 export const CommandMessage = z.discriminatedUnion('type', [
   commandEnvelope('START_AUDITION'),
@@ -90,16 +85,6 @@ export type CommandMessage = z.infer<typeof CommandMessage>;
 /* Hello: 接続直後に1回（再接続時は judgeId と lastSeq を付ける）           */
 /* ------------------------------------------------------------------ */
 
-export const HelloMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('hello'),
-  sessionId: id,
-  judgeId: id.optional(),
-  lastSeq: z.number().int().optional(),
-  /** 公開環境の合言葉（サーバーに ACCESS_CODE が設定されているときだけ必要） */
-  accessCode: z.string().max(100).optional(),
-});
-export type HelloMessage = z.infer<typeof HelloMessage>;
 
 /* ------------------------------------------------------------------ */
 /* Ephemeral: 永続化しない・最新値優先（カーソル、ドラッグ中の表示）        */
@@ -116,13 +101,7 @@ export const EphemeralPayloads = {
 export type EphemeralType = keyof typeof EphemeralPayloads;
 
 const ephemeralEnvelope = <T extends EphemeralType>(type: T) =>
-  z.object({
-    hip: z.literal(HIP_VERSION),
-    kind: z.literal('ephemeral'),
-    type: z.literal(type),
-    senderId: id.optional(),
-    payload: EphemeralPayloads[type],
-  });
+  EphemeralBase.extend({ type: z.literal(type), payload: EphemeralPayloads[type] });
 
 export const EphemeralMessage = z.discriminatedUnion('type', [
   ephemeralEnvelope('CURSOR_MOVED'),
@@ -156,12 +135,7 @@ export const SignalPayloads = {
 } as const;
 export type SignalType = keyof typeof SignalPayloads;
 
-export const SignalMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('signal'),
-  type: z.literal('SOFT_SIGNAL'),
-  payload: SignalPayloads.SOFT_SIGNAL,
-});
+export const SignalMessage = SignalBase.extend({ type: z.literal('SOFT_SIGNAL'), payload: SignalPayloads.SOFT_SIGNAL });
 export type SignalMessage = z.infer<typeof SignalMessage>;
 
 export const ClientMessage = z.union([HelloMessage, CommandMessage, EphemeralMessage, SignalMessage]);
@@ -201,64 +175,21 @@ export const EventType = z.enum([
 ]);
 export type EventType = z.infer<typeof EventType>;
 
-/** イベント固有の情報（アニメーションの手がかり）。状態の正本は snapshot。 */
-export const EventDetail = z.record(z.string(), z.unknown());
-
 /**
  * 実装上の判断（ADR-0004 への補足）：
  * Event はその時点の snapshot を同梱する。クライアントは状態を自前で再計算せず、
  * snapshot を置き換え、type と detail は演出にのみ使う。
  */
-export const EventMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('event'),
-  type: EventType,
-  seq: z.number().int(),
-  correlationId: z.string().nullable(),
-  actorJudgeId: z.string().nullable(),
-  detail: EventDetail,
-  snapshot: SessionSnapshot,
-});
+export const EventMessage = eventMessage(EventType, SessionSnapshot);
 export type EventMessage = z.infer<typeof EventMessage>;
 
-export const WelcomeMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('welcome'),
-  judgeId: z.string().nullable(),
-  /** null は満員による観覧モード */
-  snapshot: SessionSnapshot,
-});
+export const WelcomeMessage = welcomeMessage(SessionSnapshot);
 export type WelcomeMessage = z.infer<typeof WelcomeMessage>;
 
-export const CommandResultMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('result'),
-  commandId: z.string(),
-  ok: z.boolean(),
-  reason: RejectReason.nullable(),
-});
+export const CommandResultMessage = resultMessage(RejectReason);
 export type CommandResultMessage = z.infer<typeof CommandResultMessage>;
 
-/** 合言葉が無い・違うときに返し、接続を閉じる */
-export const AccessDeniedMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('access_denied'),
-  reason: z.enum(['required', 'invalid']),
-});
-export type AccessDeniedMessage = z.infer<typeof AccessDeniedMessage>;
 
-/** 黙って捨てずに、相手が直せる情報を返す（§3.8） */
-export const ProtocolErrorCode = z.enum(['UNSUPPORTED_VERSION', 'MALFORMED', 'UNKNOWN_TYPE', 'NOT_JOINED', 'RATE_LIMITED']);
-export type ProtocolErrorCode = z.infer<typeof ProtocolErrorCode>;
-
-export const ProtocolErrorMessage = z.object({
-  hip: z.literal(HIP_VERSION),
-  kind: z.literal('protocol_error'),
-  code: ProtocolErrorCode,
-  detail: z.string(),
-  supported: z.array(z.string()),
-});
-export type ProtocolErrorMessage = z.infer<typeof ProtocolErrorMessage>;
 
 export const ServerMessage = z.union([
   ProtocolErrorMessage,

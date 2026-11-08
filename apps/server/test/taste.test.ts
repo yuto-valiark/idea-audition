@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HIP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
-import { applySignal, divergence, emptyTaste, normalized, HALF_LIFE_MS } from '../src/domain/taste.ts';
+import { applySignal, divergence, emptyTaste, normalized, HALF_LIFE_MS, TASTE_SCALE } from '../src/domain/taste.ts';
 import { sample, type Candidate, type SelectionContext } from '../src/domain/selection.ts';
 import { computeMetrics } from '../src/domain/metrics.ts';
 import { detectCue, HesitationGate } from '../src/application/hesitation.ts';
@@ -18,7 +18,7 @@ describe('好みモデル', () => {
     const now = normalized(t.judges.a, 0)[2]!;
     const later = normalized(t.judges.a, HALF_LIFE_MS)[2]!;
     expect(now).toBeGreaterThan(0.5);
-    expect(later).toBeCloseTo(Math.tanh(0.5 / 1.5), 5);
+    expect(later).toBeCloseTo(Math.tanh(0.5 / TASTE_SCALE), 5);
     t = applySignal(t, 'a', axis(2), -1, 0);
     expect(normalized(t.judges.a, 0)[2]).toBeCloseTo(0, 5);
   });
@@ -77,7 +77,7 @@ describe('効果の指標', () => {
     }));
     const characters = ideas.map((i, n) => ({ ideaId: i.ideaId, instanceId: `c${n}` }) as never);
     const decisions = ['c0', 'c5', 'c6', 'c7'].map((id) => ({ kind: 'promoted', instanceId: id }) as never);
-    const m = computeMetrics({ ideas, characters, decisions, startedAt: 0, now: 100 });
+    const m = computeMetrics({ ideas: ideas as never, characters, decisions, startedAt: 0, now: 100 });
     expect(m.firstHalf).toEqual({ shown: 5, picked: 1 });
     expect(m.secondHalf).toEqual({ shown: 5, picked: 3 });
     expect(m.liftPct).toBe(200);

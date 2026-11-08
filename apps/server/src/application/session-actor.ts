@@ -2,6 +2,7 @@ import {
   CHARACTER_DESIGNS,
   HIP_VERSION,
   LOWER_SLOT_COUNT,
+  ResultCache,
   type AiMode,
   type CommandMessage,
   type CommandResultMessage,
@@ -113,7 +114,7 @@ export class SessionActor {
   readonly session: AuditionSession;
   private seq = 0;
   private connections = new Map<string, { conn: Connection; judgeId: string | null }>();
-  private results = new Map<string, CommandResultMessage>();
+  private results = new ResultCache<CommandResultMessage>(RESULT_CACHE_LIMIT);
   private held = new Map<string, string>(); // judgeId → instanceId（ドラッグ中）
   private focus = new Map<string, { hover: string | null; detail: string | null }>(); // judgeId → 注目中のキャラ
   private lastWarningAt = 0;
@@ -379,8 +380,8 @@ export class SessionActor {
   receiveCommand(conn: Connection, cmd: CommandMessage) {
     const entry = this.connections.get(conn.id);
     const judgeId = entry?.judgeId ?? null;
-    const cacheKey = `${judgeId ?? conn.id}:${cmd.commandId}`;
-    const cached = this.results.get(cacheKey);
+    const sender = judgeId ?? conn.id;
+    const cached = this.results.get(sender, cmd.commandId);
     if (cached) {
       conn.send(cached); // 重複排除：同じ結果を返し、再実行しない（ADR-0004）
       return;
@@ -393,8 +394,7 @@ export class SessionActor {
       ok: result.ok,
       reason: result.ok ? null : result.reason,
     };
-    this.results.set(cacheKey, message);
-    if (this.results.size > RESULT_CACHE_LIMIT) this.results.delete(this.results.keys().next().value!);
+    this.results.set(sender, cmd.commandId, message);
     conn.send(message);
   }
 

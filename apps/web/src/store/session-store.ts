@@ -125,6 +125,10 @@ function nameOf(snapshot: SessionSnapshot, instanceId: unknown) {
   return typeof instanceId === 'string' ? (snapshot.characters[instanceId]?.name ?? 'AI') : 'AI';
 }
 
+/** 🤔 の一言を最低限見せる時間と、いつ出したか */
+const REACTION_MIN_MS = 2200;
+const reactedAt = new Map<string, number>();
+
 function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   const display = useDisplay.getState();
   const myJudgeId = useSession.getState().judgeId;
@@ -182,6 +186,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       if (typeof d.instanceId === 'string') {
         const id = d.instanceId;
         const key = `react:${e.seq}`;
+        reactedAt.set(id, Date.now());
         display.setBubble(id, { text: `🤔 ${String(d.text ?? '')}`, toInstanceId: '', critiqueId: key });
         setTimeout(() => {
           if (useDisplay.getState().bubbles[id]?.critiqueId === key) useDisplay.getState().setBubble(id, null);
@@ -192,10 +197,14 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       if (typeof d.instanceId === 'string') {
         const id = d.instanceId;
         const key = `revised:${e.seq}`;
-        display.setBubble(id, { text: '💡 別のかたちにしてみました！', toInstanceId: '', critiqueId: key });
+        // 🤔 の一言を読めるだけ見せてから、別案の一言に替える
+        const wait = Math.max(0, REACTION_MIN_MS - (Date.now() - (reactedAt.get(id) ?? 0)));
         setTimeout(() => {
-          if (useDisplay.getState().bubbles[id]?.critiqueId === key) useDisplay.getState().setBubble(id, null);
-        }, 3500);
+          useDisplay.getState().setBubble(id, { text: '💡 別のかたちにしてみました！', toInstanceId: '', critiqueId: key });
+          setTimeout(() => {
+            if (useDisplay.getState().bubbles[id]?.critiqueId === key) useDisplay.getState().setBubble(id, null);
+          }, 3500);
+        }, wait);
       }
       break;
     case 'JUDGE_UTTERANCE_RECEIVED':

@@ -1,6 +1,7 @@
 import {
   HIP_CLOSE,
   HIP_VERSION,
+  SeqGate,
   ServerMessage,
   type CommandMessage,
   type CommandPayload,
@@ -56,7 +57,7 @@ export class HipClient {
   private retry = 0;
   private closed = false;
   private judgeId: string | undefined;
-  private lastSeq: number | undefined;
+  private seq = new SeqGate();
   private pending = new Map<
     string,
     { message: CommandMessage; resolve: (o: CommandOutcome) => void; timer: ReturnType<typeof setTimeout> }
@@ -84,7 +85,7 @@ export class HipClient {
           kind: 'hello',
           sessionId: this.sessionId,
           judgeId: this.judgeId,
-          lastSeq: this.lastSeq,
+          lastSeq: this.seq.lastSeq,
           accessCode: this.accessCode,
         }),
       );
@@ -164,14 +165,13 @@ export class HipClient {
         break;
       case 'welcome':
         this.judgeId = m.judgeId ?? this.judgeId;
-        this.lastSeq = m.snapshot.seq;
+        this.seq.reset(m.snapshot.seq);
         this.handlers.onWelcome(m);
         this.handlers.onState('open');
         for (const p of this.pending.values()) this.raw(p.message); // 未確定コマンドを再送
         break;
       case 'event':
-        if (this.lastSeq !== undefined && m.seq <= this.lastSeq) return; // 重複・古いイベントを捨てる
-        this.lastSeq = m.seq;
+        if (!this.seq.accept(m.seq)) return; // 重複・古いイベントを捨てる
         this.handlers.onEvent(m);
         break;
       case 'result': {

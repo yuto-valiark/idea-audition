@@ -48,10 +48,13 @@ export function applySignal(state: TasteState, judgeId: string, profile: Vec, we
   };
 }
 
+/** 好みの和をならすときの目安（この値で tanh(1)≒0.76） */
+export const TASTE_SCALE = 0.9;
+
 /** 表示・比較用に -1〜+1 にならす（tanh なので、反応が増えるほど端に寄る） */
 export function normalized(t: JudgeTaste | undefined, now: number): Vec {
   if (!t) return zeros();
-  return decayed(t, now).map((v) => Math.tanh(v / 1.5));
+  return decayed(t, now).map((v) => Math.tanh(v / TASTE_SCALE));
 }
 
 export function teamTaste(state: TasteState, judgeIds: string[], now: number): Vec {

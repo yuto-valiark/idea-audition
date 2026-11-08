@@ -126,7 +126,7 @@ html{scroll-behavior:smooth}
   <div class="notes">
     <div class="note"><b>コンテナは1つ</b>画面の配信、/hip、/voice、SessionActor が同じ Cloud Run の1台に入っています。最大1台・セッションアフィニティで、全員が同じメモリ上のセッションに入ります。</div>
     <div class="note"><b>Gemini を呼ぶのはサーバーだけ</b>ブラウザは鍵もトークンも持ちません。サービスアカウント idea-audition-run の権限で Vertex AI と Firestore を呼びます。</div>
-    <div class="note new"><b>増えるのは2本の線だけ</b>埋め込み（gemini-embedding-2）への呼び出しと、マイクから送る声の特徴です。外のサービスは増えません。</div>
+    <div class="note new"><b>増えるのは2本の線だけ</b>埋め込み（gemini-embedding-001）への呼び出しと、マイクから送る声の特徴です。外のサービスは増えません。</div>
   </div>
 </section>
 
@@ -144,7 +144,7 @@ flowchart TB
   end
   subgraph A["application（進行役）"]
     SA["session-actor.ts&lt;br/&gt;直列キュー・状態の正本"]
-    TS["taste-service.ts"]:::new
+    TS["personas.ts&lt;br/&gt;発想の型"]:::new
     GP["generation-planner.ts"]:::new
     HS["hesitation.ts"]:::new
     CC["consensus-context.ts"]
@@ -164,7 +164,7 @@ flowchart TB
   subgraph I["infrastructure（外の世界）"]
     GG["gemini-gateway.ts"]
     EG["embedding-gateway.ts"]:::new
-    PS["personas.ts&lt;br/&gt;発想の型"]:::new
+    PS["local-taste.ts&lt;br/&gt;固定データの8軸・埋め込み"]:::new
     LT["live-transcriber.ts"]
     RG["resilient-gateway.ts&lt;br/&gt;失敗時は固定データ"]
     FX["fixture-gateway.ts"]
@@ -177,15 +177,15 @@ flowchart TB
   AC -.-> VS
   SA --> SE & AT & CO & CA
   SA --> TS & GP & HS & CC & PJ
-  TS --> TA & SG
-  GP --> SL
+  SA --> TA & SG
+  GP --> SL & TS
   SA --> ME
   SA --> PO
   PO -.->|実装| RG
   PO -.->|実装| EG
   PO -.->|実装| FS
   RG --> GG & FX
-  GG --> PS
+  FX --> PS
   classDef new fill:#fff3cf,stroke:#e8a400,stroke-width:2px,color:#3a2800;
 </pre></div>
 </section>
@@ -499,14 +499,14 @@ erDiagram
     datetime at
   }
   IDEA_PROFILE {
-    float novelty
-    float feasibility
-    float impact
-    float playfulness
-    float tech
-    float social
-    float cost
-    float speed
+    float cost "コスト"
+    float novelty "新規性"
+    float ease "手軽さ"
+    float buzz "話題性"
+    float sustain "継続性"
+    float social "社会性"
+    float scale "規模"
+    float reach "広さ"
   }
   PITCH_TAG {
     string kind "fit / bridge / explore / wildcard"
@@ -529,7 +529,7 @@ erDiagram
     string byTag "タグ別の採用率"
   }
 </pre></div>
-  <p>8軸の名前は ADR-0009 の案です。実装のときに企画の評価で使う言葉に合わせて決め直します。</p>
+  <p>8軸は packages/protocol の TASTE_AXES（-1〜+1）。賛否の強さ（strength）はまだ実装していません。</p>
 </section>
 
 <!-- 10 -->
@@ -627,7 +627,7 @@ flowchart LR
     <tbody>
       <tr><td>下段の新しい案</td><td><code>gemini-3.5-flash</code>（思考 MINIMAL）</td><td>空きが出るたび。1回で1案</td><td>接続0人・固定データ</td></tr>
       <tr class="new"><td>下段の新しい案（好みで選抜）<span class="badge">NEW</span></td><td><code>gemini-3.5-flash</code></td><td>空きが出るたび。1回で2〜3案（出力が約2倍）</td><td>同上</td></tr>
-      <tr class="new"><td>案の埋め込み <span class="badge">NEW</span></td><td><code>gemini-embedding-2</code>（256次元）</td><td>生成のたびに2〜3文。とても安い</td><td>同上。失敗時は8軸だけで選ぶ</td></tr>
+      <tr class="new"><td>案の埋め込み <span class="badge">NEW</span></td><td><code>gemini-embedding-001</code>（256次元）</td><td>生成のたびに2〜3文。とても安い</td><td>同上。失敗時は8軸だけで選ぶ</td></tr>
       <tr><td>質問への回答・合意の更新</td><td><code>gemini-3.5-flash</code></td><td>質問・発言のたび</td><td>固定データ</td></tr>
       <tr><td>決勝の磨き込み・企画書</td><td><code>gemini-3.8-flash</code>（思考 LOW）</td><td>決勝の案ごとに2〜3回・優勝時に1回</td><td>固定データ</td></tr>
       <tr class="new"><td>迷いへの別案 <span class="badge">NEW</span></td><td><code>gemini-3.8-flash</code></td><td>迷いを検出したとき。間隔をあけて連発しない</td><td>固定データ・間隔中</td></tr>
@@ -643,9 +643,12 @@ flowchart LR
   <p><span class="tree"><span class="s">★</span></span> が新しく作るファイル、<span class="tree"><span class="c">（変更）</span></span>が手を入れる既存ファイルです。</p>
   <div class="frame plain"><pre class="tree">idea-audition/
 ├─ packages/protocol/src/            <span class="c">HIP v1 の契約（Zod）</span>
-│  ├─ messages.ts                    <span class="c">（変更）SOFT_SIGNAL・TASTE_UPDATED・CANDIDATE_REACTED・CANDIDATE_REVISED</span>
-│  ├─ model.ts · characters.ts · proposal.ts · reasons.ts · voice.ts
-│  └─ <span class="s">★ taste.ts</span>                     <span class="c">IdeaProfile・PitchTag・SoftSignal・TasteView・Metrics</span>
+│  ├─ <span class="s">★ core/</span>                       <span class="c">アプリの言葉を知らない HIP の核（将来 OSS に）</span>
+│  │  └─ version · envelope · idempotency（ResultCache）· sequence（SeqGate）
+│  └─ vocabulary/                    <span class="c">IDEA AUDITION の言葉</span>
+│     ├─ messages.ts                 <span class="c">（変更）Signal・TASTE_UPDATED・CANDIDATE_REACTED・CANDIDATE_REVISED</span>
+│     ├─ model.ts · characters.ts · proposal.ts · reasons.ts · voice.ts
+│     └─ <span class="s">★ taste.ts</span>                  <span class="c">TASTE_AXES・PitchView・TasteView・ReactionView・MetricsView</span>
 ├─ apps/server/src/
 │  ├─ main.ts
 │  ├─ presentation/                  <span class="c">ws-server · voice-server · access · static-files</span>
@@ -653,9 +656,9 @@ flowchart LR
 │  │  ├─ session-actor.ts            <span class="c">（変更）下の3つを呼ぶ</span>
 │  │  ├─ ports.ts                    <span class="c">（変更）EmbeddingPort・生成の入出力</span>
 │  │  ├─ projection.ts · consensus-context.ts
-│  │  ├─ <span class="s">★ taste-service.ts</span>
-│  │  ├─ <span class="s">★ generation-planner.ts</span>
-│  │  └─ <span class="s">★ hesitation.ts</span>
+│  │  ├─ <span class="s">★ generation-planner.ts</span>      <span class="c">枠の役割・生成の指示・ストックからの選抜</span>
+│  │  ├─ <span class="s">★ personas.ts</span>                <span class="c">発想の型（8種類）</span>
+│  │  └─ <span class="s">★ hesitation.ts</span>              <span class="c">迷い・好意の言葉と、反応の間隔</span>
 │  ├─ domain/
 │  │  ├─ session.ts · attention.ts · character-allocation.ts · types.ts
 │  │  ├─ consensus.ts                <span class="c">（変更）賛否に strength</span>
@@ -667,8 +670,8 @@ flowchart LR
 │     ├─ gemini/
 │     │  ├─ gemini-gateway.ts        <span class="c">（変更）8軸・役割・別案</span>
 │     │  ├─ client.ts · live-transcriber.ts
-│     │  ├─ <span class="s">★ embedding-gateway.ts</span>
-│     │  └─ <span class="s">★ personas.ts</span>             <span class="c">キャラごとの発想の型</span>
+│     │  └─ <span class="s">★ embedding-gateway.ts</span>     <span class="c">gemini-embedding-001・256次元</span>
+│     ├─ <span class="s">★ local-taste.ts</span>             <span class="c">固定データ用の8軸とローカルの埋め込み</span>
 │     ├─ fixture/fixture-gateway.ts  <span class="c">（変更）8軸・タグ・別案も固定データで</span>
 │     ├─ persistence/                <span class="c">firestore-store · memory-store</span>
 │     └─ gcp-auth.ts · resilient-gateway.ts · runtime.ts
@@ -813,7 +816,7 @@ flowchart LR
     N(1000,76,240,64,'ai','wave','gemini-3.5-transcribe-live','音声 → 文字 · TEXT'),
     N(1000,172,240,64,'ai','spark','gemini-3.5-flash','案 · 回答 · 合意 · 思考 MINIMAL'),
     N(1000,268,240,64,'ai','spark','gemini-3.8-flash','磨き込み · 別案 · 企画書 · LOW'),
-    N(1000,352,240,64,'ai','vector','gemini-embedding-2','256次元 · メモリだけに保持',true),
+    N(1000,352,240,64,'ai','vector','gemini-embedding-001','256次元 · メモリだけに保持',true),
     N(40,700,210,60,'dev','laptop','開発PC','pnpm dev · Vite · fixture'),
     N(300,700,210,60,'dev','git','GitHub（private）','yuto-valiark/idea-audition'),
     N(560,700,210,60,'dev','people','チームメンバー','clone → Issue / PR')
