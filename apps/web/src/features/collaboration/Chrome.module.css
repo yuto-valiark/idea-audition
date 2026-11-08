@@ -288,3 +288,48 @@
   opacity: 1;
   cursor: default;
 }
+
+.invite,
+.line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.invite {
+  border: 1px solid #c785ff;
+  background: linear-gradient(105deg, #9a45e8, #7736db);
+  color: white;
+}
+
+.line {
+  border: 1px solid #06c755;
+  background: #06c755;
+  color: white;
+}
+
+.status,
+.right > span {
+  white-space: nowrap;
+}
+
+/* 狭い画面（スマホで招待リンクを開いたとき）：部屋 ID・人数・Wi-Fi を省いて、招待ボタンを残す */
+@media (max-width: 760px) {
+  .status,
+  .divider,
+  .right > svg,
+  .right > span:not(.statusWarn):not(.spectator) {
+    display: none;
+  }
+  .brand strong {
+    font-size: 16px;
+  }
+}

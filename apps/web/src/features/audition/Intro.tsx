@@ -1,4 +1,5 @@
-import { ArrowRight, Check, ChevronRight, Copy, Crown, Plus, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronRight, Copy, Crown, Plus, Sparkles } from 'lucide-react';
+import { lineShareUrl, shareInvite } from '../../shared/invite.ts';
 import { useState, type CSSProperties } from 'react';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { roomUrl, useSession } from '../../store/session-store.ts';
@@ -141,25 +142,18 @@ export function Intro() {
   );
 }
 
-/** 招待リンク。コピーして参加者に送る（Google Meet のリンクと同じ使い方） */
+/** 招待リンク。コピー（スマホでは共有シート）か LINE で参加者に送る（Google Meet のリンクと同じ使い方） */
 function InviteLink({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className={styles.invite}>
       <span className={styles.inviteLabel}>招待リンク</span>
       <code>{url.replace(/^https?:\/\//, '')}</code>
-      <button
-        type="button"
-        onClick={() => {
-          void navigator.clipboard?.writeText(url).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1600);
-          });
-        }}
-        aria-label="招待リンクをコピー"
-      >
-        {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'コピーしました' : 'コピー'}
+      <button type="button" onClick={() => void shareInvite(url)} aria-label="招待リンクをコピー">
+        <Copy size={15} /> 招待
       </button>
+      <a className={styles.line} href={lineShareUrl(url)} target="_blank" rel="noopener noreferrer" aria-label="LINE で送る">
+        LINE
+      </a>
     </div>
   );
 }

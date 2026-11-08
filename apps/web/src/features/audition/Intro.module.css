@@ -309,3 +309,41 @@
   background: #251537;
   color: #e5d6f5;
 }
+
+.invite .line {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: #06c755;
+  border: 1px solid #06c755;
+  color: white;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* 狭い画面：1列にして、テーマとボタンを全幅で */
+@media (max-width: 760px) {
+  .intro {
+    grid-template-columns: 1fr;
+    padding: 20px 16px 60px;
+    gap: 24px;
+  }
+  .setup {
+    max-width: none;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+  .actions select {
+    flex: 1;
+  }
+  .actions .primary {
+    flex-basis: 100%;
+  }
+  .inviteLabel {
+    display: none;
+  }
+}
