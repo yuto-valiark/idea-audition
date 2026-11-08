@@ -102,4 +102,17 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     await d.advance(6000);
     expect(store.events.get('x')!.length).toBeGreaterThan(0);
   });
+
+  it('サーバーが再起動しても、元のホストが戻ればホストに戻る（先に戻った人は一時的なホスト）', async () => {
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const host = s.join(undefined);
+    const guest = s.join(undefined);
+    if (!host.ok || !guest.ok) throw new Error('join failed');
+    const restored = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock() });
+    restored.join(guest.value.judgeId!);
+    expect(restored.judges.find((j) => j.judgeId === guest.value.judgeId)!.isHost).toBe(true);
+    restored.join(host.value.judgeId!);
+    expect(restored.judges.find((j) => j.judgeId === host.value.judgeId)!.isHost).toBe(true);
+    expect(restored.judges.filter((j) => j.isHost)).toHaveLength(1);
+  });
 });

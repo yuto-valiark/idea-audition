@@ -74,6 +74,8 @@ export class AuditionSession {
   answers: Answer[] = [];
   ideaBox: ArchivedIdea[] = [];
   judges: Judge[] = [];
+  /** 復元したときのホスト。戻ってきたらホストを返す（サーバー再起動でホストが入れ替わらないように） */
+  restoredHostId: string | null = null;
   vote: Vote | null = null;
   champion: { instanceId: string; ideaId: string; revisionId: string } | null = null;
   /** 発表待ちのアイデア（先読みストック、ADR-0005 §3） */
@@ -169,6 +171,8 @@ export class AuditionSession {
     s.answers = state.answers.map((a) => ({ ...a, answer: a.answer ?? '（サーバー再起動のため回答できませんでした）' }));
     s.ideaBox = state.ideaBox.map((a) => ({ ...a }));
     s.judges = state.judges.map((j) => ({ ...j, connected: false, isHost: false }));
+    // サーバーの再起動では、先に戻った人に一時的にホストを渡しても、元のホストが戻ったら返す
+    s.restoredHostId = state.judges.find((j) => j.isHost)?.judgeId ?? null;
     s.vote = state.vote ? { ...state.vote, ballots: new Map(state.vote.ballots) } : null;
     s.champion = state.champion ? { ...state.champion } : null;
     s.stock = state.stock.map((d) => ({ ...d }));
@@ -197,6 +201,16 @@ export class AuditionSession {
 
     if (judge) {
       judge.connected = true;
+      if (judge.judgeId === this.restoredHostId) {
+        this.restoredHostId = null;
+        if (!judge.isHost) {
+          for (const j of this.judges) j.isHost = false;
+          judge.isHost = true;
+          events.push({ type: 'JUDGE_JOINED', detail: { judgeId: judge.judgeId, reconnected: true } });
+          events.push({ type: 'HOST_CHANGED', detail: { judgeId: judge.judgeId } });
+          return ok(events, { judgeId: judge.judgeId });
+        }
+      }
     } else {
       if (this.judges.length >= MAX_JUDGES) {
         // 切断済みの審査員の枠を空ける。全員接続中なら観覧モード。

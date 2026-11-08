@@ -102,7 +102,7 @@ export function Captions() {
   );
 }
 
-const INTENT_LABEL = { question: '質問', instruction: '改善の指示', reject: '見送り', comment: '' } as const;
+const INTENT_LABEL = { question: '質問', instruction: '改善の指示', reject: '見送り', hesitation: '迷い', positive: 'いいね', comment: '' } as const;
 
 function CaptionItem({ id }: { id: string }) {
   const caption = useDisplay((s) => s.captions.find((c) => c.id === id));

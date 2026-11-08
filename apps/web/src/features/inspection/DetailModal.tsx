@@ -30,6 +30,13 @@ export function DetailModal() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selected, select]);
 
+  // 投票が始まったら、下段の案の詳細は閉じる（投票のボタンを隠さないように）
+  const status = snapshot?.status;
+  const selectedLocation = selected ? snapshot?.characters[selected]?.location : undefined;
+  useEffect(() => {
+    if (selected && status && status !== 'audition_active' && selectedLocation !== 'upper') select(null);
+  }, [selected, status, selectedLocation, select]);
+
   if (!selected || !snapshot) return null;
   const character = snapshot.characters[selected];
   const idea = character ? snapshot.ideas[character.ideaId] : undefined;

@@ -44,7 +44,7 @@ export interface Caption {
   judgeId: string;
   text: string;
   source: 'live' | 'text';
-  intent: 'question' | 'instruction' | 'reject' | 'comment';
+  intent: 'question' | 'instruction' | 'reject' | 'hesitation' | 'positive' | 'comment';
   targetInstanceId: string | null;
   /** 会議の語彙に寄せて直した言葉（音声のみ） */
   corrections?: { from: string; to: string }[];

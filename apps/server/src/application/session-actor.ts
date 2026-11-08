@@ -105,6 +105,8 @@ const REJECT_PATTERN =
 const RESULT_CACHE_LIMIT = 500;
 /** ストック（選抜の候補）の上限。古いものから捨てる */
 const STOCK_LIMIT = 12;
+/** 案の生成を1回で頼む件数の上限（多いと返事が遅く、時間切れになる） */
+const GENERATION_CHUNK = 3;
 /** 好みの更新をまとめて知らせるまでの待ち時間 */
 const TASTE_EMIT_DELAY_MS = 1_200;
 /** Signal は1人あたり毎秒この件数まで（§3.7） */
@@ -604,6 +606,21 @@ export class SessionActor {
       REJECT_PATTERN.test(text) &&
       s.characters.get(targetInstanceId)?.location === 'lower' &&
       s.status === 'audition_active';
+    // 「うーん」は迷い、「いいね」（質問・頼みを含まない）は好意として、質問とは分けて扱う（字幕の札も分ける）
+    const isPositive = cue === 'positive' && !isQuestion && !willRefine && !willReject;
+    const intent = !targetInstanceId && !cueTarget
+      ? 'comment'
+      : willReject
+        ? 'reject'
+        : willRefine
+          ? 'instruction'
+          : cue === 'hesitation'
+            ? 'hesitation'
+            : isPositive
+              ? 'positive'
+              : targetInstanceId
+                ? 'question'
+                : 'comment';
     const utteranceSeq = this.seq + 1; // 次に emit する最初のイベントがこの発言
     this.emit(
       [
@@ -614,7 +631,7 @@ export class SessionActor {
             text,
             source,
             targetInstanceId,
-            intent: !targetInstanceId ? 'comment' : willReject ? 'reject' : willRefine ? 'instruction' : 'question',
+            intent,
             mentioned: mentions.mentioned,
             ...(corrections.length ? { rawText, corrections } : {}),
           },
@@ -630,7 +647,7 @@ export class SessionActor {
       text,
       source,
       targetInstanceId,
-      intent: !targetInstanceId ? 'comment' : willReject ? 'reject' : willRefine ? 'instruction' : 'question',
+      intent,
       at: this.deps.clock.now(),
     });
     if (replyToClaim) this.replyTo.set(utteranceSeq, replyToClaim);
@@ -641,6 +658,8 @@ export class SessionActor {
       if (!targetInstanceId || cueTarget !== targetInstanceId || !willRefine) return { ok: true };
     }
     if (!targetInstanceId) return { ok: true };
+    // 「いいね」はほめ言葉なので、質問として答えない（好みには反映済み）
+    if (isPositive) return { ok: true };
     if (willReject) {
       s.recordDecision('rejected', targetInstanceId, judgeId);
       this.tasteSignal(judgeId, targetInstanceId, 'reject');
@@ -892,17 +911,34 @@ export class SessionActor {
     const now = this.deps.clock.now();
     // 枠ごとに役割（好み・両立・探索・ワイルド）と発想の型を決めて頼む（ADR-0009）
     const slots = planSlots(s, this.planner, Math.min(need, LOWER_SLOT_COUNT + 3), now);
-    this.ai
-      .generateIdeas({ theme: s.theme, count: slots.length, avoidTitles, context, taste: tasteHint(s, slots, now) })
-      .then((drafts) => {
-        if (epoch !== this.epoch) return;
-        // どの版の合意をもとに作ったかを付けておく（古くなったら作り直す）
-        s.addToStock(drafts.map((d) => ({ ...d, basedOnConsensus: context.version })));
-        if (s.stock.length > STOCK_LIMIT) s.stock.splice(0, s.stock.length - STOCK_LIMIT);
-        this.embedTexts(drafts);
-        this.emit(s.fillEmptySlots(), { actorJudgeId: null });
-      })
-      .catch((e) => this.deps.log?.('generateIdeas failed', e))
+    // 一度にたくさん頼むと返事が遅い（最初の8案で12秒を超えた）。少しずつに分けて並べて頼み、届いた分から舞台に出す
+    const chunks: (typeof slots)[] = [];
+    for (let i = 0; i < slots.length; i += GENERATION_CHUNK) chunks.push(slots.slice(i, i + GENERATION_CHUNK));
+    const taken = new Set<string>();
+    Promise.allSettled(
+      chunks.map((part, n) =>
+        this.ai
+          .generateIdeas({
+            theme: s.theme,
+            count: part.length,
+            // 並べて頼むほかの組と同じ案にならないよう、組ごとに避ける名前を少し変える
+            avoidTitles: n === 0 ? avoidTitles : [...avoidTitles, ...taken],
+            context,
+            taste: tasteHint(s, part, now),
+          })
+          .then((drafts) => {
+            if (epoch !== this.epoch) return;
+            const fresh = drafts.filter((d) => !taken.has(d.title));
+            for (const d of fresh) taken.add(d.title);
+            // どの版の合意をもとに作ったかを付けておく（古くなったら作り直す）
+            s.addToStock(fresh.map((d) => ({ ...d, basedOnConsensus: context.version })));
+            if (s.stock.length > STOCK_LIMIT) s.stock.splice(0, s.stock.length - STOCK_LIMIT);
+            this.embedTexts(fresh);
+            this.emit(s.fillEmptySlots(), { actorJudgeId: null });
+          })
+          .catch((e) => this.deps.log?.('generateIdeas failed', e)),
+      ),
+    )
       .finally(() => {
         if (epoch !== this.epoch) return;
         this.generating = false;

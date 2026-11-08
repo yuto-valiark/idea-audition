@@ -223,4 +223,17 @@ describe('好みエンジン（アクター）', () => {
     expect(rev.reason).toMatch(/^迷いを受けて：/);
     expect(rev.reason).not.toContain('なんか違うな');
   });
+
+  it('「〇〇、いいね！」は質問として答えず、字幕の札も「いいね」。「うーん」の札は「迷い」', async () => {
+    const { actor, ai, a, tick } = await setup();
+    const [x, y] = actor.session.lowerSlots as string[];
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: 'これいいね！高齢者も使える', source: 'text', targetInstanceId: x! }));
+    actor.receiveCommand(a.conn, cmd('SUBMIT_UTTERANCE', { text: 'うーん、なんか違うかも', source: 'text', targetInstanceId: y! }));
+    await tick(10);
+    const intents = events(a.received)
+      .filter((e) => e.type === 'JUDGE_UTTERANCE_RECEIVED')
+      .map((e) => e.detail.intent);
+    expect(intents).toEqual(['positive', 'hesitation']);
+    expect(ai.answerCalls).toHaveLength(0);
+  });
 });

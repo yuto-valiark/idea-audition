@@ -304,7 +304,9 @@ ${
 - icon：企画の雰囲気に合う記号を ${ICONS.join(' ')} から1つ
 - profile：この案を8つの軸で -1〜+1 で採点する（0 が普通）。${AXIS_GUIDE}
 ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${avoid.join('、')}` : ''}`;
-    const out = await this.call('generateIdeas', this.config.fast, prompt, IdeasSchema);
+    // 件数が多いほど返事が長くなるので、時間切れまでの時間も延ばす（1件あたり2秒を足す）
+    const profile = { ...this.config.fast, timeoutMs: Math.max(this.config.fast.timeoutMs, 6_000 + count * 2_000) };
+    const out = await this.call('generateIdeas', profile, prompt, IdeasSchema);
     return out.ideas.slice(0, count).map((i, n) => {
       const slot = slots[(i.slot > 0 ? i.slot : n + 1) - 1];
       return {

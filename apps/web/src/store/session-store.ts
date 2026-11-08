@@ -229,7 +229,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
           judgeId: d.judgeId,
           text: d.text,
           source: d.source === 'live' ? 'live' : 'text',
-          intent: d.intent === 'instruction' || d.intent === 'question' || d.intent === 'reject' ? d.intent : 'comment',
+          intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
           corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
