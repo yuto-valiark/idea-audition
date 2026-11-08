@@ -1,10 +1,17 @@
 import { CHARACTER_DESIGNS, JUDGE_SLOTS, type SessionSnapshot } from '@idea-audition/protocol';
 import type { AuditionSession } from '../domain/session.ts';
+import { computeMetrics } from '../domain/metrics.ts';
+import { divergence, normalized, teamTaste } from '../domain/taste.ts';
+
+/** キャラの反応（🤔）を見せておく時間 */
+export const REACTION_VISIBLE_MS = 9_000;
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
 /** ドメインの状態 → クライアント向けの投影（DTO は Entity と分ける、ADR-0002） */
-export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
+export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): SessionSnapshot {
+  const judgeIds = s.judges.map((j) => j.judgeId);
+  const div = divergence(s.taste, judgeIds, now);
   return {
     sessionId: s.sessionId,
     seq,
@@ -27,6 +34,10 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
             ideaId: c.ideaId,
             mentions: c.attention.mentions,
             leavingAt: c.leavingAt === null ? null : iso(c.leavingAt),
+            reaction:
+              c.reaction && now - c.reaction.at < REACTION_VISIBLE_MS
+                ? { kind: c.reaction.kind, judgeId: c.reaction.judgeId, text: c.reaction.text, at: iso(c.reaction.at) }
+                : null,
           },
         ];
       }),
@@ -41,7 +52,10 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
             createdAt: iso(r.createdAt),
             basedOnConsensus: r.basedOnConsensus ?? null,
             inspiredBy: r.inspiredBy ?? null,
+            profile: r.profile ?? null,
           })),
+          pitch: i.pitch ?? null,
+          persona: i.persona ?? null,
         },
       ]),
     ),
@@ -84,6 +98,20 @@ export function toSnapshot(s: AuditionSession, seq: number): SessionSnapshot {
       : null,
     startedAt: s.startedAt === null ? null : iso(s.startedAt),
     ai: { mode: s.aiMode, available: [...s.aiAvailable] },
+    taste: {
+      version: s.taste.version,
+      judges: Object.fromEntries(judgeIds.map((j) => [j, normalized(s.taste.judges[j], now)])),
+      signals: Object.fromEntries(judgeIds.map((j) => [j, s.taste.judges[j]?.signals ?? 0])),
+      team: teamTaste(s.taste, judgeIds, now),
+      divergence: div,
+    },
+    metrics: computeMetrics({
+      ideas: s.ideas.values(),
+      characters: s.characters.values(),
+      decisions: s.decisions,
+      startedAt: s.startedAt,
+      now,
+    }),
     consensus: {
       version: s.ledger.version,
       claims: s.ledger.claims.map((c) => {

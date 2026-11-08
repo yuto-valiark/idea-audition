@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ProposalView } from './proposal.ts';
+import { MetricsView, PitchView, Profile, ReactionView, TasteView } from './taste.ts';
 
 /** ステージ定員（acceptance-criteria AC-01, AC-04） */
 export const LOWER_SLOT_COUNT = 5;
@@ -33,6 +34,8 @@ export const CharacterView = z.object({
   mentions: z.number().int(),
   /** 退場予告中ならその時刻（ISO）。この時刻に下段から退場する */
   leavingAt: z.string().nullable(),
+  /** 審査員の反応へのキャラの反応（🤔 など）。数秒で消える */
+  reaction: ReactionView.nullable(),
 });
 export type CharacterView = z.infer<typeof CharacterView>;
 
@@ -51,12 +54,18 @@ export const RevisionView = z.object({
   basedOnConsensus: z.number().int().nullable(),
   /** どの論点を受けて作られたか（系譜） */
   inspiredBy: z.object({ claimLabels: z.array(z.string()), note: z.string() }).nullable(),
+  /** 8軸のプロフィール（ADR-0009） */
+  profile: Profile.nullable(),
 });
 export type RevisionView = z.infer<typeof RevisionView>;
 
 export const IdeaView = z.object({
   ideaId: z.string(),
   revisions: z.array(RevisionView).min(1),
+  /** なぜこの案が出てきたか（💡 🤝 🧭 🎲） */
+  pitch: PitchView.nullable(),
+  /** 発想の型（例：逆転の発想） */
+  persona: z.string().nullable(),
 });
 export type IdeaView = z.infer<typeof IdeaView>;
 
@@ -162,5 +171,8 @@ export const SessionSnapshot = z.object({
   startedAt: z.string().nullable(),
   /** いまの AI のモードと、このサーバーで選べるモード */
   ai: z.object({ mode: AiMode, available: z.array(AiMode) }),
+  /** 好みエンジン（ADR-0009） */
+  taste: TasteView,
+  metrics: MetricsView,
 });
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>;

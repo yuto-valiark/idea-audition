@@ -863,3 +863,79 @@
   color: #fff;
   font-variant-numeric: tabular-nums;
 }
+
+/* ------------------------- 好みエンジン（ADR-0009） ------------------------- */
+
+/* フリップの左上（退場予告の反対側）に、この案が出てきた理由を出す */
+.pitchTag {
+  position: absolute;
+  top: calc(clamp(64px, 10vh, 150px) - 22px);
+  left: 8px;
+  z-index: 7;
+  max-width: 62%;
+  padding: 2px 8px 3px;
+  border-radius: 10px;
+  background: #1d1233f0;
+  border: 1px solid #a77ad4aa;
+  color: #eadcff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px #0008;
+}
+
+.pitchTag[data-role='bridge'] {
+  border-color: #ffd36bcc;
+  color: #ffeec4;
+  background: #2b2010f0;
+}
+
+.pitchTag[data-role='fit'] {
+  border-color: #7fd6ffbb;
+  color: #d9f3ff;
+}
+
+.performer[data-leaving] .pitchTag {
+  max-width: 44%;
+}
+
+.revisedChip {
+  position: absolute;
+  bottom: 5px;
+  right: 7px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #ffd36b;
+  letter-spacing: 0.4px;
+}
+
+.flip[data-revised] {
+  animation: revised-glow 1.4s ease-out 1;
+}
+
+@keyframes revised-glow {
+  0% { box-shadow: 0 0 0 0 #ffd36b, 0 0 30px #ffd36b88; }
+  100% { box-shadow: 0 0 4px var(--accent), 0 7px 15px #0006; }
+}
+
+/* 迷いに気づいたキャラは小さく首をかしげる */
+.performer[data-thinking] .mascot {
+  animation: thinking-tilt 1.2s ease-in-out 3;
+}
+
+@keyframes thinking-tilt {
+  0%, 100% { rotate: 0deg; }
+  30% { rotate: -7deg; }
+  60% { rotate: 5deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .performer[data-thinking] .mascot,
+  .flip[data-revised] {
+    animation: none;
+  }
+}

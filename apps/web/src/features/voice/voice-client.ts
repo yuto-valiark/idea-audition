@@ -1,5 +1,6 @@
 import { VoiceServerMessage } from '@idea-audition/protocol';
 import workletUrl from './pcm-worklet.js?url&no-inline';
+import { HumDetector, type HumEvent } from './prosody.ts';
 
 export type VoiceState = 'off' | 'starting' | 'listening' | 'unavailable';
 
@@ -7,6 +8,8 @@ interface Handlers {
   onState(state: VoiceState, reason?: string): void;
   onInterim(text: string): void;
   onFinal(text: string): void;
+  /** 声の特徴から「うーん」を見つけたとき */
+  onHum?(e: HumEvent): void;
 }
 
 function voiceUrl() {
@@ -83,7 +86,9 @@ export class VoiceClient {
     if (!this.active || !this.stream) return;
     const source = this.ctx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.ctx, 'pcm-downsampler');
+    const hum = new HumDetector((ev) => this.handlers.onHum?.(ev));
     this.node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+      hum.push(new Int16Array(e.data));
       if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(e.data);
     };
     source.connect(this.node);

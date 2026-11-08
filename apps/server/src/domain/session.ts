@@ -9,6 +9,7 @@ import {
   type SessionStatus,
 } from '@idea-audition/protocol';
 import { pickDesign } from './character-allocation.ts';
+import { applySignal, emptyTaste, type TasteState } from './taste.ts';
 import { applyOps, emptyLedger, recomputeStatuses, type ApplyResult, type Ledger, type LedgerOp } from './consensus.ts';
 import {
   DEFAULT_ROTATION_POLICY,
@@ -32,6 +33,8 @@ import {
   type Finalist,
   type Idea,
   type IdeaDraft,
+  type Pitch,
+  type Reaction,
   type IdProvider,
   type Judge,
   type Revision,
@@ -90,6 +93,11 @@ export class AuditionSession {
   /** このサーバーで選べるモード（アクターが設定する。保存しない） */
   aiAvailable: AiMode[] = ['fixture'];
 
+  /** 審査員ごとの好み（ADR-0009） */
+  taste: TasteState = emptyTaste();
+  /** 空いた枠にストックのどれを出すか（アクターが好みエンジンを設定する。無ければ先頭から） */
+  slotChooser: ((stock: readonly IdeaDraft[]) => { index: number; pitch: Pitch | null } | null) | null = null;
+
   /** 下段の入れ替え方（アクターが設定する） */
   rotationPolicy: RotationPolicy = DEFAULT_ROTATION_POLICY;
 
@@ -130,6 +138,7 @@ export class AuditionSession {
       proposal: this.proposal ? structuredClone(this.proposal) : null,
       startedAt: this.startedAt,
       aiMode: this.aiMode,
+      taste: structuredClone(this.taste),
     };
   }
 
@@ -172,6 +181,7 @@ export class AuditionSession {
     s.proposal = state.proposal ? structuredClone(state.proposal) : null;
     s.startedAt = state.startedAt ?? null;
     if (state.aiMode) s.aiMode = state.aiMode;
+    s.taste = state.taste ? structuredClone(state.taste) : emptyTaste();
     return s;
   }
 
@@ -276,6 +286,7 @@ export class AuditionSession {
     this.ledgerCursor = 0;
     this.proposal = null;
     this.startedAt = null;
+    this.taste = emptyTaste();
   }
 
   /* ------------------------------ 下段 ------------------------------ */
@@ -285,13 +296,19 @@ export class AuditionSession {
     this.stock.push(...drafts);
   }
 
-  /** 空いている下段の枠を、ストックから補充する（AC-02） */
-  fillEmptySlots(): DomainEvent[] {
+  /**
+   * 空いている下段の枠を、ストックから補充する（AC-02）。
+   * choose を渡すと、ストックのどれを出すか（と、出した理由）をそれで決める（ADR-0009 の選抜）。
+   * 渡さなければ先頭から順に出す。
+   */
+  fillEmptySlots(choose?: (stock: readonly IdeaDraft[]) => { index: number; pitch: Pitch | null } | null): DomainEvent[] {
     if (this.status !== 'audition_active') return [];
     const events: DomainEvent[] = [];
     for (let slot = 0; slot < this.lowerSlots.length; slot++) {
       if (this.lowerSlots[slot] !== null) continue;
-      const draft = this.stock.shift();
+      if (this.stock.length === 0) break;
+      const picked = (choose ?? this.slotChooser)?.(this.stock) ?? { index: 0, pitch: null };
+      const [draft] = this.stock.splice(picked.index, 1);
       if (!draft) break;
       const designId = pickDesign({
         designIds: CHARACTER_DESIGNS.map((d) => d.designId),
@@ -320,8 +337,11 @@ export class AuditionSession {
             createdAt: now,
             basedOnConsensus: draft.basedOnConsensus ?? null,
             inspiredBy: draft.inspiredBy ?? null,
+            profile: draft.profile ?? null,
           },
         ],
+        pitch: picked.pitch,
+        persona: draft.persona ?? null,
       };
       const character: CharacterInstance = {
         instanceId: this.deps.ids.next('ch'),
@@ -331,6 +351,7 @@ export class AuditionSession {
         spawnedAt: now,
         attention: newAttention(now),
         leavingAt: null,
+        reaction: null,
       };
       this.ideas.set(idea.ideaId, idea);
       this.characters.set(character.instanceId, character);
@@ -641,11 +662,74 @@ export class AuditionSession {
       createdAt: this.deps.clock.now(),
       basedOnConsensus: this.ledger.version,
       inspiredBy: draft.inspiredBy ?? null,
+      profile: current.profile ?? null,
     };
     idea.revisions.push(revision);
     return ok([
       {
         type: 'FINALIST_VERSION_PUBLISHED',
+        detail: { instanceId, ideaId: idea.ideaId, revisionId: revision.revisionId, version: revision.version },
+      },
+    ]);
+  }
+
+  /* ---------------------------- 好みエンジン ---------------------------- */
+
+  /** いまの版のプロフィール（無ければ null） */
+  profileOf(instanceId: string): number[] | null {
+    const idea = this.ideaOf(instanceId);
+    return idea?.revisions.at(-1)?.profile ?? null;
+  }
+
+  /** 審査員の反応を好みに足す。プロフィールの無い案や審査員でない人は無視する */
+  recordTasteSignal(judgeId: string, instanceId: string, weight: number): boolean {
+    if (weight === 0 || !this.judges.some((j) => j.judgeId === judgeId)) return false;
+    const profile = this.profileOf(instanceId);
+    if (!profile) return false;
+    this.taste = applySignal(this.taste, judgeId, profile, weight, this.deps.clock.now());
+    return true;
+  }
+
+  /** キャラの反応（🤔）を付ける・消す */
+  setReaction(instanceId: string, reaction: Omit<Reaction, 'at'> | null): DomainEvent[] {
+    const c = this.characters.get(instanceId);
+    if (!c) return [];
+    c.reaction = reaction ? { ...reaction, at: this.deps.clock.now() } : null;
+    if (!reaction) return [];
+    return [{ type: 'CANDIDATE_REACTED', detail: { instanceId, kind: reaction.kind, judgeId: reaction.judgeId, text: reaction.text } }];
+  }
+
+  /**
+   * 下段の案を別案に差し替える（迷いへの反応）。新しい版を足すだけで、元の版は残す。
+   * base が今の版でなければ（その間に誰かが変えた・退場した）捨てる。
+   */
+  reviseLower(instanceId: string, baseRevisionId: string, draft: IdeaDraft, reason: string): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const c = this.characters.get(instanceId);
+    if (!c || c.location !== 'lower') return reject('NOT_IN_LOWER');
+    const idea = this.ideas.get(c.ideaId)!;
+    const current = idea.revisions.at(-1)!;
+    if (current.revisionId !== baseRevisionId) return reject('STALE_VERSION');
+    const revision: Revision = {
+      revisionId: this.deps.ids.next('rev'),
+      version: current.version + 1,
+      title: draft.title,
+      summary: draft.summary,
+      icon: draft.icon || current.icon,
+      keepStrengths: [],
+      improvementPoints: [],
+      basedOnRevisionId: current.revisionId,
+      reason,
+      createdAt: this.deps.clock.now(),
+      basedOnConsensus: this.ledger.version,
+      inspiredBy: draft.inspiredBy ?? null,
+      profile: draft.profile ?? current.profile ?? null,
+    };
+    idea.revisions.push(revision);
+    c.reaction = { kind: 'revised', judgeId: null, text: '別案を考えました', at: this.deps.clock.now() };
+    return ok([
+      {
+        type: 'CANDIDATE_REVISED',
         detail: { instanceId, ideaId: idea.ideaId, revisionId: revision.revisionId, version: revision.version },
       },
     ]);

@@ -1,5 +1,7 @@
 import { DEFAULT_ACTOR_CONFIG, DEFAULT_ROTATION, SessionActor } from './application/session-actor.ts';
-import type { IdeaGenerationPort, SessionStorePort, SpeechTranscriptionPort } from './application/ports.ts';
+import type { EmbeddingPort, IdeaGenerationPort, SessionStorePort, SpeechTranscriptionPort } from './application/ports.ts';
+import { GeminiEmbedding } from './infrastructure/gemini/embedding-gateway.ts';
+import { LocalEmbedding } from './infrastructure/local-taste.ts';
 import type { AiMode } from '@idea-audition/protocol';
 import { FixtureGateway } from './infrastructure/fixture/fixture-gateway.ts';
 import { GeminiGateway } from './infrastructure/gemini/gemini-gateway.ts';
@@ -40,6 +42,15 @@ function createGateways(): Partial<Record<AiMode, IdeaGenerationPort>> {
   return { gemini, fixture };
 }
 
+/** 埋め込み（ADR-0009）。Gemini のモードでは gemini-embedding、固定データではローカルの埋め込み */
+function createEmbedders(): Partial<Record<AiMode, EmbeddingPort>> {
+  const local = new LocalEmbedding();
+  if (env('AI_GATEWAY', 'fixture') !== 'gemini') return { fixture: local };
+  const model = env('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001');
+  log(`embedding: ${model} (256 dims)`);
+  return { gemini: new GeminiEmbedding(createVertexClient(process.env), model, 256, log), fixture: local };
+}
+
 function createStore(): SessionStorePort {
   const kind = env('PERSISTENCE', 'none');
   if (kind === 'firestore') {
@@ -61,6 +72,7 @@ function createTranscriber(): SpeechTranscriptionPort | null {
 
 const aiModes = createGateways();
 const ai = aiModes.gemini ?? aiModes.fixture!;
+const embedders = createEmbedders();
 const transcriber = createTranscriber();
 const store = createStore();
 const config = {
@@ -100,6 +112,7 @@ const registry: ActorRegistry = {
       const actor = SessionActor.open(sessionId, {
         ai,
         aiModes,
+        embedders,
         store,
         scheduler: nodeScheduler,
         clock: systemClock,

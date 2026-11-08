@@ -23,6 +23,8 @@ function fakeClient(responses: (string | Error)[]) {
   return { client, calls };
 }
 
+const P = { cost: -0.5, novelty: 0.8, ease: 0.2, buzz: 2, sustain: 0, social: 0, scale: 0, reach: 0 };
+
 const participants = [
   { instanceId: 'ch_a', characterName: 'MOMO', title: '案A', summary: 'a1\na2', version: 1 },
   { instanceId: 'ch_b', characterName: 'LUNA', title: '案B', summary: 'b1\nb2', version: 2 },
@@ -33,16 +35,59 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { title: 'ガチャ学食', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', icon: '☆', inspiredBy: [], note: '' },
-          { title: '郷土の味', summary: '全国の味を\n週替わりで', icon: '◎', inspiredBy: [], note: '' },
+          { slot: 0, title: 'ガチャ学食', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', icon: '☆', inspiredBy: [], note: '', profile: P },
+          { slot: 0, title: '郷土の味', summary: '全国の味を\n週替わりで', icon: '◎', inspiredBy: [], note: '', profile: P },
         ],
       }),
     ]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
-    expect(ideas).toEqual([{ title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null }]);
+    // 8軸は TASTE_AXES の順の配列になり、範囲外（buzz=2）は +1 に収まる
+    expect(ideas).toEqual([
+      { title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null, profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0], persona: undefined },
+    ]);
     expect(calls[0]!.model).toBe('fast-model');
     expect(calls[0]!.config.responseMimeType).toBe('application/json');
+  });
+
+  it('好みエンジンの枠：枠ごとの方向と発想の型をプロンプトに入れ、slot の番号で発想の型を付ける', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({
+        ideas: [
+          { slot: 2, title: '両立案', summary: 'a\nb', icon: '◎', inspiredBy: [], note: '', profile: P },
+          { slot: 1, title: '好み案', summary: 'c\nd', icon: '☆', inspiredBy: [], note: '', profile: P },
+        ],
+      }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const ideas = await g.generateIdeas({
+      theme: '学食',
+      count: 2,
+      avoidTitles: [],
+      taste: {
+        judges: [{ label: '審査員 A', likes: ['手軽さが高い'], dislikes: ['コストが高い'] }],
+        divergence: '審査員 Aと審査員 Bは「コスト」で好みが割れている',
+        slots: [
+          { role: 'fit', direction: '審査員 Aが好む方向', persona: { name: '逆転の発想', how: 'ひっくり返す' } },
+          { role: 'bridge', direction: '両方が納得する折衷の案', persona: { name: '制約から考える', how: '予算ゼロ' } },
+        ],
+      },
+    });
+    expect(ideas.map((i) => [i.title, i.persona])).toEqual([
+      ['両立案', '制約から考える'],
+      ['好み案', '逆転の発想'],
+    ]);
+    expect(calls[0]!.contents).toContain('枠2：方向＝両方が納得する折衷の案／発想の型＝制約から考える');
+    expect(calls[0]!.contents).toContain('審査員 A：好き＝手軽さが高い');
+    expect(calls[0]!.contents).toContain('「コスト」で好みが割れている');
+  });
+
+  it('迷いの別案：元の案と迷いの言葉を渡し、8軸つきで1案返す', async () => {
+    const { client, calls } = fakeClient([JSON.stringify({ title: 'ミニ屋台', summary: '1日だけ\nまず小さく', icon: '♧', profile: P })]);
+    const g = new GeminiGateway(client, config);
+    const out = await g.varyIdea({ theme: '学食', characterName: 'MOMO', idea: { title: '屋台村', summary: 'a\nb', profile: null }, concern: 'うーん高そう' });
+    expect(out).toMatchObject({ title: 'ミニ屋台', summary: '1日だけ\nまず小さく', profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0] });
+    expect(calls[0]!.contents).toContain('うーん高そう');
   });
 
   it('改良：話し手と相手は決めた順番を使い、P1/P2 を instanceId に戻す', async () => {
@@ -74,7 +119,7 @@ describe('GeminiGateway', () => {
   });
 
   it('不正な出力は1回やり直す', async () => {
-    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ title: 'T', summary: 'S', icon: '♡', inspiredBy: [], note: '' }] })]);
+    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ slot: 0, title: 'T', summary: 'S', icon: '♡', inspiredBy: [], note: '', profile: P }] })]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     expect(ideas).toHaveLength(1);

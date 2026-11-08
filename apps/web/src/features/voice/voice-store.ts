@@ -1,3 +1,4 @@
+import { currentFocus } from '../../scene/focus.ts';
 import { create } from 'zustand';
 import { useDisplay } from '../../store/display-store.ts';
 import { readAccessCode, useSession } from '../../store/session-store.ts';
@@ -22,6 +23,18 @@ export const useVoice = create<VoiceStore>((set, get) => {
         if (state === 'unavailable' && reason) useDisplay.getState().toast(reason, 'warn');
       },
       onInterim: (text) => set({ interim: text }),
+      // 「うーん」の声：見ているキャラへの迷いとしてサーバーに知らせる（返事なし、ADR-0010 の Signal）
+      onHum: (e) => {
+        const { hover, detail } = currentFocus();
+        const target = detail ?? hover;
+        if (!target) return;
+        useSession.getState().client?.sendSignal({
+          kind: 'hesitation',
+          targetInstanceId: target,
+          cue: 'うーん（声）',
+          features: { silenceMs: Math.round(e.silenceMs), rms: Math.round(e.rms * 1000) / 1000 },
+        });
+      },
       onFinal: (text) => {
         set({ interim: text });
         if (clearTimer) clearTimeout(clearTimer);

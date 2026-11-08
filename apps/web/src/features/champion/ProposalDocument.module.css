@@ -247,3 +247,12 @@
   font-size: 10px;
   color: #8a7d96;
 }
+
+/* 好みの読み取りと効果（ADR-0009） */
+.taste {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}

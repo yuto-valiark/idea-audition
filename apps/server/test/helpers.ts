@@ -7,6 +7,7 @@ import type {
   RefineInput,
   RefineOutput,
   Scheduler,
+  VaryInput,
 } from '../src/application/ports.ts';
 import type { IdeaDraft } from '../src/domain/types.ts';
 import type { Connection } from '../src/application/session-actor.ts';
@@ -112,6 +113,11 @@ export class StubAi implements IdeaGenerationPort {
   }
   async answer(input: { question: string }) {
     return `回答:${input.question}`;
+  }
+  varyCalls: VaryInput[] = [];
+  async varyIdea(input: VaryInput) {
+    this.varyCalls.push(input);
+    return { title: `${input.idea.title}別案`, summary: '別案\n中身', icon: '◎', profile: input.idea.profile ?? undefined };
   }
 }
 

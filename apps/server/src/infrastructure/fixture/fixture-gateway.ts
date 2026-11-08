@@ -1,3 +1,4 @@
+import { heuristicProfile } from '../local-taste.ts';
 import type { IdeaDraft, RevisionDraft } from '../../domain/types.ts';
 import type {
   ConsensusContext,
@@ -7,6 +8,8 @@ import type {
   ProposalInput,
   RefineInput,
   RefineOutput,
+  TasteHint,
+  VaryInput,
 } from '../../application/ports.ts';
 import type { ProposalContent } from '@idea-audition/protocol';
 
@@ -76,6 +79,7 @@ const WISH = /したい|がいい|にして|べき|ほしい|欲しい|低め|�
 export class FixtureGateway implements IdeaGenerationPort {
   readonly name = 'fixture';
   private cursor = 0;
+  private varyCursor = 0;
 
   constructor(private readonly latencyMs = 900) {}
 
@@ -84,8 +88,10 @@ export class FixtureGateway implements IdeaGenerationPort {
     count: number;
     avoidTitles: string[];
     context?: ConsensusContext;
+    taste?: TasteHint;
   }): Promise<IdeaDraft[]> {
     await sleep(this.latencyMs * 0.5);
+    const slots = input.taste?.slots;
     const pool = /学食|食堂|ランチ/.test(input.theme) ? CAFETERIA_IDEAS : this.generic(input.theme);
     const out: IdeaDraft[] = [];
     for (let tries = 0; out.length < input.count && tries < pool.length * 2; tries++) {
@@ -102,7 +108,32 @@ export class FixtureGateway implements IdeaGenerationPort {
         }
       });
     }
-    return out;
+    // 8軸は言葉の手がかりから作る。発想の型は頼まれた枠のものを付ける
+    return out.map((d, i) => ({
+      ...d,
+      profile: heuristicProfile(`${d.title} ${d.summary}`),
+      persona: slots?.[i]?.persona.name,
+    }));
+  }
+
+  /** 固定データ用の別案：小さく・みんなで・続けられる、のどれかに寄せる */
+  async varyIdea(input: VaryInput): Promise<IdeaDraft> {
+    await sleep(this.latencyMs * 0.8);
+    const variants = [
+      { suffix: 'ミニ版', line: 'まずは1日・1か所で気軽に試す。', shift: { 0: -0.5, 2: 0.5 } },
+      { suffix: 'みんなで版', line: '友達を誘うほど楽しくなる形に。', shift: { 3: 0.4, 7: 0.4 } },
+      { suffix: '続く版', line: '毎週少しずつ続けたくなる仕組みに。', shift: { 4: 0.5, 1: -0.2 } },
+    ] as const;
+    const v = variants[this.varyCursor++ % variants.length]!;
+    const base = input.idea.profile ?? heuristicProfile(`${input.idea.title} ${input.idea.summary}`);
+    const profile = base.map((x, i) => Math.max(-1, Math.min(1, x + ((v.shift as Record<number, number>)[i] ?? 0))));
+    const first = input.idea.summary.split('\n')[0] ?? input.idea.summary;
+    return {
+      title: `${input.idea.title.slice(0, 10)}${v.suffix}`.slice(0, 16),
+      summary: `${first}\n${v.line}`,
+      icon: '◎',
+      profile,
+    };
   }
 
   /** 固定データ用の企画書（テンプレートに審査の記録を流し込む） */

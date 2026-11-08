@@ -1,4 +1,5 @@
-import type { ProposalContent, SessionSnapshot } from '@idea-audition/protocol';
+import { PITCH_ROLE_ICON, TASTE_AXES, type ProposalContent, type SessionSnapshot } from '@idea-audition/protocol';
+import { TasteRadar } from '../taste/TasteRadar.tsx';
 import { Mascot } from '../../shared/Mascot.tsx';
 import styles from './ProposalDocument.module.css';
 
@@ -173,6 +174,8 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         </p>
       )}
 
+      <TasteReport snapshot={snapshot} />
+
       <h2 className={styles.h2}>改良の経緯</h2>
       {revisions.map((r) => (
         <div key={r.revisionId} className={`${styles.rev} ${styles.avoid}`}>
@@ -257,6 +260,103 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         第2部は審査中の記録をそのまま載せています。 — IDEA AUDITION
       </footer>
     </div>
+  );
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  fit: '好みに寄せた案',
+  bridge: '2人の間をとる案',
+  explore: 'まだ出ていない方向の案',
+  wildcard: 'ワイルドカード',
+};
+const pct = (picked: number, shown: number) => (shown === 0 ? '—' : `${Math.round((picked / shown) * 100)}%`);
+
+/**
+ * 好みの読み取りと効果（ADR-0009 の証拠）。記録から数えるだけで、LLM は通さない。
+ * 「後半に出た案ほど選ばれた」なら、反応から好みを読んで出し方を変えたことが効いている。
+ */
+function TasteReport({ snapshot }: { snapshot: SessionSnapshot }) {
+  const { metrics, taste, judges } = snapshot;
+  const active = judges.filter((j) => (taste.signals[j.judgeId] ?? 0) > 0);
+  const roles = Object.entries(metrics.byRole).filter(([, v]) => v.shown > 0);
+  if (active.length === 0 && metrics.firstHalf.shown + metrics.secondHalf.shown === 0) return null;
+  const label = (id: string) => judges.find((j) => j.judgeId === id)?.label ?? '審査員';
+  return (
+    <>
+      <h2 className={styles.h2}>好みの読み取りと効果</h2>
+      <div className={`${styles.taste} ${styles.avoid}`}>
+        <TasteRadar snapshot={snapshot} print />
+        <div>
+          {active.map((j) => {
+            const v = taste.judges[j.judgeId]!;
+            const top = v
+              .map((x, i) => ({ x, i }))
+              .sort((a, b) => Math.abs(b.x) - Math.abs(a.x))
+              .slice(0, 2)
+              .filter((t) => Math.abs(t.x) >= 0.2)
+              .map((t) => `${TASTE_AXES[t.i]!.label}${t.x > 0 ? '高め' : '控えめ'}`);
+            return (
+              <p key={j.judgeId} className={styles.small}>
+                <b style={{ color: j.color }}>●</b> {j.label}：{top.join('・') || '偏りなし'}（反応 {taste.signals[j.judgeId]} 回）
+              </p>
+            );
+          })}
+          {taste.divergence && (
+            <p className={styles.small}>
+              {label(taste.divergence.judgeA)}と{label(taste.divergence.judgeB)}は「{TASTE_AXES[taste.divergence.axis]!.label}」で好みが割れていたため、間をとる案を混ぜて出しました。
+            </p>
+          )}
+        </div>
+      </div>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>下段に出た案</th>
+            <th>出た数</th>
+            <th>決勝に選ばれた数</th>
+            <th>選ばれた率</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>前半</th>
+            <td>{metrics.firstHalf.shown}</td>
+            <td>{metrics.firstHalf.picked}</td>
+            <td>{pct(metrics.firstHalf.picked, metrics.firstHalf.shown)}</td>
+          </tr>
+          <tr>
+            <th>後半（好みを読んでから）</th>
+            <td>{metrics.secondHalf.shown}</td>
+            <td>{metrics.secondHalf.picked}</td>
+            <td>{pct(metrics.secondHalf.picked, metrics.secondHalf.shown)}</td>
+          </tr>
+          {roles.map(([role, v]) => (
+            <tr key={role}>
+              <th>
+                {PITCH_ROLE_ICON[role as keyof typeof PITCH_ROLE_ICON]} {ROLE_LABEL[role] ?? role}
+              </th>
+              <td>{v.shown}</td>
+              <td>{v.picked}</td>
+              <td>{pct(v.picked, v.shown)}</td>
+            </tr>
+          ))}
+          {metrics.revisions.shown > 0 && (
+            <tr>
+              <th>🤔 迷いを受けて出した別案</th>
+              <td>{metrics.revisions.shown}</td>
+              <td>{metrics.revisions.picked}</td>
+              <td>{pct(metrics.revisions.picked, metrics.revisions.shown)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <p className={styles.muted}>
+        {metrics.liftPct === null
+          ? '前半と後半の比較には、それぞれ4案以上が必要です（今回は案が少ないため比較していません）。'
+          : `後半に出た案は、前半より決勝に選ばれた率が ${metrics.liftPct >= 0 ? `${metrics.liftPct}% 高く` : `${-metrics.liftPct}% 低く`}なりました。`}
+        1回のセッションの数字なので、偶然の影響を含みます。
+      </p>
+    </>
   );
 }
 

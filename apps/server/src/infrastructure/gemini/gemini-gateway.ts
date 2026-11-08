@@ -8,8 +8,10 @@ import type {
   ProposalInput,
   RefineInput,
   RefineOutput,
+  TasteHint,
+  VaryInput,
 } from '../../application/ports.ts';
-import { ProposalContent } from '@idea-audition/protocol';
+import { ProposalContent, TASTE_AXES } from '@idea-audition/protocol';
 
 /**
  * Gemini（Vertex AI）による生成（ADR-0005、ADR-0007）。
@@ -56,20 +58,33 @@ AIキャラクターが人間の審査員の前で企画をプレゼンし、選
 - 指定された文字数を必ず守る（画面のフリップに収めるため）
 - 出力は指定された JSON だけ`;
 
-const IdeasSchema = z.object({
-  ideas: z
-    .array(
-      z.object({
-        title: z.string().min(1),
-        summary: z.string().min(1),
-        icon: z.enum(ICONS),
-        /** 受けた論点のラベル（C1 など）。新しい切り口の案は空 */
-        inspiredBy: z.array(z.string()),
-        /** 何を受けたか。20文字以内。新しい切り口の案は空文字 */
-        note: z.string(),
-      }),
-    )
-    .min(1),
+/** 8軸のプロフィール（-1〜+1）。軸の名前で受け取り、TASTE_AXES の順の配列に直す */
+const ProfileSchema = z.object(
+  Object.fromEntries(TASTE_AXES.map((a) => [a.key, z.number()])) as Record<(typeof TASTE_AXES)[number]['key'], z.ZodNumber>,
+);
+const toProfile = (p: Record<string, number>) => TASTE_AXES.map((a) => Math.max(-1, Math.min(1, Number(p[a.key]) || 0)));
+const AXIS_GUIDE = TASTE_AXES.map((a) => `${a.key}=${a.label}：${a.description}`).join(' / ');
+
+const IdeaItem = z.object({
+  /** 何番の枠の案か（1 から）。枠の指定が無いときは 0 */
+  slot: z.number().int(),
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  icon: z.enum(ICONS),
+  /** 受けた論点のラベル（C1 など）。新しい切り口の案は空 */
+  inspiredBy: z.array(z.string()),
+  /** 何を受けたか。20文字以内。新しい切り口の案は空文字 */
+  note: z.string(),
+  profile: ProfileSchema,
+});
+
+const IdeasSchema = z.object({ ideas: z.array(IdeaItem).min(1) });
+
+const VarySchema = z.object({
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  icon: z.enum(ICONS),
+  profile: ProfileSchema,
 });
 
 const RefineSchema = z.object({
@@ -155,6 +170,15 @@ function renderRemarks(ctx: ConsensusContext | undefined) {
   return `\n# 直近の発言\n${ctx.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n')}\n`;
 }
 
+/** 好みの要約（審査員ごとの好き・苦手と、割れている軸） */
+function renderTaste(taste: TasteHint | undefined) {
+  if (!taste || (taste.judges.length === 0 && !taste.divergence)) return '';
+  const lines = taste.judges.map(
+    (j) => `- ${j.label}：好き＝${j.likes.join('・') || '—'}／苦手＝${j.dislikes.join('・') || '—'}`,
+  );
+  return `\n# 審査員の好み（これまでの反応から推定）\n${lines.join('\n')}${taste.divergence ? `\n- ${taste.divergence}` : ''}\n`;
+}
+
 function toInspiration(labels: string[], note: string, ctx: ConsensusContext | undefined): Inspiration | null {
   const known = new Set([...(ctx?.agreed ?? []), ...(ctx?.proposed ?? [])].map((c) => c.label));
   const claimLabels = [...new Set(labels.map((l) => l.trim()).filter((l) => known.has(l)))];
@@ -226,32 +250,63 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
     count: number;
     avoidTitles: string[];
     context?: ConsensusContext;
+    taste?: TasteHint;
   }): Promise<IdeaDraft[]> {
     const avoid = input.avoidTitles.slice(-30);
     const ctx = input.context;
+    const slots = input.taste?.slots ?? [];
+    const count = slots.length || input.count;
     const hasDirection = !!ctx && ctx.agreed.length + ctx.proposed.length > 0;
-    const follow = hasDirection ? Math.ceil(input.count / 2) : 0;
+    const follow = hasDirection ? Math.ceil(count / 2) : 0;
     const prompt = `${renderContext(input.theme, ctx)}
-${renderRemarks(ctx)}
+${renderRemarks(ctx)}${renderTaste(input.taste)}
 # 今回の依頼
-このテーマの新しい企画案を ${input.count} 個、それぞれ別の切り口で出してください。
+このテーマの新しい企画案を ${count} 個、それぞれ別の切り口で出してください。
+${
+  slots.length
+    ? `- 下の「枠」1つにつき1案。slot に枠の番号を入れ、その枠の「方向」と「発想の型」に従って考える
+${slots.map((sl, i) => `  枠${i + 1}：方向＝${sl.direction}／発想の型＝${sl.persona.name}（${sl.persona.how}）`).join('\n')}`
+    : '- slot は 0'
+}
 ${
   follow > 0
-    ? `- そのうち ${follow} 個は、合意・提案中の論点を伸ばす案にする。inspiredBy に受けた論点のラベル（例 C1）、note に何を受けたか（20文字以内）を入れる
-- 残りは、まだ話題に出ていない新しい切り口の案にする（審査員の発想を広げるため）。inspiredBy は空、note は空文字`
-    : '- まだ合意が無いので、すべて新しい切り口の案にする。inspiredBy は空、note は空文字'
+    ? `- 合意・提案中の論点を伸ばせる案は、inspiredBy に受けた論点のラベル（例 C1）、note に何を受けたか（20文字以内）を入れる
+- まだ話題に出ていない切り口の案は、inspiredBy は空、note は空文字`
+    : '- まだ合意が無いので、inspiredBy は空、note は空文字'
 }
 - title：企画名。12文字以内
 - summary：説明。20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は具体的な中身
 - icon：企画の雰囲気に合う記号を ${ICONS.join(' ')} から1つ
+- profile：この案を8つの軸で -1〜+1 で採点する（0 が普通）。${AXIS_GUIDE}
 ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${avoid.join('、')}` : ''}`;
     const out = await this.call('generateIdeas', this.config.fast, prompt, IdeasSchema);
-    return out.ideas.slice(0, input.count).map((i) => ({
-      title: clean(i.title, 16),
-      summary: cleanSummary(i.summary),
-      icon: i.icon,
-      inspiredBy: toInspiration(i.inspiredBy, i.note, ctx),
-    }));
+    return out.ideas.slice(0, count).map((i, n) => {
+      const slot = slots[(i.slot > 0 ? i.slot : n + 1) - 1];
+      return {
+        title: clean(i.title, 16),
+        summary: cleanSummary(i.summary),
+        icon: i.icon,
+        inspiredBy: toInspiration(i.inspiredBy, i.note, ctx),
+        profile: toProfile(i.profile),
+        persona: slot?.persona.name,
+      };
+    });
+  }
+
+  /** 迷いを受けた別案。元の案の良さは残し、迷われた点を変える（ADR-0009 ③） */
+  async varyIdea(input: VaryInput): Promise<IdeaDraft> {
+    const prompt = `${renderContext(input.theme, input.context)}
+# 今回の依頼
+審査員が次の案を見て迷っています（反応：「${input.concern}」）。
+キャラクター「${input.characterName}」として、同じ案の別バージョンを1つ作ってください。
+- 元の案：${input.idea.title}／${input.idea.summary.replace(/\n/g, ' ')}
+- 元の案の一番の良さは残し、迷われていそうな点（大がかりすぎる・ピンと来ない・誰向けか分からない、など）を1つ選んで変える
+- title：企画名。12文字以内。元の企画名と分かる程度に似せてよい
+- summary：20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は何を変えたか
+- icon：${ICONS.join(' ')} から1つ
+- profile：新しい案を8つの軸で -1〜+1 で採点する。${AXIS_GUIDE}`;
+    const out = await this.call('varyIdea', this.config.fast, prompt, VarySchema);
+    return { title: clean(out.title, 16), summary: cleanSummary(out.summary), icon: out.icon, profile: toProfile(out.profile) };
   }
 
   async refine(input: RefineInput): Promise<RefineOutput> {

@@ -5,6 +5,7 @@ import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import { Captions, MicButton, MicIndicator, UtteranceInput } from '../voice/VoiceControls.tsx';
 import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
+import { TastePanel } from '../taste/TasteRadar.tsx';
 import styles from './Chrome.module.css';
 
 export function Header() {
@@ -49,6 +50,8 @@ export function Footer() {
   const openBox = useDisplay((s) => s.setIdeaBoxOpen);
   const consensusOpen = useDisplay((s) => s.consensusOpen);
   const setConsensusOpen = useDisplay((s) => s.setConsensusOpen);
+  const tasteOpen = useDisplay((s) => s.tasteOpen);
+  const setTasteOpen = useDisplay((s) => s.setTasteOpen);
   const { judgeId, isHost } = useMe();
   if (!snapshot) return null;
   return (
@@ -80,8 +83,18 @@ export function Footer() {
       </div>
       <UtteranceInput />
       <div className={styles.actions}>
+        <TastePanel />
+        <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title="反応から読み取ったみんなの好み">
+          🧭 好み {snapshot.taste.divergence ? <b>割れ</b> : null}
+        </button>
         <ConsensusMemo />
-        <button onClick={() => setConsensusOpen(!consensusOpen)} aria-expanded={consensusOpen}>
+        <button
+          onClick={() => {
+            setConsensusOpen(!consensusOpen);
+            if (!consensusOpen) setTasteOpen(false);
+          }}
+          aria-expanded={consensusOpen}
+        >
           🤝 合意メモ <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
         </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">

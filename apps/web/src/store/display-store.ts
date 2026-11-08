@@ -68,6 +68,8 @@ interface DisplayState {
   selected: string | null;
   ideaBoxOpen: boolean;
   consensusOpen: boolean;
+  tasteOpen: boolean;
+  setTasteOpen(open: boolean): void;
   setConsensusOpen(open: boolean): void;
   justUpdated: Record<string, number>; // instanceId → 改良版が公開された時刻
   /** 他の審査員のマイク状態（Ephemeral） */
@@ -109,6 +111,8 @@ export const useDisplay = create<DisplayState>((set) => ({
   selected: null,
   ideaBoxOpen: false,
   consensusOpen: false,
+  tasteOpen: false,
+  setTasteOpen: (tasteOpen) => set({ tasteOpen, ...(tasteOpen ? { consensusOpen: false } : {}) }),
   setConsensusOpen: (consensusOpen) => set({ consensusOpen }),
   justUpdated: {},
   micOn: {},

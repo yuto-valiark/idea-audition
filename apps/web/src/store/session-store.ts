@@ -177,6 +177,27 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       break;
     case 'CANDIDATE_ANSWERED':
       break;
+    case 'CANDIDATE_REACTED':
+      // 「うーん」に気づいたキャラが 🤔 で一言（ADR-0009 ③）
+      if (typeof d.instanceId === 'string') {
+        const id = d.instanceId;
+        const key = `react:${e.seq}`;
+        display.setBubble(id, { text: `🤔 ${String(d.text ?? '')}`, toInstanceId: '', critiqueId: key });
+        setTimeout(() => {
+          if (useDisplay.getState().bubbles[id]?.critiqueId === key) useDisplay.getState().setBubble(id, null);
+        }, 6000);
+      }
+      break;
+    case 'CANDIDATE_REVISED':
+      if (typeof d.instanceId === 'string') {
+        const id = d.instanceId;
+        const key = `revised:${e.seq}`;
+        display.setBubble(id, { text: '💡 別のかたちにしてみました！', toInstanceId: '', critiqueId: key });
+        setTimeout(() => {
+          if (useDisplay.getState().bubbles[id]?.critiqueId === key) useDisplay.getState().setBubble(id, null);
+        }, 3500);
+      }
+      break;
     case 'JUDGE_UTTERANCE_RECEIVED':
       if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
         display.addCaption({

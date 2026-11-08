@@ -8,6 +8,7 @@ import { EMPTY, currentRevision, judgeById, useMe } from '../shared/selectors.ts
 import { startCharacterPointer } from './drag.ts';
 import { setHoverFocus } from './focus.ts';
 import { InspiredBy } from '../features/consensus/ConsensusMemo.tsx';
+import { PITCH_ROLE_ICON, type PitchView } from '@idea-audition/protocol';
 import { useEffect, useState } from 'react';
 import styles from './Stage.module.css';
 
@@ -81,6 +82,9 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
   const { isSpectator } = useMe();
   const leavingIn = useCountdown(character?.leavingAt ?? null);
   if (!character || !revision) return null;
+  const idea = snapshot.ideas[character.ideaId];
+  const thinking = bubble?.critiqueId.startsWith('react:');
+  const revisedForHesitation = revision.reason?.startsWith('迷いを受けて');
   const holder = holderId ? judgeById(snapshot, holderId) : null;
   const leaving = character.leavingAt !== null;
 
@@ -90,6 +94,7 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
       data-dragging={isDragging || undefined}
       data-held={holder ? true : undefined}
       data-leaving={leaving || undefined}
+      data-thinking={thinking || undefined}
       onPointerEnter={() => setHoverFocus(instanceId)}
       onPointerLeave={() => setHoverFocus(null)}
       style={{ '--accent': character.accent, '--holder': holder?.color } as CSSProperties}
@@ -123,7 +128,9 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
           <X size={13} />
         </button>
       )}
-      <button className={styles.flip} onClick={() => select(instanceId)}>
+      {idea?.pitch && !holder && <PitchTag pitch={idea.pitch} />}
+      <button className={styles.flip} data-revised={revisedForHesitation || undefined} onClick={() => select(instanceId)}>
+        {revisedForHesitation && <span className={styles.revisedChip}>別案 v{revision.version}</span>}
         <div className={styles.flipTitle}>{revision.title}</div>
         <div className={styles.flipIcon}>{revision.icon}</div>
         <p>{revision.summary}</p>
@@ -153,6 +160,15 @@ function LowerPerformer({ instanceId }: { instanceId: string }) {
   );
 }
 
+
+/** なぜこの案が出てきたか（ADR-0009）：💡 好み / 🤝 両立 / 🧭 探索 / 🎲 ワイルド */
+function PitchTag({ pitch }: { pitch: PitchView }) {
+  return (
+    <div className={styles.pitchTag} data-role={pitch.role} title={pitch.reason}>
+      <span aria-hidden>{PITCH_ROLE_ICON[pitch.role]}</span> {pitch.reason}
+    </div>
+  );
+}
 
 /** 会話で取り上げられた回数 */
 export function MentionBadge({ count }: { count: number }) {

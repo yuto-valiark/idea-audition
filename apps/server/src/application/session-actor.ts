@@ -15,7 +15,12 @@ import {
 import { AuditionSession } from '../domain/session.ts';
 import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
-import type { IdeaGenerationPort, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
+import type { EmbeddingPort, IdeaGenerationPort, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
+import { chooseFromStock, newPlannerState, planSlots, tasteHint, type PlannerState } from './generation-planner.ts';
+import { HesitationGate, detectCue } from './hesitation.ts';
+import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
+import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
+import { localEmbedding } from '../infrastructure/local-taste.ts';
 import { toSnapshot } from './projection.ts';
 import { buildConsensusContext, buildConsensusUpdateInput, toLedgerOps } from './consensus-context.ts';
 
@@ -70,6 +75,10 @@ interface Deps {
   ai: IdeaGenerationPort;
   /** モードごとの AI。セッションのモードで使い分ける（例：gemini と fixture） */
   aiModes?: Partial<Record<AiMode, IdeaGenerationPort>>;
+  /** モードごとの埋め込み（無ければブラウザ不要のローカル埋め込み） */
+  embedders?: Partial<Record<AiMode, EmbeddingPort>>;
+  /** 選抜の抽選に使う乱数（テストで固定する） */
+  rng?: () => number;
   store: SessionStorePort;
   scheduler: Scheduler;
   clock: Clock;
@@ -87,6 +96,10 @@ const QUESTION_PATTERN = /[?？]\s*$|どう|なぜ|なに|何|どれ|いくら|�
 const REJECT_PATTERN =
   /却下|ボツ|[はも]パス|パスで|パス[。！!]*\s*$|いらない|要らない|交代|退場|見送|次の人|[はも](ナシ|なし)|ないわ|ないな[ぁあ。！!]*\s*$/;
 const RESULT_CACHE_LIMIT = 500;
+/** ストック（選抜の候補）の上限。古いものから捨てる */
+const STOCK_LIMIT = 12;
+/** 好みの更新をまとめて知らせるまでの待ち時間 */
+const TASTE_EMIT_DELAY_MS = 1_200;
 /** Signal は1人あたり毎秒この件数まで（§3.7） */
 const SIGNAL_RATE_PER_SEC = 2;
 const PERSIST_RETRY_MS = 5_000;
@@ -120,6 +133,12 @@ export class SessionActor {
   private saving = false;
   private saveScheduled = false;
   private signalTimes = new Map<string, number[]>(); // judgeId → 直近1秒の Signal の時刻
+  // 好みエンジン（ADR-0009）
+  private planner: PlannerState = newPlannerState();
+  private embeddings = new Map<string, number[]>(); // 企画名 → 埋め込み（メモリのみ）
+  private hoverSince = new Map<string, { instanceId: string; at: number }>(); // judgeId → ホバー開始
+  private hesitation = new HesitationGate();
+  private tasteTimer: (() => void) | null = null;
 
   constructor(
     sessionId: string,
@@ -140,6 +159,13 @@ export class SessionActor {
     if (!this.session.aiAvailable.includes(this.session.aiMode) || !restored) {
       this.session.aiMode = this.session.aiAvailable[0] ?? 'fixture';
     }
+    // 空いた枠に何を出すかは、そのときの好みで選ぶ
+    this.session.slotChooser = (stock) =>
+      chooseFromStock(this.session, this.planner, stock, (t) => this.embeddings.get(t) ?? null, this.deps.clock.now(), this.deps.rng ?? Math.random);
+  }
+
+  private get embedder(): EmbeddingPort | null {
+    return this.deps.embedders?.[this.session.aiMode] ?? null;
   }
 
   /** いまのセッションのモードで使う AI */
@@ -181,7 +207,7 @@ export class SessionActor {
     const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
     if (wasEmpty) this.resumeAfterEmpty();
-    conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq) });
+    conn.send({ hip: HIP_VERSION, kind: 'welcome', judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
 
@@ -221,6 +247,8 @@ export class SessionActor {
       const prev = this.focus.get(entry.judgeId);
       const { hover, detail } = msg.payload;
       this.focus.set(entry.judgeId, { hover, detail });
+      this.trackDwell(entry.judgeId, hover);
+      if (detail && detail !== prev?.detail) this.tasteSignal(entry.judgeId, detail, 'detail');
       const events = [];
       if (hover && hover !== prev?.hover) events.push(...this.session.touch(hover, 'hover'));
       if (detail && detail !== prev?.detail) events.push(...this.session.touch(detail, 'detail'));
@@ -251,8 +279,99 @@ export class SessionActor {
     this.onSoftSignal(judgeId, msg.payload);
   }
 
-  private onSoftSignal(_judgeId: string, _signal: SignalMessage['payload']) {
-    // 好みエンジン（ADR-0009）で中身を入れる
+  private onSoftSignal(judgeId: string, signal: SignalMessage['payload']) {
+    const target = this.validTarget(signal.targetInstanceId) ?? this.focusedTarget(judgeId);
+    if (!target) return;
+    if (signal.kind === 'hesitation') this.reactToHesitation(judgeId, target, signal.cue ?? 'うーん');
+    else if (signal.kind === 'positive') this.tasteSignal(judgeId, target, 'positive');
+    else if (signal.kind === 'laugh') this.tasteSignal(judgeId, target, 'laugh');
+    // silence は今は好みに使わない（迷いと区別できないため。声の特徴として記録だけする余地を残す）
+  }
+
+  /* --------------------------- 好みエンジン --------------------------- */
+
+  private validTarget(instanceId: string | null | undefined): string | null {
+    if (!instanceId) return null;
+    const c = this.session.characters.get(instanceId);
+    return c && c.location !== 'archived' ? instanceId : null;
+  }
+
+  /** その審査員が見ているキャラ（詳細を開いている＞カーソルが乗っている） */
+  private focusedTarget(judgeId: string): string | null {
+    const f = this.focus.get(judgeId);
+    return this.validTarget(f?.detail) ?? this.validTarget(f?.hover);
+  }
+
+  /** 行動を好みに足し、少し待ってからまとめて全員に知らせる */
+  private tasteSignal(judgeId: string, instanceId: string, kind: SignalKind, weight: number = SIGNAL_WEIGHTS[kind]) {
+    if (!this.session.recordTasteSignal(judgeId, instanceId, weight)) return;
+    if (this.tasteTimer) return;
+    this.tasteTimer = this.later(() => {
+      this.tasteTimer = null;
+      this.emit([{ type: 'TASTE_UPDATED', detail: { version: this.session.taste.version } }], { actorJudgeId: null });
+    }, TASTE_EMIT_DELAY_MS);
+  }
+
+  /** ホバーが終わったら、乗せていた時間に応じて好みに足す */
+  private trackDwell(judgeId: string, hover: string | null) {
+    const prev = this.hoverSince.get(judgeId);
+    if (prev?.instanceId === hover) return;
+    const now = this.deps.clock.now();
+    if (prev) {
+      const w = dwellWeight(now - prev.at);
+      if (w > 0) this.tasteSignal(judgeId, prev.instanceId, 'dwell', w);
+    }
+    if (hover) this.hoverSince.set(judgeId, { instanceId: hover, at: now });
+    else this.hoverSince.delete(judgeId);
+  }
+
+  /**
+   * 迷いへの反応（ADR-0009 ③）：キャラが 🤔 で一言 → 好みに弱いマイナス → 下段の案なら別案に差し替える。
+   */
+  private reactToHesitation(judgeId: string, instanceId: string, concern: string) {
+    const s = this.session;
+    if (s.status !== 'audition_active') return;
+    const line = this.hesitation.tryReact(instanceId, this.deps.clock.now());
+    if (!line) return;
+    this.tasteSignal(judgeId, instanceId, 'hesitation');
+    this.emit([...s.touch(instanceId, 'detail'), ...s.setReaction(instanceId, { kind: 'hesitation', judgeId, text: line })], {
+      actorJudgeId: judgeId,
+    });
+    const c = s.characters.get(instanceId);
+    if (c?.location !== 'lower') return;
+    const idea = s.ideaOf(instanceId)!;
+    const base = idea.revisions.at(-1)!;
+    const epoch = this.epoch;
+    this.ai
+      .varyIdea({
+        theme: s.theme,
+        characterName: this.characterName(instanceId),
+        idea: { title: base.title, summary: base.summary, profile: base.profile ?? null },
+        concern,
+        context: buildConsensusContext(s),
+      })
+      .then((draft) => {
+        if (epoch !== this.epoch) return;
+        const r = s.reviseLower(instanceId, base.revisionId, draft, `${HESITATION_REVISION_REASON}「${concern.slice(0, 20)}」`);
+        if (!r.ok) return; // その間に退場・昇格した
+        this.emit([...r.events, ...s.touch(instanceId, 'detail')], { actorJudgeId: null });
+        this.embedTexts([draft]);
+      })
+      .catch((e) => this.deps.log?.('varyIdea failed', e));
+  }
+
+  /** 案の文章を埋め込んで覚えておく。失敗したらローカルの埋め込みで代用する */
+  private embedTexts(drafts: { title: string; summary: string }[]) {
+    const fresh = drafts.filter((d) => !this.embeddings.has(d.title));
+    if (fresh.length === 0) return;
+    const texts = fresh.map((d) => `${d.title}\n${d.summary}`);
+    const store = (vs: number[][]) => fresh.forEach((d, i) => vs[i] && this.embeddings.set(d.title, vs[i]));
+    const embedder = this.embedder;
+    if (!embedder) return store(texts.map((t) => localEmbedding(t)));
+    embedder.embed(texts).then(store, (e) => {
+      this.deps.log?.('embed failed, using local embedding', e);
+      store(texts.map((t) => localEmbedding(t)));
+    });
   }
 
   /* ----------------------------- Command ----------------------------- */
@@ -313,6 +432,7 @@ export class SessionActor {
         const r = s.promote(cmd.payload.instanceId);
         if (!r.ok) return r;
         s.recordDecision('promoted', cmd.payload.instanceId, judgeId);
+        this.tasteSignal(judgeId, cmd.payload.instanceId, 'promote');
         this.emit(r.events, meta);
         this.scheduleConsensus('decision');
         this.held.forEach((id, j) => id === cmd.payload.instanceId && this.held.delete(j));
@@ -330,6 +450,7 @@ export class SessionActor {
       }
       case 'REJECT_CANDIDATE': {
         s.recordDecision('rejected', cmd.payload.instanceId, judgeId);
+        this.tasteSignal(judgeId, cmd.payload.instanceId, 'reject');
         const r = apply(s.rejectCandidate(judgeId, cmd.payload.instanceId));
         if (r.ok) this.scheduleConsensus('decision');
         this.ensureStock();
@@ -368,6 +489,7 @@ export class SessionActor {
         return apply(s.startVote(judgeId));
       case 'CAST_VOTE':
         s.recordDecision('voted', cmd.payload.instanceId, judgeId);
+        this.tasteSignal(judgeId, cmd.payload.instanceId, 'vote');
         return this.afterFinal(apply(s.castVote(judgeId, cmd.payload.instanceId)));
       case 'CLOSE_VOTE':
         return this.afterFinal(apply(s.closeVote(judgeId)));
@@ -407,6 +529,11 @@ export class SessionActor {
     if (targetInstanceId && !mentions.mentioned.includes(targetInstanceId)) {
       mentionEvents.push(...s.touch(targetInstanceId, 'mentionName'));
     }
+    for (const id of mentions.mentioned) this.tasteSignal(judgeId, id, 'mention');
+    // 「うーん」「いいね」：宛先（名前）か、いま見ているキャラへの反応として扱う
+    const cue = detectCue(text);
+    const cueTarget = targetInstanceId ?? this.focusedTarget(judgeId);
+    if (cue === 'positive' && cueTarget) this.tasteSignal(judgeId, cueTarget, 'positive');
     const isQuestion = QUESTION_PATTERN.test(text);
     const willRefine = !!targetInstanceId && !isQuestion && !!s.finalist(targetInstanceId) && s.status === 'audition_active';
     // 「ルナは却下」「MOMOはパス」：名前を呼んだ下段の案を見送る
@@ -446,9 +573,15 @@ export class SessionActor {
     });
     if (replyToClaim) this.replyTo.set(utteranceSeq, replyToClaim);
     this.scheduleConsensus('utterance');
+    if (cue === 'hesitation' && cueTarget && !willReject) {
+      // 迷いはキャラが受け止めて別案を出す（質問として答えはしない）
+      this.reactToHesitation(judgeId, cueTarget, text);
+      if (!targetInstanceId || cueTarget !== targetInstanceId || !willRefine) return { ok: true };
+    }
     if (!targetInstanceId) return { ok: true };
     if (willReject) {
       s.recordDecision('rejected', targetInstanceId, judgeId);
+      this.tasteSignal(judgeId, targetInstanceId, 'reject');
       const r = s.rejectCandidate(judgeId, targetInstanceId);
       if (r.ok) this.emit(r.events, meta);
       this.ensureStock();
@@ -549,6 +682,7 @@ export class SessionActor {
     const s = this.session;
     const r = s.ask(judgeId, instanceId, question);
     if (!r.ok) return r;
+    this.tasteSignal(judgeId, instanceId, 'ask');
     this.emit([...r.events, ...s.touch(instanceId, 'question')], meta);
     const idea = s.ideaOf(instanceId)!;
     const rev = s.currentRevision(idea.ideaId);
@@ -577,6 +711,9 @@ export class SessionActor {
 
   private onStarted() {
     this.epoch++;
+    this.planner = newPlannerState();
+    this.hesitation.reset();
+    this.hoverSince.clear();
     this.refineQueue = [];
     this.refining = false;
     this.ensureStock();
@@ -626,6 +763,7 @@ export class SessionActor {
     this.refining = false;
     for (const cancel of this.pendingTimers) cancel();
     this.pendingTimers.clear();
+    this.tasteTimer = null;
   }
 
   /**
@@ -688,12 +826,17 @@ export class SessionActor {
     const epoch = this.epoch;
     const avoidTitles = [...s.ideas.values()].map((i) => i.revisions[0]!.title).concat(s.stock.map((d) => d.title));
     const context = buildConsensusContext(s);
+    const now = this.deps.clock.now();
+    // 枠ごとに役割（好み・両立・探索・ワイルド）と発想の型を決めて頼む（ADR-0009）
+    const slots = planSlots(s, this.planner, Math.min(need, LOWER_SLOT_COUNT + 3), now);
     this.ai
-      .generateIdeas({ theme: s.theme, count: Math.min(need, LOWER_SLOT_COUNT + 3), avoidTitles, context })
+      .generateIdeas({ theme: s.theme, count: slots.length, avoidTitles, context, taste: tasteHint(s, slots, now) })
       .then((drafts) => {
         if (epoch !== this.epoch) return;
         // どの版の合意をもとに作ったかを付けておく（古くなったら作り直す）
         s.addToStock(drafts.map((d) => ({ ...d, basedOnConsensus: context.version })));
+        if (s.stock.length > STOCK_LIMIT) s.stock.splice(0, s.stock.length - STOCK_LIMIT);
+        this.embedTexts(drafts);
         this.emit(s.fillEmptySlots(), { actorJudgeId: null });
       })
       .catch((e) => this.deps.log?.('generateIdeas failed', e))
@@ -866,12 +1009,16 @@ export class SessionActor {
     return c ? (CHARACTER_DESIGNS[c.designId]?.name ?? 'AI') : 'AI';
   }
 
-  private later(fn: () => void, ms: number) {
+  private later(fn: () => void, ms: number): () => void {
     const cancel = this.deps.scheduler.setTimeout(() => {
       this.pendingTimers.delete(cancel);
       fn();
     }, ms);
     this.pendingTimers.add(cancel);
+    return () => {
+      cancel();
+      this.pendingTimers.delete(cancel);
+    };
   }
 
   private emit(events: DomainEvent[], meta: { actorJudgeId: string | null; correlationId?: string }) {
@@ -887,7 +1034,7 @@ export class SessionActor {
       snapshot: undefined as never,
     }));
     // 同じバッチのイベントはすべて、バッチ適用後の snapshot を持つ
-    const snapshot = toSnapshot(this.session, this.seq);
+    const snapshot = toSnapshot(this.session, this.seq, this.deps.clock.now());
     const at = new Date(this.deps.clock.now()).toISOString();
     for (const m of messages) {
       m.snapshot = snapshot;

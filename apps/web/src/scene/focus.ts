@@ -15,6 +15,11 @@ function flush() {
   useSession.getState().client?.sendEphemeral('FOCUS_CHANGED', { hover, detail });
 }
 
+/** いま自分が見ているキャラ（迷いの宛先に使う） */
+export function currentFocus() {
+  return { hover, detail };
+}
+
 export function setHoverFocus(instanceId: string | null) {
   hover = instanceId;
   flush();

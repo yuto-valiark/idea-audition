@@ -8,7 +8,23 @@ import type {
 } from '@idea-audition/protocol';
 import type { Attention } from './attention.ts';
 import type { Ledger } from './consensus.ts';
-import type { AiMode, ProposalContent } from '@idea-audition/protocol';
+import type { AiMode, PitchRole, ProposalContent } from '@idea-audition/protocol';
+import type { TasteState } from './taste.ts';
+
+/** なぜこの案が下段に出てきたか（ADR-0009） */
+export interface Pitch {
+  role: PitchRole;
+  judgeIds: string[];
+  reason: string;
+}
+
+/** キャラの反応（🤔 など）。数秒で消える */
+export interface Reaction {
+  kind: 'hesitation' | 'revised';
+  judgeId: string | null;
+  text: string;
+  at: number;
+}
 
 export interface Proposal {
   status: 'generating' | 'ready' | 'failed';
@@ -42,6 +58,10 @@ export interface IdeaDraft {
   /** 生成に使った合意台帳の版。作り置きが古くなったかの判定に使う */
   basedOnConsensus?: number;
   inspiredBy?: Inspiration | null;
+  /** 8軸のプロフィール（-1〜+1、ADR-0009）。無ければ中立として扱う */
+  profile?: number[];
+  /** 発想の型（例：逆転の発想） */
+  persona?: string;
 }
 
 export interface RevisionDraft {
@@ -87,11 +107,14 @@ export interface Revision {
   createdAt: number;
   basedOnConsensus?: number | null;
   inspiredBy?: Inspiration | null;
+  profile?: number[] | null;
 }
 
 export interface Idea {
   ideaId: string;
   revisions: Revision[];
+  pitch?: Pitch | null;
+  persona?: string | null;
 }
 
 export interface CharacterInstance {
@@ -104,6 +127,7 @@ export interface CharacterInstance {
   attention: Attention;
   /** 退場予告中ならその時刻（この時刻に退場する） */
   leavingAt: number | null;
+  reaction?: Reaction | null;
 }
 
 export interface Finalist {
@@ -200,4 +224,6 @@ export interface SessionState {
   proposal?: Proposal | null;
   startedAt?: number | null;
   aiMode?: AiMode;
+  /** ADR-0009 で追加 */
+  taste?: TasteState;
 }

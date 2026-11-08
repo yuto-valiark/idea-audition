@@ -1,4 +1,4 @@
-import type { EventMessage, ProposalContent } from '@idea-audition/protocol';
+import type { EventMessage, PitchRole, ProposalContent } from '@idea-audition/protocol';
 import type { IdeaDraft, RevisionDraft, SessionState } from '../domain/types.ts';
 
 /**
@@ -48,6 +48,38 @@ export type ConsensusOpDraft =
   | { op: 'set_stance'; label: string; judge: string; stance: 'support' | 'oppose'; seq: number | null }
   | { op: 'supersede'; label: string; byLabel: string };
 
+/** 生成を頼む1枠（ADR-0009）。役割・どちらに寄せるか・発想の型 */
+export interface GenerationSlot {
+  role: PitchRole;
+  /** 「審査員 A は手軽さが高い案を好む」のような、生成の方向の指示 */
+  direction: string;
+  /** 発想の型の名前と説明 */
+  persona: { name: string; how: string };
+}
+
+/** 生成に渡す好みの要約（審査員はラベルで渡し、ID は渡さない） */
+export interface TasteHint {
+  judges: { label: string; likes: string[]; dislikes: string[] }[];
+  divergence: string | null;
+  slots: GenerationSlot[];
+}
+
+/** 迷いを受けた別案づくりの入力 */
+export interface VaryInput {
+  theme: string;
+  characterName: string;
+  idea: { title: string; summary: string; profile: number[] | null };
+  /** 何に迷ったか（発言そのもの、または「うーん」） */
+  concern: string;
+  context?: ConsensusContext;
+}
+
+/** 文章の埋め込み（ADR-0009）。似ている案の判定と、好んだ案との近さに使う */
+export interface EmbeddingPort {
+  readonly name: string;
+  embed(texts: string[]): Promise<number[][]>;
+}
+
 /** AI 生成のポート（ADR-0005 §1）。GeminiGateway と FixtureGateway が実装する。 */
 export interface IdeaGenerationPort {
   readonly name: string;
@@ -56,7 +88,11 @@ export interface IdeaGenerationPort {
     count: number;
     avoidTitles: string[];
     context?: ConsensusContext;
+    /** 好みエンジンの指示。あれば slots の数だけ、枠の順に作る（profile と persona を付けて返す） */
+    taste?: TasteHint;
   }): Promise<IdeaDraft[]>;
+  /** 下段の案の別案（迷いへの反応、ADR-0009 ③） */
+  varyIdea(input: VaryInput): Promise<IdeaDraft>;
   /** 優勝案の企画書（第1部）を作る */
   generateProposal(input: ProposalInput): Promise<ProposalContent>;
   /** 会話と行動から、合意台帳への操作を提案する（ADR-0007） */

@@ -4,3 +4,4 @@ export * from './reasons.ts';
 export * from './characters.ts';
 export * from './voice.ts';
 export * from './proposal.ts';
+export * from './taste.ts';
