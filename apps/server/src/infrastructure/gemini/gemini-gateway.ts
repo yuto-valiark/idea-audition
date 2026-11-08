@@ -69,6 +69,8 @@ const IdeaItem = z.object({
   /** 何番の枠の案か（1 から）。枠の指定が無いときは 0 */
   slot: z.number().int(),
   title: z.string().min(1),
+  /** 企画名の読み（全角カタカナ） */
+  reading: z.string(),
   summary: z.string().min(1),
   icon: z.enum(ICONS),
   /** 受けた論点のラベル（C1 など）。新しい切り口の案は空 */
@@ -82,6 +84,7 @@ const IdeasSchema = z.object({ ideas: z.array(IdeaItem).min(1) });
 
 const VarySchema = z.object({
   title: z.string().min(1),
+  reading: z.string(),
   summary: z.string().min(1),
   icon: z.enum(ICONS),
   profile: ProfileSchema,
@@ -168,6 +171,12 @@ export function renderContext(theme: string, ctx: ConsensusContext | undefined):
 function renderRemarks(ctx: ConsensusContext | undefined) {
   if (!ctx?.recentRemarks.length) return '';
   return `\n# 直近の発言\n${ctx.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n')}\n`;
+}
+
+/** 読みはカタカナだけ残す（ひらがなはカタカナに直す）。使えなければ undefined */
+function toReading(text: string): string | undefined {
+  const kana = text.replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[^ァ-ヶー]/g, '');
+  return kana.length >= 2 ? kana : undefined;
 }
 
 /** 好みの要約（審査員ごとの好き・苦手と、割れている軸） */
@@ -275,6 +284,7 @@ ${
     : '- まだ合意が無いので、inspiredBy は空、note は空文字'
 }
 - title：企画名。12文字以内
+- reading：企画名の読みを全角カタカナで（英字も読みで。例「学食SNS」→「ガクショクエスエヌエス」）
 - summary：説明。20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は具体的な中身
 - icon：企画の雰囲気に合う記号を ${ICONS.join(' ')} から1つ
 - profile：この案を8つの軸で -1〜+1 で採点する（0 が普通）。${AXIS_GUIDE}
@@ -289,6 +299,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
         inspiredBy: toInspiration(i.inspiredBy, i.note, ctx),
         profile: toProfile(i.profile),
         persona: slot?.persona.name,
+        reading: toReading(i.reading),
       };
     });
   }
@@ -302,11 +313,18 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
 - 元の案：${input.idea.title}／${input.idea.summary.replace(/\n/g, ' ')}
 - 元の案の一番の良さは残し、迷われていそうな点（大がかりすぎる・ピンと来ない・誰向けか分からない、など）を1つ選んで変える
 - title：企画名。12文字以内。元の企画名と分かる程度に似せてよい
+- reading：企画名の読みを全角カタカナで
 - summary：20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は何を変えたか
 - icon：${ICONS.join(' ')} から1つ
 - profile：新しい案を8つの軸で -1〜+1 で採点する。${AXIS_GUIDE}`;
     const out = await this.call('varyIdea', this.config.fast, prompt, VarySchema);
-    return { title: clean(out.title, 16), summary: cleanSummary(out.summary), icon: out.icon, profile: toProfile(out.profile) };
+    return {
+      title: clean(out.title, 16),
+      summary: cleanSummary(out.summary),
+      icon: out.icon,
+      profile: toProfile(out.profile),
+      reading: toReading(out.reading),
+    };
   }
 
   async refine(input: RefineInput): Promise<RefineOutput> {

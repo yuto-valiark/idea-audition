@@ -46,6 +46,8 @@ export interface Caption {
   source: 'live' | 'text';
   intent: 'question' | 'instruction' | 'reject' | 'comment';
   targetInstanceId: string | null;
+  /** 会議の語彙に寄せて直した言葉（音声のみ） */
+  corrections?: { from: string; to: string }[];
 }
 
 export interface Toast {

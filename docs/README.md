@@ -33,6 +33,7 @@
 | [adr/ADR-0005-ai-orchestration.md](adr/ADR-0005-ai-orchestration.md) | Gemini非同期オーケストレーション | Accepted |
 | [adr/ADR-0009-taste-engine.md](adr/ADR-0009-taste-engine.md) | 好みエンジン：言葉・行動・迷いから好みを読み、次の案の出し方を変える（図つき） | Proposed |
 | [adr/ADR-0010-hip-protocol-and-oss.md](adr/ADR-0010-hip-protocol-and-oss.md) | HIP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る | Proposed |
+| [adr/ADR-0011-speech-repair.md](adr/ADR-0011-speech-repair.md) | 音声の聞き間違いを、会議の中で育つ語彙と注目の情報で直す | Accepted |
 | [protocol/hip-v1.md](protocol/hip-v1.md) | HIP v1 仕様書（メッセージ・順序・衝突・復旧・バージョン・終了コード） | Draft |
 | [adr/ADR-0008-proposal-pdf.md](adr/ADR-0008-proposal-pdf.md) | 優勝案の企画書と審査レポートを PDF で渡す | Accepted |
 | [adr/ADR-0007-consensus-ledger.md](adr/ADR-0007-consensus-ledger.md) | 合意台帳：会話の一貫性と時系列の合意を新しい案・改良・回答に反映 | Accepted |

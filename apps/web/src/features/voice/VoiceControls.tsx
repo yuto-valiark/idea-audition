@@ -123,6 +123,11 @@ function CaptionItem({ id }: { id: string }) {
       </b>
       {INTENT_LABEL[caption.intent] && <em>{INTENT_LABEL[caption.intent]}</em>}
       <span>{caption.text}</span>
+      {caption.corrections?.length ? (
+        <small title="会議の語彙（キャラ名・企画名・論点）に合わせて聞き間違いを直しました">
+          （{caption.corrections.map((c) => `${c.from}→${c.to}`).join('、')} に補正）
+        </small>
+      ) : null}
       {caption.source === 'live' && <small>🎙</small>}
     </div>
   );

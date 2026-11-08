@@ -62,6 +62,8 @@ export interface IdeaDraft {
   profile?: number[];
   /** 発想の型（例：逆転の発想） */
   persona?: string;
+  /** 企画名の読み（カタカナ）。音声の聞き間違いを直すのに使う */
+  reading?: string;
 }
 
 export interface RevisionDraft {
@@ -108,6 +110,7 @@ export interface Revision {
   basedOnConsensus?: number | null;
   inspiredBy?: Inspiration | null;
   profile?: number[] | null;
+  reading?: string | null;
 }
 
 export interface Idea {

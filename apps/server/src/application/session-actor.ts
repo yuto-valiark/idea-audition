@@ -23,6 +23,8 @@ import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.
 import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
 import { localEmbedding } from '../infrastructure/local-taste.ts';
 import { speechVocabulary } from './speech-vocabulary.ts';
+import { speechLexicon } from './speech-lexicon.ts';
+import { repairTranscript, type Correction } from '../domain/transcript-repair.ts';
 import { toSnapshot } from './projection.ts';
 import { buildConsensusContext, buildConsensusUpdateInput, toLedgerOps } from './consensus-context.ts';
 
@@ -528,6 +530,17 @@ export class SessionActor {
     const s = this.session;
     if (!s.judges.some((j) => j.judgeId === judgeId)) return { ok: false, reason: 'SPECTATOR' };
     const meta = { actorJudgeId: judgeId, correlationId: correlationId ?? this.deps.ids.next('utt') };
+    // 音声の文字起こしは、会議の語彙（キャラ名・企画名・論点）に寄せて聞き間違いを直す
+    const rawText = text;
+    let corrections: Correction[] = [];
+    if (source === 'live') {
+      const f = this.focus.get(judgeId);
+      const focused = new Set([f?.hover, f?.detail, fallbackTargetId].filter((x): x is string => !!x));
+      const repaired = repairTranscript(text, speechLexicon(s, focused));
+      text = repaired.text;
+      corrections = repaired.corrections;
+      if (corrections.length) this.deps.log?.(`[voice] repaired ${corrections.map((c) => `${c.from}→${c.to}(${c.score})`).join(', ')}`);
+    }
     const targetInstanceId = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
     // 会話で取り上げられた案の注目度を上げる（名前・企画名）。宛先として話しかけた案も含める
     const mentions = s.registerUtterance(text);
@@ -561,6 +574,7 @@ export class SessionActor {
             targetInstanceId,
             intent: !targetInstanceId ? 'comment' : willReject ? 'reject' : willRefine ? 'instruction' : 'question',
             mentioned: mentions.mentioned,
+            ...(corrections.length ? { rawText, corrections } : {}),
           },
         },
         ...mentionEvents,

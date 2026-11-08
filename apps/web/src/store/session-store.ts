@@ -215,6 +215,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
           source: d.source === 'live' ? 'live' : 'text',
           intent: d.intent === 'instruction' || d.intent === 'question' || d.intent === 'reject' ? d.intent : 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
+          corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
         if (d.intent === 'question' && typeof d.targetInstanceId === 'string' && d.judgeId === myJudgeId) {
           display.select(d.targetInstanceId); // 回答が見えるよう詳細を開く

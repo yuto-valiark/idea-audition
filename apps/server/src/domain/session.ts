@@ -338,6 +338,7 @@ export class AuditionSession {
             basedOnConsensus: draft.basedOnConsensus ?? null,
             inspiredBy: draft.inspiredBy ?? null,
             profile: draft.profile ?? null,
+            reading: draft.reading ?? null,
           },
         ],
         pitch: picked.pitch,
@@ -724,6 +725,7 @@ export class AuditionSession {
       basedOnConsensus: this.ledger.version,
       inspiredBy: draft.inspiredBy ?? null,
       profile: draft.profile ?? current.profile ?? null,
+      reading: draft.reading ?? null,
     };
     idea.revisions.push(revision);
     c.reaction = { kind: 'revised', judgeId: null, text: '別案を考えました', at: this.deps.clock.now() };
