@@ -111,7 +111,7 @@ Node で使うときは `createSocket: (url) => new WebSocket(url)`（`ws` パ�
 
 ## 状態
 
-0.1.0。IDEA AUDITION（DevFest Hackathon 2026、チーム VICTORY）の中から生まれ、そのアプリで使っています。0.x の間は破壊的な変更がありえます。
+0.1.0。作者は牧 夢斗（[@yuto-valiark](https://github.com/yuto-valiark)）。IDEA AUDITION（DevFest Hackathon 2026、チーム VICTORY）の中から生まれ、そのアプリで使っています。0.x の間は破壊的な変更がありえます。
 
 ## ライセンス
 

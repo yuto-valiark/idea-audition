@@ -15,7 +15,11 @@
     "zod"
   ],
   "license": "MIT",
-  "author": "Team VICTORY",
+  "author": {
+    "name": "Yuto Maki",
+    "email": "yuto.m.0728.0728@gmail.com",
+    "url": "https://github.com/yuto-valiark"
+  },
   "homepage": "https://github.com/camp-protocol/camp#readme",
   "repository": {
     "type": "git",

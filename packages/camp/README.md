@@ -143,7 +143,7 @@ CAMP leaves to your app:
 
 ## Status
 
-`0.1.0`. CAMP came out of [IDEA AUDITION](#used-by), built by Team VICTORY for DevFest Hackathon 2026. Breaking changes are possible while the version is `0.x`.
+`0.1.0`. CAMP is written by Yuto Maki ([@yuto-valiark](https://github.com/yuto-valiark)). It came out of [IDEA AUDITION](#used-by), built by Team VICTORY for DevFest Hackathon 2026. Breaking changes are possible while the version is `0.x`.
 
 Planned:
 

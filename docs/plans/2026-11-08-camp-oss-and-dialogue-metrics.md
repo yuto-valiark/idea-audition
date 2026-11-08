@@ -42,7 +42,7 @@
 進み具合（2026-11-08）：
 - 済：1-3（tsc で `dist/`、pnpm の `publishConfig` で公開時だけ `dist` を向く。npm での pack は止める）、1-4（英語の README＋README.ja.md＋ロゴ）、1-5（汎用の仕様書を英語で `packages/camp/SPEC.md` に。`docs/protocol/camp-v1.md` は IDEA AUDITION での使い方として残す）、1-7（`.github/workflows/ci.yml`。Node 20/22/24 で型チェック・テスト・tarball を入れて読み込めるか）、1-6 の準備（`scripts/camp-split.sh` で `camp-public` ブランチを作る。新しく clone して CI と同じ手順が通ることを確認済み）
 - 公開前に合わせて直したこと：通信の欄名 `judgeId`→`participantId`、`actorJudgeId`→`actorId`。`server.close()` 後にプロセスが終わらない不具合。Dockerfile の `packages/hip`
-- 残り：1-1 合意（LICENSE は仮に "Team VICTORY"）、1-2 名前の確保、1-6 の push、1-8 の `pnpm publish`
+- 残り：1-1 合意（著作者は牧 夢斗に決定。チームには一言伝える）、1-2 名前の確保、1-6 の push、1-8 の `pnpm publish`
 
 注意：
 - 公開は外向きの操作なので、1-6 と 1-8 は牧が実行するか、実行してよいとはっきり言われてから行う
