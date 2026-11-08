@@ -48,6 +48,7 @@ export function Intro() {
   return (
     <section className={styles.intro}>
       <div className={styles.copy}>
+        <img className={styles.appIcon} src="/icons/icon-192.png" alt="IDEA AUDITION" width={72} height={72} />
         <div className={styles.eyebrow}>
           <span /> THE NEXT IDEA IS ON STAGE
         </div>

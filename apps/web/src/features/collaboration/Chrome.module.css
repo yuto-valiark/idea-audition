@@ -18,11 +18,11 @@
   white-space: nowrap;
 }
 
-.brand > svg {
-  color: #ddb5ff;
-  width: 30px;
-  height: 30px;
-  filter: drop-shadow(0 0 5px #b250ff);
+.appIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 6px rgba(178, 80, 255, 0.55));
 }
 
 .brand strong {
