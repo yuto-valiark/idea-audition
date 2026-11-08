@@ -1,9 +1,10 @@
 import {
-  HIP_CLOSE,
-  HIP_VERSION,
-  SeqGate,
-  ServerMessage,
-  type CommandMessage,
+  HipClient as GenericHipClient,
+  type CommandOutcome as GenericOutcome,
+  type SendOptions,
+} from '@hip/kit/client';
+import {
+  vocabulary,
   type CommandPayload,
   type CommandType,
   type EphemeralMessage,
@@ -17,8 +18,9 @@ import {
 } from '@idea-audition/protocol';
 import type { z } from 'zod';
 
+export type { SendOptions };
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting';
-export type CommandOutcome = { ok: true } | { ok: false; reason: RejectReason | 'TIMEOUT' };
+export type CommandOutcome = GenericOutcome<RejectReason>;
 
 interface Handlers {
   onAccessDenied(reason: 'required' | 'invalid'): void;
@@ -29,13 +31,6 @@ interface Handlers {
   onProtocolError?(m: ProtocolErrorMessage): void;
 }
 
-export interface SendOptions {
-  /** 画面で見ていた対象の版（違えばサーバーが STALE_VERSION で断る） */
-  expected?: { rev: string };
-}
-
-const COMMAND_TIMEOUT_MS = 8000;
-
 function hipUrl() {
   const configured = import.meta.env.VITE_HIP_URL as string | undefined;
   if (configured) return configured;
@@ -43,153 +38,49 @@ function hipUrl() {
   return `${proto}://${location.host}/hip`;
 }
 
-function uuid() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 /**
- * HIP v1 クライアント。
- * - 切断したら指数バックオフで再接続し、judgeId と lastSeq を付けて hello を送る
- * - 未確定の Command は同じ commandId で再送する（サーバーが重複を排除する）
+ * IDEA AUDITION 用の HIP クライアント。再接続・再送・順序の管理は @hip/kit の HipClient が受け持ち、
+ * ここでは接続先と、画面の store に合わせた呼び出し方だけを決める。
  */
 export class HipClient {
-  private ws: WebSocket | null = null;
-  private retry = 0;
-  private closed = false;
-  private judgeId: string | undefined;
-  private seq = new SeqGate();
-  private pending = new Map<
-    string,
-    { message: CommandMessage; resolve: (o: CommandOutcome) => void; timer: ReturnType<typeof setTimeout> }
-  >();
+  private readonly inner: GenericHipClient<typeof vocabulary>;
 
-  constructor(
-    private readonly sessionId: string,
-    private readonly handlers: Handlers,
-    initialJudgeId?: string,
-    private readonly accessCode?: string,
-  ) {
-    this.judgeId = initialJudgeId;
-  }
-
-  connect() {
-    this.closed = false;
-    this.handlers.onState(this.retry === 0 ? 'connecting' : 'reconnecting');
-    const ws = new WebSocket(hipUrl());
-    this.ws = ws;
-    ws.onopen = () => {
-      this.retry = 0;
-      ws.send(
-        JSON.stringify({
-          hip: HIP_VERSION,
-          kind: 'hello',
-          sessionId: this.sessionId,
-          judgeId: this.judgeId,
-          lastSeq: this.seq.lastSeq,
-          accessCode: this.accessCode,
-        }),
-      );
-    };
-    ws.onmessage = (e) => this.receive(e.data);
-    ws.onclose = (e) => {
-      if (this.ws !== ws) return;
-      this.ws = null;
-      // バージョン違い・合言葉違いは再接続しても直らない（§11）
-      if (e.code === HIP_CLOSE.UNSUPPORTED_VERSION || e.code === HIP_CLOSE.ACCESS_DENIED) this.closed = true;
-      if (this.closed) return;
-      this.handlers.onState('reconnecting');
-      const delay = Math.min(5000, 400 * 2 ** this.retry++);
-      setTimeout(() => this.connect(), delay);
-    };
-  }
-
-  close() {
-    this.closed = true;
-    this.ws?.close();
-  }
-
-  send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts: SendOptions = {}): Promise<CommandOutcome> {
-    const message = {
-      hip: HIP_VERSION,
-      kind: 'command',
-      type,
-      commandId: uuid(),
-      sentAt: new Date().toISOString(),
-      ...(opts.expected ? { expected: opts.expected } : {}),
-      payload,
-    } as CommandMessage;
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(message.commandId);
-        resolve({ ok: false, reason: 'TIMEOUT' });
-      }, COMMAND_TIMEOUT_MS);
-      this.pending.set(message.commandId, { message, resolve, timer });
-      this.raw(message);
+  constructor(sessionId: string, handlers: Handlers, initialJudgeId?: string, accessCode?: string) {
+    this.inner = new GenericHipClient(vocabulary, {
+      url: hipUrl(),
+      room: sessionId,
+      ...(initialJudgeId ? { participantId: initialJudgeId } : {}),
+      ...(accessCode ? { accessCode } : {}),
+    }).on({
+      onAccessDenied: handlers.onAccessDenied,
+      onWelcome: (m) => handlers.onWelcome(m as WelcomeMessage),
+      onEvent: (m) => handlers.onEvent(m as EventMessage),
+      onEphemeral: (m) => handlers.onEphemeral(m as EphemeralMessage),
+      onState: (s) => {
+        if (s !== 'closed') handlers.onState(s);
+      },
+      ...(handlers.onProtocolError ? { onProtocolError: handlers.onProtocolError } : {}),
     });
   }
 
-  sendEphemeral<T extends EphemeralType>(
-    type: T,
-    payload: z.infer<(typeof EphemeralPayloads)[T]>,
-  ) {
-    this.raw({ hip: HIP_VERSION, kind: 'ephemeral', type, payload });
+  connect() {
+    this.inner.connect();
+  }
+
+  close() {
+    this.inner.close();
+  }
+
+  send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts: SendOptions = {}): Promise<CommandOutcome> {
+    return this.inner.send(type, payload as never, opts) as Promise<CommandOutcome>;
+  }
+
+  sendEphemeral<T extends EphemeralType>(type: T, payload: z.infer<(typeof EphemeralPayloads)[T]>) {
+    this.inner.sendEphemeral(type, payload as never);
   }
 
   /** 返事の無い Signal。届かなくてもよい（§3.7） */
   sendSignal(payload: SignalMessage['payload']) {
-    this.raw({ hip: HIP_VERSION, kind: 'signal', type: 'SOFT_SIGNAL', payload });
-  }
-
-  private raw(message: unknown) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(message));
-  }
-
-  private receive(data: unknown) {
-    let json: unknown;
-    try {
-      json = JSON.parse(String(data));
-    } catch {
-      return;
-    }
-    const parsed = ServerMessage.safeParse(json);
-    if (!parsed.success) {
-      console.warn('[hip] invalid server message', parsed.error.issues);
-      return;
-    }
-    const m = parsed.data;
-    switch (m.kind) {
-      case 'access_denied':
-        // 合言葉が無い・違う：再接続せず、画面で合言葉を聞く
-        this.closed = true;
-        this.handlers.onAccessDenied(m.reason);
-        break;
-      case 'welcome':
-        this.judgeId = m.judgeId ?? this.judgeId;
-        this.seq.reset(m.snapshot.seq);
-        this.handlers.onWelcome(m);
-        this.handlers.onState('open');
-        for (const p of this.pending.values()) this.raw(p.message); // 未確定コマンドを再送
-        break;
-      case 'event':
-        if (!this.seq.accept(m.seq)) return; // 重複・古いイベントを捨てる
-        this.handlers.onEvent(m);
-        break;
-      case 'result': {
-        const p = this.pending.get(m.commandId);
-        if (!p) return;
-        clearTimeout(p.timer);
-        this.pending.delete(m.commandId);
-        p.resolve(m.ok ? { ok: true } : { ok: false, reason: m.reason ?? 'INVALID_PAYLOAD' });
-        break;
-      }
-      case 'ephemeral':
-        this.handlers.onEphemeral(m);
-        break;
-      case 'protocol_error':
-        console.warn('[hip] protocol error', m.code, m.detail);
-        if (m.code === 'UNSUPPORTED_VERSION') this.closed = true;
-        this.handlers.onProtocolError?.(m);
-        break;
-    }
+    this.inner.signal('SOFT_SIGNAL', payload as never);
   }
 }

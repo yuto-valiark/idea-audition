@@ -16,6 +16,9 @@ importers:
       '@google/genai':
         specifier: ^3.0.0
         version: 3.0.0
+      '@hip/kit':
+        specifier: workspace:*
+        version: link:../../packages/hip
       '@idea-audition/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -50,6 +53,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@hip/kit':
+        specifier: workspace:*
+        version: link:../../packages/hip
       '@idea-audition/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -94,8 +100,33 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
+  packages/hip:
+    dependencies:
+      ws:
+        specifier: ^8.22.1
+        version: 8.22.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/protocol:
     dependencies:
+      '@hip/kit':
+        specifier: workspace:*
+        version: link:../hip
       zod:
         specifier: ^4.6.7
         version: 4.6.7

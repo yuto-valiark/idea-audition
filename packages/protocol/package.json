@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@hip/kit": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

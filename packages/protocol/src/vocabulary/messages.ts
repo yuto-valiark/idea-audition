@@ -1,20 +1,11 @@
 import { z } from 'zod';
-import {
-  HelloMessage,
-  CommandBase,
-  EphemeralBase,
-  SignalBase,
-  eventMessage,
-  resultMessage,
-  welcomeMessage,
-  AccessDeniedMessage,
-  ProtocolErrorMessage,
-} from '../core/index.ts';
+import { defineVocabulary } from '@hip/kit';
 import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
 /**
- * IDEA AUDITION の語彙（vocabulary）。封筒は core のものを使い、ここでは Command・Event の一覧と中身だけを決める。
+ * IDEA AUDITION の語彙（vocabulary）。HIP（@hip/kit）の defineVocabulary に Command・Event・理由コード・snapshot を渡し、
+ * メッセージ一式を組み立てる。封筒・順序・重複排除・再接続は @hip/kit が受け持つ。
  */
 
 
@@ -57,34 +48,6 @@ export const CommandPayloads = {
 export type CommandType = keyof typeof CommandPayloads;
 export type CommandPayload<T extends CommandType> = z.infer<(typeof CommandPayloads)[T]>;
 
-const commandEnvelope = <T extends CommandType>(type: T) =>
-  CommandBase.extend({ type: z.literal(type), payload: CommandPayloads[type] });
-
-export const CommandMessage = z.discriminatedUnion('type', [
-  commandEnvelope('START_AUDITION'),
-  commandEnvelope('SET_AI_MODE'),
-  commandEnvelope('REQUEST_PROMOTION'),
-  commandEnvelope('NEXT_IDEA'),
-  commandEnvelope('REJECT_CANDIDATE'),
-  commandEnvelope('PIN_CLAIM'),
-  commandEnvelope('UNPIN_CLAIM'),
-  commandEnvelope('ASK_CANDIDATE'),
-  commandEnvelope('REQUEST_REFINEMENT'),
-  commandEnvelope('SUBMIT_UTTERANCE'),
-  commandEnvelope('START_CHAMPION_VOTE'),
-  commandEnvelope('CAST_VOTE'),
-  commandEnvelope('CLOSE_VOTE'),
-  commandEnvelope('RESOLVE_TIE'),
-  commandEnvelope('SELECT_CHAMPION'),
-  commandEnvelope('RESET_SESSION'),
-  commandEnvelope('REGENERATE_PROPOSAL'),
-]);
-export type CommandMessage = z.infer<typeof CommandMessage>;
-
-/* ------------------------------------------------------------------ */
-/* Hello: 接続直後に1回（再接続時は judgeId と lastSeq を付ける）           */
-/* ------------------------------------------------------------------ */
-
 
 /* ------------------------------------------------------------------ */
 /* Ephemeral: 永続化しない・最新値優先（カーソル、ドラッグ中の表示）        */
@@ -99,17 +62,6 @@ export const EphemeralPayloads = {
   MIC_STATE_CHANGED: z.object({ on: z.boolean() }),
 } as const;
 export type EphemeralType = keyof typeof EphemeralPayloads;
-
-const ephemeralEnvelope = <T extends EphemeralType>(type: T) =>
-  EphemeralBase.extend({ type: z.literal(type), payload: EphemeralPayloads[type] });
-
-export const EphemeralMessage = z.discriminatedUnion('type', [
-  ephemeralEnvelope('CURSOR_MOVED'),
-  ephemeralEnvelope('DRAG_PREVIEW'),
-  ephemeralEnvelope('FOCUS_CHANGED'),
-  ephemeralEnvelope('MIC_STATE_CHANGED'),
-]);
-export type EphemeralMessage = z.infer<typeof EphemeralMessage>;
 
 /* ------------------------------------------------------------------ */
 /* Signal: Client → Server（返事なし・間引いてよい・状態はまとめた Event で返る）*/
@@ -135,17 +87,12 @@ export const SignalPayloads = {
 } as const;
 export type SignalType = keyof typeof SignalPayloads;
 
-export const SignalMessage = SignalBase.extend({ type: z.literal('SOFT_SIGNAL'), payload: SignalPayloads.SOFT_SIGNAL });
-export type SignalMessage = z.infer<typeof SignalMessage>;
-
-export const ClientMessage = z.union([HelloMessage, CommandMessage, EphemeralMessage, SignalMessage]);
-export type ClientMessage = z.infer<typeof ClientMessage>;
 
 /* ------------------------------------------------------------------ */
 /* Event: Server → All（セッション単位の連番 seq）                        */
 /* ------------------------------------------------------------------ */
 
-export const EventType = z.enum([
+export const EVENT_TYPES = [
   'SESSION_STARTED',
   'SESSION_RESET',
   'JUDGE_JOINED',
@@ -168,35 +115,42 @@ export const EventType = z.enum([
   'VOTE_CAST',
   'TIE_DETECTED',
   'CHAMPION_SELECTED',
-  /** 好みエンジン（ADR-0009） */
   'TASTE_UPDATED',
   'CANDIDATE_REACTED',
   'CANDIDATE_REVISED',
-]);
-export type EventType = z.infer<typeof EventType>;
+] as const;
 
 /**
  * 実装上の判断（ADR-0004 への補足）：
  * Event はその時点の snapshot を同梱する。クライアントは状態を自前で再計算せず、
  * snapshot を置き換え、type と detail は演出にのみ使う。
  */
-export const EventMessage = eventMessage(EventType, SessionSnapshot);
+export const vocabulary = defineVocabulary({
+  commands: CommandPayloads,
+  events: EVENT_TYPES,
+  rejectReasons: RejectReason.options,
+  snapshot: SessionSnapshot,
+  ephemerals: EphemeralPayloads,
+  signals: SignalPayloads,
+});
+
+export const EventType = z.enum(EVENT_TYPES);
+export type EventType = z.infer<typeof EventType>;
+
+export const CommandMessage = vocabulary.CommandMessage;
+export type CommandMessage = z.infer<typeof CommandMessage>;
+export const EphemeralMessage = vocabulary.EphemeralMessage;
+export type EphemeralMessage = z.infer<typeof EphemeralMessage>;
+export const SignalMessage = vocabulary.SignalMessage;
+export type SignalMessage = z.infer<typeof SignalMessage>;
+export const ClientMessage = vocabulary.ClientMessage;
+export type ClientMessage = z.infer<typeof ClientMessage>;
+export const EventMessage = vocabulary.EventMessage;
 export type EventMessage = z.infer<typeof EventMessage>;
-
-export const WelcomeMessage = welcomeMessage(SessionSnapshot);
+export const WelcomeMessage = vocabulary.WelcomeMessage;
 export type WelcomeMessage = z.infer<typeof WelcomeMessage>;
-
-export const CommandResultMessage = resultMessage(RejectReason);
+export const CommandResultMessage = vocabulary.ResultMessage;
 export type CommandResultMessage = z.infer<typeof CommandResultMessage>;
-
-
-
-export const ServerMessage = z.union([
-  ProtocolErrorMessage,
-  AccessDeniedMessage,
-  WelcomeMessage,
-  EventMessage,
-  CommandResultMessage,
-  EphemeralMessage,
-]);
+export const ServerMessage = vocabulary.ServerMessage;
 export type ServerMessage = z.infer<typeof ServerMessage>;
+export type { HelloMessage } from '@hip/kit';

@@ -1,5 +1,5 @@
-/** HIP の核（どのアプリでも使える部分）。将来は別パッケージに切り出す（ADR-0010 §5） */
-export * from './core/index.ts';
+/** HIP の核（どのアプリでも使える部分）。packages/hip（@hip/kit）にある */
+export * from '@hip/kit';
 /** IDEA AUDITION の言葉（Command・Event の一覧と、snapshot の形） */
 export * from './vocabulary/model.ts';
 export * from './vocabulary/messages.ts';

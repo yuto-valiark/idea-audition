@@ -1,6 +1,6 @@
 # ADR-0010: HIP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る
 
-- Status: Accepted（2026-11-08。2〜5 を実装、6 は締切後）
+- Status: Accepted（2026-11-08。2〜5 と、公開前の作業 1〜3 を実装。ライセンスと公開は締切後）
 - Owner: 牧 夢斗
 - 関連：ADR-0003（サーバー権威）／ADR-0004（HIP v1 最小仕様）／ADR-0009（好みエンジン）／[HIP v1 仕様書](../protocol/hip-v1.md)
 
@@ -142,3 +142,18 @@ packages/protocol/src/
 4. 好みエンジン（ADR-0009 の 1〜8）。新しいメッセージは最初からこの仕様に沿って足す
 5. `core/` と `vocabulary/` にフォルダを分ける（時間があれば。無ければ締切後）
 6. 締切後：チームの同意 → LICENSE → 公開
+
+
+## 実装メモ：汎用パッケージ @hip/kit（2026-11-08）
+
+公開前の作業の 1〜3 を行った。
+
+1. **部品を core に移す**：`packages/hip`（`@hip/kit`）を作り、次を IDEA AUDITION から移した。
+   - 再接続つきのクライアント（`@hip/kit/client`）
+   - WebSocket の終端（形・版・合言葉・hello の時間切れ・送りすぎ・生存確認。`@hip/kit/server` の `createHipTransport`）
+   - すぐ使える部屋（直列処理・連番・重複排除・遅い処理の世代管理・席とホストと観覧。`HipRoom`）
+   IDEA AUDITION はこれを使う側になった（`ws-server.ts` と `net/hip-client.ts` は薄い包みだけ）。
+2. **語彙を渡すだけで使える形**：`defineVocabulary({ commands, events, rejectReasons, snapshot, ephemerals, signals })`。IDEA AUDITION の語彙もこれで組み立てている。
+3. **IDEA AUDITION 以外でも動く証拠**：`packages/hip/examples/quick-vote`（みんなで投票）と、そのテスト13本（境界5本・動作8本）。
+
+残り（締切後）：チームの同意、LICENSE（MIT）、別リポジトリ、npm の名前（`@hip/kit` は仮）。
