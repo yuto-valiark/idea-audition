@@ -8,7 +8,7 @@
 ## Context
 
 - フロント（React/TS）とリアルタイムサーバー（Cloud Run上のNode/TS候補）の2つの実行単位がある。
-- 両者が共有すべきものは**HIPの契約（メッセージ型・バリデータ・fixture）**。
+- 両者が共有すべきものは**CAMP の契約（メッセージ型・バリデータ・fixture）**。
 - 昇格・定員・一意性の判定は**サーバー権威**。クライアントに判定ロジックを複製すると食い違いの原因になる。
 - Clean Architectureは手段。全画面にRepository/UseCase抽象を強要しない（23.1）。
 
@@ -23,7 +23,7 @@ idea-audition/
 │   ├── web/        # React + TS + Vite（feature-first）
 │   └── server/     # domain / application / infrastructure / presentation
 └── packages/
-    └── protocol/   # HIP契約（スキーマ・型・fixture）
+    └── protocol/   # CAMP 契約（スキーマ・型・fixture）
 ```
 
 - **`packages/domain` は作らない**。ドメインは `apps/server/src/domain` に置き、クライアントはサーバーから届くスナップショット／イベントの投影だけを持つ。
@@ -62,7 +62,7 @@ domain は React / Firebase / Gemini を import しない
 | 担当 | 主な範囲 |
 |---|---|
 | ステージUI | `apps/web/src/scene`：舞台・照明・キャラ・フリップ・ドラッグと補充の演出 |
-| サーバー・同期 | `apps/server`：セッションアクター、HIP、再接続、Firestore追記 |
+| サーバー・同期 | `apps/server`：セッションアクター、CAMP、再接続、Firestore追記 |
 | AI・音声 | `apps/server/src/infrastructure`：Gemini（生成・改良・批評）、Gemini Live、`FixtureGateway` |
 | 素材・UIの仕上げ | キャラ素材の生成と手直し、フリップの文言、上段の見せ方、ピッチ資料 |
 

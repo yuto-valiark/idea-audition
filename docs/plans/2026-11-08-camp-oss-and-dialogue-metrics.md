@@ -22,7 +22,7 @@
 | 発言の記録 | `UtteranceRecord`（`seq`・`judgeId`・`targetInstanceId`・`intent`） |
 | 案の版 | `Revision`（`basedOnRevisionId`・`reason`・`basedOnConsensus`）。**どの発言を受けて作った版かは記録していない** ← ここを足す |
 | 効果の指標 | `computeMetrics`（前半と後半の選ばれる率、出した理由ごとの率、迷いから作った別案） |
-| 本番 | revision 00007（改名前の HIP 版）。CAMP 版は未デプロイ |
+| 本番 | revision 00007（改名前の版）。CAMP 版は未デプロイ |
 
 ---
 
@@ -41,7 +41,7 @@
 
 進み具合（2026-11-08）：
 - 済：1-3（tsc で `dist/`、pnpm の `publishConfig` で公開時だけ `dist` を向く。npm での pack は止める）、1-4（英語の README＋README.ja.md＋ロゴ）、1-5（汎用の仕様書を英語で `packages/camp/SPEC.md` に。`docs/protocol/camp-v1.md` は IDEA AUDITION での使い方として残す）、1-7（`.github/workflows/ci.yml`。Node 20/22/24 で型チェック・テスト・tarball を入れて読み込めるか）、1-6 の準備（`scripts/camp-split.sh` で `camp-public` ブランチを作る。新しく clone して CI と同じ手順が通ることを確認済み）
-- 公開前に合わせて直したこと：通信の欄名 `judgeId`→`participantId`、`actorJudgeId`→`actorId`。`server.close()` 後にプロセスが終わらない不具合。Dockerfile の `packages/hip`
+- 公開前に合わせて直したこと：通信の欄名 `judgeId`→`participantId`、`actorJudgeId`→`actorId`。`server.close()` 後にプロセスが終わらない不具合。Dockerfile に残っていた改名前のパッケージのパス
 - 残り：1-1 合意（著作者は牧 夢斗に決定。チームには一言伝える）、1-2 名前の確保、1-6 の push、1-8 の `pnpm publish`
 
 方針（2026-11-08 夜、牧が決定）：
@@ -106,7 +106,7 @@
 
 | 指標 | 測り方 |
 |---|---|
-| コード削減 | kit に切り出す前（`8b206c2`）と後で、アプリ側の通信まわりの行数を比べる（`ws-server.ts`・`hip-client.ts` → `camp-client.ts`）。quick-vote の例が何行で書けるかも示す |
+| コード削減 | kit に切り出す前（`8b206c2`）と後で、アプリ側の通信まわりの行数を比べる（`ws-server.ts` と、切り出す前の自作のクライアント → kit を使う `camp-client.ts`）。quick-vote の例が何行で書けるかも示す |
 | 競合の解決 | N 人（4・8・16）が同じ枠に同時に操作するのを1000回。食い違いの数（0であるべき）、拒否された数、全員の最終状態が一致した割合 |
 | 再接続 | ランダムに接続を切りながら操作を送り続け、送った操作が**ちょうど1回だけ**反映された割合（重複0・取りこぼし0であるべき） |
 | 古いAI結果の破棄 | AIの処理中にリセット・取り消しを挟み、古い結果が状態に入らなかった割合 |

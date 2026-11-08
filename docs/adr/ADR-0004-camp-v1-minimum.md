@@ -1,4 +1,4 @@
-# ADR-0004: HIP v1 最小仕様 — Command / Event / Ephemeral / Snapshot
+# ADR-0004: CAMP v1 最小仕様 — Command / Event / Ephemeral / Snapshot
 
 - Status: Accepted（2026-11-07。比較・検証の項目は Verification に残る）
 - Owner: TBD
@@ -7,7 +7,7 @@
 
 ## Context
 
-- HIP（Human Intent Protocol）は、WebSocketの上に載る**アプリケーション層のメッセージ仕様**。
+- CAMP は、WebSocketの上に載る**アプリケーション層のメッセージ仕様**。
 - カーソルの高頻度な位置と、昇格の確定イベントでは、信頼性・順序・永続化の要件がまったく異なる。
 - 「独自プロトコルを設計・実装」と主張するのは、実装・検証の後に限る（25.1）。
 
@@ -28,7 +28,7 @@
 
 ```json
 {
-  "hip": "1",
+  "camp": "1",
   "kind": "command | event | ephemeral | snapshot",
   "type": "REQUEST_PROMOTION",
   "sessionId": "s_...",
@@ -43,7 +43,7 @@
 ```
 
 - フィールド名・型は案。スキーマ記述はZodまたはJSON Schemaを候補とし、`packages/protocol` に置く（ADR-0002）。
-- 不明な `type` は無視してログに記録する（前方互換）。破壊的変更は `hip` のメジャー番号を上げる。
+- 不明な `type` は無視してログに記録する（前方互換）。破壊的変更は `camp` のメジャー番号を上げる。
 
 ### 拒否理由コード（初期案）
 

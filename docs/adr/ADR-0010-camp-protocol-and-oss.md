@@ -1,4 +1,4 @@
-# ADR-0010: CAMP（旧称 HIP）をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る
+# ADR-0010: CAMP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る
 
 - Status: Accepted（2026-11-08。2〜5 と、公開前の作業 1〜3 を実装。ライセンスと公開は締切後）
 - Owner: 牧 夢斗
@@ -49,7 +49,7 @@
 | # | 変更 | 理由 |
 |---|---|---|
 | a | `protocol_error{code, detail, supported}` を追加。`UNSUPPORTED_VERSION` / `MALFORMED` / `UNKNOWN_TYPE` / `NOT_JOINED` | 黙って捨てない。相手が直せる情報を返す |
-| b | hello の `hip` が違えば `protocol_error{UNSUPPORTED_VERSION, supported:["1"]}` を返し、終了コード 4400 で閉じる | バージョンの交渉 |
+| b | hello の `camp` が違えば `protocol_error{UNSUPPORTED_VERSION, supported:["1"]}` を返し、終了コード 4400 で閉じる | バージョンの交渉 |
 | c | 未知の Command type には `result{ok:false, reason:UNKNOWN_TYPE}`。クライアントは未知の Event type を無視して snapshot だけ反映する | 前方互換 |
 | d | 対象の版を指定できる Command に `expected: { rev }` を任意で追加。違えば `STALE_VERSION` | 古い画面からの操作を検出する |
 | e | 5種類目の **Signal**（client → server、返事なし、間引きあり、状態はまとめた Event でしか返さない）を追加し、`SOFT_SIGNAL` をこれにする | 迷い・沈黙・笑いは失われてもよいが、状態（好み）には効く |
@@ -91,7 +91,7 @@
 
 ```text
 packages/protocol/src/
-  core/                 ← 将来の @hip/core（アプリの言葉を知らない）
+  core/                 ← 将来の @camp-protocol/kit（アプリの言葉を知らない）
     envelope.ts           hello / welcome / result / event / ephemeral / signal / protocol_error を
                           「語彙（Command と Event の一覧）」を受け取って組み立てる関数
     errors.ts             プロトコル共通のエラー（UNSUPPORTED_VERSION など）と終了コード
@@ -105,7 +105,7 @@ packages/protocol/src/
 ```
 
 - ルール：`core/` は `vocabulary/` を import しない（テストで検査する）。
-- 締切後に、`core/` をそのまま別パッケージ（`@hip/core` などの名前）に移し、IDEA AUDITION はそれを使う側になる。
+- 締切後に、`core/` をそのまま別パッケージ（`@camp-protocol/kit`）に移し、IDEA AUDITION はそれを使う側になる。
 
 ### 6. OSS として公開するのは締切後
 
@@ -164,8 +164,8 @@ packages/protocol/src/
 - 新しい名前：**CAMP — Collaborative Agent Mediation Protocol**。人も AI も同じ場（キャンプ）に集まり、全員が同じ順番で同じ状態を見て、誰の意図を通すかをサーバーが調停する。
 - 理由：「HIP」は Host Identity Protocol（RFC 7401）や AMD の HIP と重なり、npm でも `hip`・`@hip` が取られていた。4文字で読めて意味のある単語を優先した。
 - 住所：npm は `@camp-protocol/*`（組織は空き、単体の `camp` は取られている）、GitHub の `camp-protocol` も空き（どちらも 2026-11-08 時点、まだ取得していない）。
-- 変えたもの：パッケージ `@camp-protocol/kit`（packages/camp）、`CampClient` / `CampRoom` / `createCampServer` / `createCampTransport` / `CAMP_VERSION` / `CAMP_CLOSE`、通信のフィールド `camp: "1"`、WebSocket のパス `/camp`、仕様書 docs/protocol/camp-v1.md。開発用の環境変数は `CAMP_PORT`（`HIP_PORT` も読む）。
-- この ADR より前の ADR（0004 など）は、当時の名前 HIP のまま残す。
+- 変えたもの：パッケージ `@camp-protocol/kit`（packages/camp）、`CampClient` / `CampRoom` / `createCampServer` / `createCampTransport` / `CAMP_VERSION` / `CAMP_CLOSE`、通信のフィールド `camp: "1"`、WebSocket のパス `/camp`、仕様書 docs/protocol/camp-v1.md。開発用の環境変数は `CAMP_PORT`。
+- 前の ADR（0004 など）も、名前を CAMP に書き換えた（ファイル名も）。旧称が出てくるのはこの節だけ。
 
 ## 合言葉の廃止と、リンクで入る部屋（2026-11-08）
 

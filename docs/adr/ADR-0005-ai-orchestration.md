@@ -85,7 +85,7 @@
   - (1) クライアントから直接つなぐ。サーバーが短命のトークンを発行し、APIキーはブラウザに渡さない。
   - (2) Cloud Runが中継する。
   - 公式ドキュメントで短命トークンの対応状況を確認してから決める。
-- 認識結果（文字起こし・意図）は、HIPのCommand `SUBMIT_UTTERANCE{text, source: "live" | "text"}` としてサーバーに送る。音声そのものは操作用のWebSocketに流さない（9.2）。
+- 認識結果（文字起こし・意図）は、CAMP のCommand `SUBMIT_UTTERANCE{text, source: "live" | "text"}` としてサーバーに送る。音声そのものは操作用のWebSocketに流さない（9.2）。
 - サーバーは発言を `JUDGE_UTTERANCE_RECEIVED` として記録し、意図の抽出（質問か、改善指示か）を行う。質問と改善指示の区別（AC-14）はサーバー側で確定する。
 - マイクは各自がON/OFFできる。AIの発表中も人間は話せる（25.3）。
 
@@ -150,7 +150,7 @@
 
 ## 実装メモ：Gemini Live の音声入力（2026-11-07）
 
-- **接続方式：サーバー中継（案2）を採用**。ブラウザ → `/voice`（操作用の `/hip` とは別の WebSocket）→ Cloud Run → Gemini Live。認証はサーバーだけが持つので、ブラウザにトークンを渡さない。短命トークン方式（案1）は Gemini Developer API 向けで、Vertex AI では使わない。
+- **接続方式：サーバー中継（案2）を採用**。ブラウザ → `/voice`（操作用の `/camp` とは別の WebSocket）→ Cloud Run → Gemini Live。認証はサーバーだけが持つので、ブラウザにトークンを渡さない。短命トークン方式（案1）は Gemini Developer API 向けで、Vertex AI では使わない。
 - **モデル**：`gemini-3.5-transcribe-live`（location `global`、出力は TEXT のみ）。文字起こし専用で音声の返答を作らないため費用が小さい。途中経過（interim）と確定結果が返る。
   - 比較：`gemini-live-2.5-flash-native-audio` は `us-central1` でのみ接続でき、音声の返答も生成する。文字起こしが「{} る な もう 少し…」のように崩れたため不採用。
 - 音声形式：16kHz・モノラル・16bit PCM。ブラウザの AudioWorklet で変換して約100msごとに送る。

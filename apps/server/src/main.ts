@@ -125,9 +125,9 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Cloud Run は PORT を渡す。開発時は CAMP_PORT（旧 HIP_PORT）で固定する（PORT が別用途で設定されていても衝突しない）
+// Cloud Run は PORT を渡す。開発時は CAMP_PORTで固定する（PORT が別用途で設定されていても衝突しない）
 startServer({
-  port: Number(process.env.CAMP_PORT ?? process.env.HIP_PORT ?? env('PORT', '8787')),
+  port: Number(process.env.CAMP_PORT ?? env('PORT', '8787')),
   registry: rooms,
   voice: createVoiceServer({ registry: rooms, transcriber, log }),
   createRoom,

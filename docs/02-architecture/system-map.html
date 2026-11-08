@@ -92,7 +92,7 @@ html{scroll-behavior:smooth}
     <li><a href="#seq-voice"><span>07</span>声・言及・迷い</a></li>
     <li><a href="#seq-final"><span>08</span>決勝から企画書まで</a></li>
     <li><a href="#er"><span>09</span>ER 図</a></li>
-    <li><a href="#hip"><span>10</span>CAMP メッセージ</a></li>
+    <li><a href="#camp"><span>10</span>CAMP メッセージ</a></li>
     <li><a href="#deploy"><span>11</span>デプロイの流れ</a></li>
     <li><a href="#trust"><span>12</span>権限と境界</a></li>
     <li><a href="#cost"><span>13</span>Gemini とコスト</a></li>
@@ -523,7 +523,7 @@ erDiagram
 </section>
 
 <!-- 10 -->
-<section id="hip">
+<section id="camp">
   <h2>CAMP メッセージ <small>10 / PROTOCOL v1</small></h2>
   <p>封筒・順序・重複排除・再接続は @camp-protocol/kit（packages/camp）が受け持ち、IDEA AUDITION の語彙は packages/protocol の Zod スキーマで検証します。Command と Event は Firestore に残り、Ephemeral（カーソルなど）は残しません。</p>
   <div class="frame plain">

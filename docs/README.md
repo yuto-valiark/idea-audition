@@ -30,10 +30,10 @@
 | [adr/ADR-0001-rendering-approach.md](adr/ADR-0001-rendering-approach.md) | 描画方式：DOM/CSS/SVG＋レイヤード素材 | Accepted |
 | [adr/ADR-0002-repository-structure.md](adr/ADR-0002-repository-structure.md) | リポジトリ構成：縮小モノレポ | Accepted |
 | [adr/ADR-0003-server-authority.md](adr/ADR-0003-server-authority.md) | サーバー権威：セッションアクター＋Firestore追記 | Accepted |
-| [adr/ADR-0004-hip-v1-minimum.md](adr/ADR-0004-hip-v1-minimum.md) | HIP（現 CAMP）v1最小仕様：Command/Event/Ephemeral/Snapshot | Accepted |
+| [adr/ADR-0004-camp-v1-minimum.md](adr/ADR-0004-camp-v1-minimum.md) | CAMP v1 最小仕様：Command/Event/Ephemeral/Snapshot | Accepted |
 | [adr/ADR-0005-ai-orchestration.md](adr/ADR-0005-ai-orchestration.md) | Gemini非同期オーケストレーション | Accepted |
 | [adr/ADR-0009-taste-engine.md](adr/ADR-0009-taste-engine.md) | 好みエンジン：言葉・行動・迷いから好みを読み、次の案の出し方を変える（図つき） | Proposed |
-| [adr/ADR-0010-hip-protocol-and-oss.md](adr/ADR-0010-hip-protocol-and-oss.md) | CAMP（旧称 HIP）をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る。改名の経緯も | Accepted |
+| [adr/ADR-0010-camp-protocol-and-oss.md](adr/ADR-0010-camp-protocol-and-oss.md) | CAMP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る。改名の経緯も | Accepted |
 | [adr/ADR-0011-speech-repair.md](adr/ADR-0011-speech-repair.md) | 音声の聞き間違いを、会議の中で育つ語彙と注目の情報で直す | Accepted |
 | [plans/2026-11-08-camp-oss-and-dialogue-metrics.md](plans/2026-11-08-camp-oss-and-dialogue-metrics.md) | 実装計画：CAMP の OSS 公開・因果の記録（Decision Provenance）・技術効果と対話の実測・予備実験 | Proposed |
 | [discussions/2026-11-08-camp-oss-and-dialogue-measurement.md](discussions/2026-11-08-camp-oss-and-dialogue-measurement.md) | 議論メモ：人間×AIの対話を測る指標、比較実験、ロゴ、プロトコルと OSS の関係 | 議論メモ |

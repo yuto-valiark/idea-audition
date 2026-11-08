@@ -61,9 +61,6 @@ export function startServer(opts: {
     if (path === '/camp') return camp.handleUpgrade(req, socket, head);
     const voice = opts.voice;
     if (path === '/voice' && voice) return voice.handleUpgrade(req, socket, head, (ws) => voice.emit('connection', ws, req));
-    // 改名前（HIP）の画面が開いたままだと /hip に再接続し続ける。つながせると古い画面はすぐまたつなぎ直す（1秒ごと）ので、
-    // 410 で断って、古い画面の待ち時間（最大5秒）を伸ばさせる。読み込み直せば新しい画面になる
-    if (path === '/hip') return rejectUpgrade(socket, 410, 'Gone');
     // 知らないパスは HTTP の 404 を返して断る（何も返さずに切ると、Cloud Run がコンテナごと入れ替えてしまう）
     rejectUpgrade(socket);
   });

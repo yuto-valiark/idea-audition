@@ -1,10 +1,10 @@
 # CAMP v1 — Collaborative Agent Mediation Protocol 仕様書
 
-> 旧称 HIP（Human Intent Protocol）。2026-11-08 に CAMP に改名した（Host Identity Protocol などとの名前の重なりを避けるため。経緯は ADR-0010 の末尾）。通信のフィールド名も `hip` から `camp`、WebSocket のパスも `/hip` から `/camp` に変えた。OSS 公開に合わせて、hello と welcome の `judgeId` を `participantId`、event の `actorJudgeId` を `actorId` に変えた（アプリの言葉を通信から外すため）。汎用の仕様（英語）は `packages/camp/SPEC.md`。この文書は IDEA AUDITION での使い方（語彙・役割）を含む。
+> OSS 公開に合わせて、hello と welcome の `judgeId` を `participantId`、event の `actorJudgeId` を `actorId` に変えた（アプリの言葉を通信から外すため）。汎用の仕様（英語）は `packages/camp/SPEC.md`。この文書は IDEA AUDITION での使い方（語彙・役割）を含む。
 
 - Status: Draft（2026-11-08）。ADR-0010 の a〜f は実装済み。適合テストは `apps/server/test/conformance.test.ts`
 - 正本のスキーマ：`packages/protocol/src/messages.ts`（Zod）
-- 決めた理由：[ADR-0003](../adr/ADR-0003-server-authority.md)・[ADR-0004](../adr/ADR-0004-hip-v1-minimum.md)・[ADR-0010](../adr/ADR-0010-hip-protocol-and-oss.md)
+- 決めた理由：[ADR-0003](../adr/ADR-0003-server-authority.md)・[ADR-0004](../adr/ADR-0004-camp-v1-minimum.md)・[ADR-0010](../adr/ADR-0010-camp-protocol-and-oss.md)
 
 ## 1. 何のためのプロトコルか
 

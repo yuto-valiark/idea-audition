@@ -128,7 +128,7 @@ idea-audition/
 │   ├── public/assets/characters/      # 透過WebP（キャラごとのフォルダ）
 │   └── src/
 │       ├── app/           main.tsx  App.tsx
-│       ├── net/           hip-client.ts（再接続・lastSeq）
+│       ├── net/           camp-client.ts（再接続・lastSeq）
 │       ├── store/         session-store.ts（業務状態）  display-store.ts（表示状態）
 │       ├── features/      audition/  candidate-inspection/  finalist-refinement/  collaboration/  champion/  voice/
 │       ├── scene/         Stage  LowerStage  FinalRing  CharacterActor  FlipBoard  JudgeCursor  RefinementDiff  Spotlights
@@ -161,7 +161,7 @@ idea-audition/
 | 項目 | 状態 | 確認方法 |
 |---|---|---|
 | pnpm workspaces、protocol / server / web の3パッケージ | 完了 | `pnpm typecheck` `pnpm build` |
-| HIP v1 契約（Command / Event / Ephemeral / Hello / Welcome / Result、拒否理由コード） | 完了 | protocol のテスト4件 |
+| CAMP v1 契約（Command / Event / Ephemeral / Hello / Welcome / Result、拒否理由コード） | 完了 | protocol のテスト4件 |
 | ドメイン：下段5体・上段最大3体・一意性・補充デザインの選び方・Revision・投票・ホスト | 完了 | server のテスト（ドメイン15件） |
 | セッションアクター：直列処理、重複排除、先読みストック、改良キュー、批評を順に配信、古い結果の破棄 | 完了 | server のテスト（アクター8件） |
 | FixtureGateway（学食テーマは mock-app のデータを流用） | 完了 | 外部APIなしで通しデモ |
@@ -182,7 +182,7 @@ idea-audition/
 - **`promoting` 状態は外に出さない**。昇格はサーバーの1回の同期処理で `lower → upper` まで確定するため。移動中の見た目はクライアントの表示状態（飛行アニメーション）で表現し、その間は上段側を非表示にして二重表示を防ぐ。
 - **相互批評は「1ラウンド＝1つの吹き出し」**（R1 A→B、R2 B→A、R3 …）。2体なら2ラウンド、3体なら3ラウンド。吹き出しの配信間隔はサーバーが決め、全員が同じタイミングで見る。
 - **下段の入れ替え**は注目度ベースに変更（ADR-0006）。会話での言及・カーソル・詳細・質問・つかむ操作で注目度が上がり、しばらく触れられていない案のうち最も注目度の低い案から、予告つきで退場する。
-- 開発時のサーバーポートは `HIP_PORT`（既定 8787）。Cloud Run では `PORT` を使う。
+- 開発時のサーバーポートは `CAMP_PORT`（既定 8787）。Cloud Run では `PORT` を使う。
 
 ### 既知の課題
 
