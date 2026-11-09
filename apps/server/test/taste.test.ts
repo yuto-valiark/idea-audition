@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CAMP_VERSION, type CommandMessage, type EventMessage, type ServerMessage } from '@idea-audition/protocol';
-import { applySignal, divergence, emptyTaste, normalized, HALF_LIFE_MS, TASTE_SCALE } from '../src/domain/taste.ts';
+import { CONFIDENT_SIGNALS, applySignal, divergence, emptyTaste, normalized, HALF_LIFE_MS, TASTE_SCALE } from '../src/domain/taste.ts';
 import { sample, type Candidate, type SelectionContext } from '../src/domain/selection.ts';
 import { computeMetrics } from '../src/domain/metrics.ts';
 import { detectCue, HesitationGate } from '../src/application/hesitation.ts';
@@ -25,7 +25,7 @@ describe('好みモデル', () => {
 
   it('2人の好みが同じ軸で逆なら、その軸を「割れている」と判定する（反応が少ないうちは判定しない）', () => {
     let t = emptyTaste();
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < CONFIDENT_SIGNALS - 1; i++) {
       t = applySignal(t, 'a', axis(0, 1), 1, 0);
       t = applySignal(t, 'b', axis(0, -1), 1, 0);
     }
