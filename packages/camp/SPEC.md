@@ -44,11 +44,12 @@ Every message has `camp: "1"` and a `kind`.
 ### 3.1 hello
 
 ```json
-{ "camp": "1", "kind": "hello", "sessionId": "kqd-rmzw-tbe", "participantId": "p_2", "lastSeq": 41 }
+{ "camp": "1", "kind": "hello", "sessionId": "kqd-rmzw-tbe", "participantId": "p_2", "resumeToken": "…", "lastSeq": 41 }
 ```
 
 - `sessionId` (required): the room.
-- `participantId` (optional): the ID from an earlier `welcome`. If the server still knows it, the client comes back as the same participant.
+- `participantId` (optional): the ID from an earlier `welcome`.
+- `resumeToken` (optional, 1–128 chars): the token from that same `welcome`. The server MUST restore the participant only when both match (§7, §12). A `participantId` alone is not enough, because participant IDs are visible to everyone in the snapshot.
 - `lastSeq` (optional): the last `seq` the client applied. Informational in v1, since `welcome` always carries the full snapshot.
 
 If the room does not exist, the server answers `protocol_error{ROOM_NOT_FOUND}` and closes with 4404.
@@ -61,10 +62,11 @@ Messages sent before `hello` get `protocol_error{NOT_JOINED}`; a command also ge
 ### 3.2 welcome
 
 ```json
-{ "camp": "1", "kind": "welcome", "participantId": "p_2", "snapshot": { "seq": 43, "…": "…" } }
+{ "camp": "1", "kind": "welcome", "participantId": "p_2", "resumeToken": "…", "snapshot": { "seq": 43, "…": "…" } }
 ```
 
 `participantId: null` means the room is full and the connection is a spectator.
+`resumeToken` is a secret for this participant only. The server sends it only on this connection and MUST NOT put it in the snapshot or in events. The client keeps it (for example in session storage) and sends it back in `hello` to come back as the same participant.
 After `welcome`, the client MUST replace its state with `snapshot` and continue counting from `snapshot.seq`.
 
 ### 3.3 command
@@ -186,8 +188,8 @@ CAMP carries the field; the app decides what a version is.
 ## 7. Disconnects and recovery
 
 1. The client reconnects with exponential backoff (400 ms doubling, capped at 5 s in the reference client).
-2. It sends `hello` with its `participantId` (and `lastSeq`).
-3. The server restores the same participant seat if it still exists. The host role is not given back if it moved to someone else meanwhile.
+2. It sends `hello` with its `participantId`, `resumeToken` (and `lastSeq`).
+3. The server restores the same participant seat if it still exists **and the token matches**. Otherwise the connection joins as a new participant (or a spectator if the room is full). The host role is not given back if it moved to someone else meanwhile.
 4. `welcome` carries the full snapshot. The client replaces its state.
 5. The client resends every command still waiting for a result, with the **same** `commandId`. Duplicates are answered from §5.2, so nothing runs twice.
 
@@ -202,6 +204,7 @@ AI generation and other slow work run outside the room's queue. When the work fi
 A room has an **epoch**. Resetting the room (starting over) increments it.
 The server MUST discard results of work that started in an earlier epoch. This prevents an answer to an old question from appearing in a new session.
 In the reference implementation, `room.task(work, then)` records the epoch, and `room.reset(state)` increments it.
+An error thrown by `work` or by the code that applies its result MUST NOT take the server down. The reference implementation catches it and logs it.
 
 Apps SHOULD additionally use §6.2 for results that depend on a specific version of a target.
 
@@ -242,7 +245,8 @@ Implementations in other languages SHOULD accept the same information, for examp
 ## 12. Security
 
 - The server MUST derive the actor from the connection, never from fields the client sends (`senderId` and similar are overwritten).
-- Room IDs that work as invitations SHOULD be hard to guess, and servers SHOULD limit how fast rooms can be created.
+- Returning as an earlier participant MUST require the `resumeToken` given in that participant's `welcome` (§3.1, §3.2). Tokens SHOULD be random (the reference implementation uses 24 random bytes) and compared in constant time.
+- Room IDs that work as invitations SHOULD be hard to guess, and servers SHOULD limit how fast rooms can be created and how many can exist at once (the reference `createCampServer` keeps at most `maxRooms`, 100 by default).
 - Servers SHOULD cap the frame size (64 KiB in the reference implementation) and the message rate.
 - CAMP does not define user authentication. Put it in front of the WebSocket upgrade, or decide in the room registry who may enter which room.
 
@@ -259,3 +263,4 @@ An implementation conforms to CAMP v1 if it passes these behaviors, all covered 
 7. Signals beyond the per-person rate are dropped
 8. Unknown command types get `UNKNOWN_TYPE`; an unsupported version is closed with 4400
 9. When rooms are created by the application, joining an unknown room gets `ROOM_NOT_FOUND` and the client does not reconnect
+10. A `hello` that names another participant's ID without that participant's `resumeToken` does not become that participant

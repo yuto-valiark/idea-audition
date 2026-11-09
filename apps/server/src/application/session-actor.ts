@@ -25,7 +25,7 @@ import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
 import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
 import { localEmbedding } from '../infrastructure/local-taste.ts';
-import { speechVocabulary } from './speech-vocabulary.ts';
+import { speechStageKey, speechVocabulary } from './speech-vocabulary.ts';
 import { speechLexicon } from './speech-lexicon.ts';
 import { repairTranscript, type Correction } from '../domain/transcript-repair.ts';
 import { toSnapshot } from './projection.ts';
@@ -236,6 +236,11 @@ export class SessionActor {
     return speechVocabulary(this.session);
   }
 
+  /** 語彙が古くなったかの目印。舞台の企画やテーマが変わると値が変わる */
+  speechStageKey(): string {
+    return speechStageKey(this.session);
+  }
+
   private get embedder(): EmbeddingPort | null {
     return this.deps.embedders?.[this.session.aiMode] ?? null;
   }
@@ -300,13 +305,15 @@ export class SessionActor {
   /* --------------------------- 接続・切断 --------------------------- */
 
   attach(conn: Connection, hello: HelloMessage) {
-    const joined = this.session.join(hello.participantId);
+    const joined = this.session.join(hello.participantId, hello.resumeToken);
     this.session.refreshLedgerStatuses();
     const judgeId = joined.ok ? joined.value.judgeId : null;
     const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
     if (wasEmpty) this.resumeAfterEmpty();
-    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
+    // 合言葉は本人の接続にだけ送る（snapshot には入れない）
+    const resumeToken = joined.ok ? joined.value.resumeToken : null;
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: judgeId, resumeToken, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
 

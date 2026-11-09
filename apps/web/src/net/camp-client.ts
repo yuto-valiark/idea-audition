@@ -46,11 +46,12 @@ function campUrl() {
 export class CampClient {
   private readonly inner: GenericCampClient<typeof vocabulary>;
 
-  constructor(sessionId: string, handlers: Handlers, initialJudgeId?: string) {
+  constructor(sessionId: string, handlers: Handlers, saved?: { judgeId: string; resumeToken?: string }) {
     this.inner = new GenericCampClient(vocabulary, {
       url: campUrl(),
       room: sessionId,
-      ...(initialJudgeId ? { participantId: initialJudgeId } : {}),
+      ...(saved ? { participantId: saved.judgeId } : {}),
+      ...(saved?.resumeToken ? { resumeToken: saved.resumeToken } : {}),
     }).on({
       onRoomNotFound: handlers.onRoomNotFound,
       onWelcome: (m) => handlers.onWelcome(m as WelcomeMessage),

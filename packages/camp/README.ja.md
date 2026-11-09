@@ -13,7 +13,7 @@ WebSocket は「1対1で届ける」だけです。CAMP はその上で次を決
 | 誰が先か | サーバーが部屋ごとに1件ずつ処理し、連番 `seq` を振って全員に同じ順番で配る |
 | 失敗の返し方 | 操作（Command）には必ず成否と理由コードが返る |
 | 二度押し・再送 | `commandId` で重複を排除し、同じ結果を返す |
-| 切断 | 自動で再接続し、同じ参加者として状態の全体を取り直す。返事の来ていない操作は送り直す |
+| 切断 | 自動で再接続し、同じ参加者として状態の全体を取り直す（本人にだけ渡す合言葉で戻るので、ほかの人は席を奪えない）。返事の来ていない操作は送り直す |
 | AI の遅い結果 | `room.task()` で走らせ、`room.reset()` をまたいだ結果は捨てる |
 | 高頻度の情報 | カーソルなどは Ephemeral（保存しない・最新だけ）、「うーん」などは Signal（返事なし・間引く） |
 | バージョン違い・壊れたメッセージ・送りすぎ | 理由を返して、決まった終了コードで閉じる |
@@ -99,6 +99,18 @@ sendInvite(`https://example.com/r/${roomId}`); // リンクを開いた人が入
 camp.on({ onRoomNotFound: () => showNotFound() }); // 違う・期限切れのリンク。再接続はしない
 ```
 
+`createCampServer` が持つ部屋は `maxRooms`（既定 100）まで。でたらめな部屋 ID で入られても、メモリを使い切られません。
+
+### ページを開き直しても同じ人として戻る
+
+ページを開いているあいだは、クライアントが自動でつなぎ直します。開き直したあとも同じ参加者として戻るには、welcome でもらった ID と合言葉（`resumeToken`）を両方保存して渡します。参加者 ID は snapshot で全員に見えますが、合言葉は本人にだけ送られます。自前の `RoomEndpoint` では、`@camp-protocol/kit/server` の `createResumeToken()` と `resumeTokenMatches()` を同じように使います。
+
+```ts
+camp.on({ onWelcome: () => sessionStorage.setItem('camp', JSON.stringify({ id: camp.id, token: camp.resumeToken })) });
+const saved = JSON.parse(sessionStorage.getItem('camp') ?? 'null');
+new CampClient(vocabulary, { url, room, participantId: saved?.id, resumeToken: saved?.token });
+```
+
 ### 状態を保存したい・独自の処理順が要るとき
 
 `createCampTransport({ vocabulary, rooms })` に、`RoomEndpoint`（attach / detach / receiveCommand / receiveEphemeral / receiveSignal）を実装した自分の部屋を渡します。たとえば IDEA AUDITION の `SessionActor` はこの形で、Firestore への保存・AI の生成計画・合意台帳を持っています。
@@ -119,7 +131,12 @@ camp.on({ onRoomNotFound: () => showNotFound() }); // 違う・期限切れの�
 
 ## テスト
 
-`pnpm test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・遅い AI・観覧・Signal・版違い。
+`pnpm test`：境界（アプリに依存しない・クライアントが Node 専用のものを使わない）と、Quick Vote での同時操作・拒否・再送・再接続・合言葉なしでは他人として戻れない・遅い AI（結果の反映で例外が出てもサーバーが止まらない）・観覧・Signal・版違い・部屋の数の上限。
+
+## 向いている規模と、アプリに任せること
+
+- イベントのたびに状態の全体を配るので、会議・授業・ゲームの卓くらいの少人数の部屋に向く（数千人・巨大な状態には向かない）
+- ログイン（誰なのか）は CAMP の外。WebSocket の upgrade の前か、部屋の登録（RoomRegistry）で確かめる
 
 ## 状態
 

@@ -5,6 +5,7 @@ import type { ActorRegistry } from './ws-server.ts';
 
 const MAX_FRAME_BYTES = 32 * 1024; // 16kHz・16bit なら約1秒分
 const MAX_UTTERANCE_CHARS = 400;
+const MIN_REFRESH_MS = 10_000; // 舞台が変わったときの語彙の作り直しは、これより頻繁にしない
 
 /**
  * 音声チャンネル（/voice）。ブラウザのマイク音声を Gemini Live に中継し、
@@ -15,6 +16,9 @@ export function createVoiceServer(opts: {
   registry: ActorRegistry;
   transcriber: SpeechTranscriptionPort | null;
   log: (m: string) => void;
+  /** テスト用：時計と、語彙を作り直す最短の間隔 */
+  now?: () => number;
+  minRefreshMs?: number;
 }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES * 2 });
 
@@ -32,22 +36,36 @@ export function createVoiceServer(opts: {
     let target: string | null = null;
     let identity: { sessionId: string; judgeId: string } | null = null;
 
+    // Live の語彙は接続時にしか渡せない。いま開いているセッションがどの舞台の語彙で開いたかを覚え、
+    // 舞台が変わったら（発言が確定して無音の間に）開き直す。古いセッションからの通知は generation で見分けて無視する
+    let generation = 0;
+    let openedKey = '';
+    let openedAt = 0;
+    const now = opts.now ?? Date.now;
+    const minRefreshMs = opts.minRefreshMs ?? MIN_REFRESH_MS;
+
     const openStream = async () => {
       if (stream || opening || closed || !identity) return;
       opening = true;
+      const gen = ++generation;
       const { sessionId, judgeId } = identity;
       try {
-        // いまのキャラ名・企画名を語彙として渡す（Live のセッションが切れて開き直すたびに新しくなる）
-        const vocabulary = await opts.registry.get(sessionId).then((a) => a?.speechVocabulary() ?? []).catch(() => []);
+        // いまのキャラ名・企画名・説明文の固有語を語彙として渡す
+        const actor0 = await opts.registry.get(sessionId).catch(() => undefined);
+        const vocabulary = actor0?.speechVocabulary() ?? [];
+        openedKey = actor0?.speechStageKey() ?? '';
+        openedAt = now();
         stream = await transcriber.open({
           onInterim: (text) => send({ kind: 'voice_interim', text }),
           onFinal: (text) => {
             send({ kind: 'voice_final', text });
-            void opts.registry.get(sessionId).then((actor) =>
-              actor?.receiveUtterance(judgeId, text.slice(0, MAX_UTTERANCE_CHARS), 'live', target),
-            );
+            void opts.registry.get(sessionId).then((actor) => {
+              actor?.receiveUtterance(judgeId, text.slice(0, MAX_UTTERANCE_CHARS), 'live', target);
+              if (actor && gen === generation && actor.speechStageKey() !== openedKey) refreshStale(gen);
+            });
           },
           onClose: (reason) => {
+            if (gen !== generation) return; // 自分で開き直した古いセッションの終了。新しいほうを消さない
             stream = null;
             // Live のセッションは時間制限で切れることがある。マイクが ON のままなら次の音声で開き直す
             if (!closed) opts.log(`[voice] live closed (${reason}); will reopen on next audio`);
@@ -62,6 +80,22 @@ export function createVoiceServer(opts: {
       } finally {
         opening = false;
       }
+    };
+
+    /**
+     * 舞台が変わって語彙が古くなったセッションを、新しい語彙で開き直す。
+     * 発言の確定は無音（既定 1.2 秒）のあとなので、次の発言の頭を取りこぼしにくい。
+     * 開き直しが続かないよう、前回から minRefreshMs はあける。
+     */
+    const refreshStale = (gen: number) => {
+      if (gen !== generation || !stream || opening || closed) return;
+      if (now() - openedAt < minRefreshMs) return;
+      opts.log('[voice] stage changed; reopening live session with fresh vocabulary');
+      const old = stream;
+      stream = null;
+      generation++; // 古いセッションの onClose を無視させる
+      old.close();
+      void openStream();
     };
 
     ws.on('message', (data, isBinary) => {

@@ -1,7 +1,7 @@
 .input {
   flex: 1;
-  min-width: 220px;
-  max-width: 520px;
+  /* ワイプと右のボタンのあいだを埋める（審査員が少ないほど広くなる） */
+  min-width: 120px;
   display: flex;
   align-items: center;
   gap: 6px;

@@ -176,12 +176,12 @@ describe('Gemini：台帳の差分と文脈', () => {
         generateContent: async () => ({
           text: JSON.stringify({
             ops: [
-              { op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', label: '', byLabel: '', seq: 12 },
-              { op: 'set_stance', text: '', judge: '審査員 Z', stance: 'oppose', label: 'C1', byLabel: '', seq: 0 },
-              { op: 'set_stance', text: '', judge: '審査員 B', stance: 'oppose', label: 'C1', byLabel: '', seq: 13 },
+              { op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', label: '', byLabel: '', themeNote: '', onTheme: true, seq: 12 },
+              { op: 'set_stance', text: '', judge: '審査員 Z', stance: 'oppose', label: 'C1', byLabel: '', themeNote: '', onTheme: true, seq: 0 },
+              { op: 'set_stance', text: '', judge: '審査員 B', stance: 'oppose', label: 'C1', byLabel: '', themeNote: '', onTheme: true, seq: 13 },
               // 誰も言っていない論点（発言の番号が無い・行動もしていない）は捨てる
-              { op: 'add_claim', text: '起業は避ける', judge: '審査員 B', stance: 'oppose', label: '', byLabel: '', seq: 0 },
-              { op: 'add_claim', text: '会員制で収益', judge: '', stance: 'support', label: '', byLabel: '', seq: 12 },
+              { op: 'add_claim', text: '起業は避ける', judge: '審査員 B', stance: 'oppose', label: '', byLabel: '', themeNote: '', onTheme: true, seq: 0 },
+              { op: 'add_claim', text: '会員制で収益', judge: '', stance: 'support', label: '', byLabel: '', themeNote: '', onTheme: true, seq: 12 },
             ],
           }),
         }),
@@ -204,6 +204,52 @@ describe('Gemini：台帳の差分と文脈', () => {
       { op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', seq: 12 },
       { op: 'set_stance', label: 'C1', judge: '審査員 B', stance: 'oppose', seq: 13 },
     ]);
+  });
+
+  it('テーマから離れた論点は捨て、同じ回の論点を指す番号は実際の番号に直す', async () => {
+    const op = (o: Record<string, unknown>) => ({ text: '', judge: '', stance: 'none', label: '', byLabel: '', seq: 0, themeNote: '', onTheme: true, ...o });
+    const client = {
+      models: {
+        generateContent: async () => ({
+          text: JSON.stringify({
+            ops: [
+              // モデルの番号：C5（テーマ外→捨てる）、C6（残す）、C7（残す）
+              op({ op: 'add_claim', text: '宇宙旅行を企画にする', judge: '審査員 A', stance: 'support', seq: 1, onTheme: false, themeNote: '学食と無関係' }),
+              op({ op: 'add_claim', text: '席を事前に予約できる', judge: '審査員 A', stance: 'support', seq: 2, themeNote: '学食の利用の仕組み' }),
+              op({ op: 'add_claim', text: '予約は無料にする', judge: '審査員 B', stance: 'support', seq: 3, themeNote: '費用の条件' }),
+              // 捨てた論点（C5）への賛成・置き換えは捨てる
+              op({ op: 'set_stance', judge: '審査員 B', stance: 'support', label: 'C5', seq: 3 }),
+              op({ op: 'supersede', label: 'C1', byLabel: 'C5' }),
+              // 残した論点（モデルの C6 → 実際は C5、C7 → C6）への操作は番号を直す
+              op({ op: 'set_stance', judge: '審査員 B', stance: 'support', label: 'C6', seq: 3 }),
+              op({ op: 'supersede', label: 'C2', byLabel: 'C7' }),
+            ],
+          }),
+        }),
+      },
+    };
+    const logs: string[] = [];
+    const g = new GeminiGateway(client, {
+      fast: { model: 'm', thinkingLevel: 'MINIMAL', timeoutMs: 1000 },
+      refine: { model: 'm', thinkingLevel: 'LOW', timeoutMs: 1000 },
+    }, (m) => logs.push(m));
+    const ops = await g.updateConsensus({
+      theme: '大学の学食をもっと使いやすくするアプリ', nextClaimNumber: 5, judges: ['審査員 A', '審査員 B'],
+      claims: [],
+      utterances: [
+        { seq: 1, judge: '審査員 A', text: '宇宙旅行がいい', target: null, replyToClaim: null },
+        { seq: 2, judge: '審査員 A', text: '席を予約したい', target: null, replyToClaim: null },
+        { seq: 3, judge: '審査員 B', text: '予約は無料で', target: null, replyToClaim: null },
+      ],
+      decisions: [],
+    });
+    expect(ops).toEqual([
+      { op: 'add_claim', text: '席を事前に予約できる', judge: '審査員 A', stance: 'support', seq: 2 },
+      { op: 'add_claim', text: '予約は無料にする', judge: '審査員 B', stance: 'support', seq: 3 },
+      { op: 'set_stance', label: 'C5', judge: '審査員 B', stance: 'support', seq: 3 },
+      { op: 'supersede', label: 'C2', byLabel: 'C6' },
+    ]);
+    expect(logs.some((l) => l.includes('off-theme') && l.includes('宇宙旅行'))).toBe(true);
   });
 
   it('同じ版の文脈は同じ文字列になる（プロンプト前半のキャッシュが効くように）', () => {

@@ -1,6 +1,6 @@
 # ADR-0010: CAMP をアプリケーション層プロトコルとして仕様にし、OSS に切り出せる境界を作る
 
-- Status: Accepted（2026-11-08。2〜5 と、公開前の作業 1〜3 を実装。ライセンスと公開は締切後）
+- Status: Accepted（2026-11-08。2〜5 と、公開前の作業 1〜3 を実装。2026-11-10 に公開リポジトリ camp-protocol/camp と npm の `@camp-protocol/kit@0.1.0` を公開）
 - Owner: 牧 夢斗
 - 関連：ADR-0003（サーバー権威）／ADR-0004（CAMP v1 最小仕様）／ADR-0009（好みエンジン）／[CAMP v1 仕様書](../protocol/camp-v1.md)
 

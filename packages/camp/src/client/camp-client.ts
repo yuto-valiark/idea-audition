@@ -47,8 +47,10 @@ export interface CampClientOptions {
   url: string;
   /** 部屋（セッション）の ID */
   room: string;
-  /** 前回もらった参加者 ID（再接続・再訪で同じ人として戻る） */
+  /** 前回もらった参加者 ID（再接続・再訪で同じ人として戻る。resumeToken と組で使う） */
   participantId?: string;
+  /** 前回の welcome でもらった合言葉（ページを開き直しても同じ人として戻りたいときに保存して渡す） */
+  resumeToken?: string;
   /** WebSocket の作り方（Node では ws を渡す。既定は globalThis.WebSocket） */
   createSocket?: (url: string) => WebSocketLike;
   commandTimeoutMs?: number;
@@ -79,6 +81,7 @@ export class CampClient<V extends AnyVocabulary> {
   private retry = 0;
   private closed = false;
   private participantId: string | undefined;
+  private token: string | undefined;
   private seq = new SeqGate();
   private handlers: CampClientHandlers<V> = {};
   private pending = new Map<
@@ -91,6 +94,12 @@ export class CampClient<V extends AnyVocabulary> {
     private readonly opts: CampClientOptions,
   ) {
     this.participantId = opts.participantId;
+    this.token = opts.resumeToken;
+  }
+
+  /** つなぎ直し用の合言葉（welcome で決まる。ページを開き直しても戻りたいなら participantId と一緒に保存する） */
+  get resumeToken() {
+    return this.token ?? null;
   }
 
   /** いまの参加者 ID（welcome で決まる。null は観覧） */
@@ -121,6 +130,7 @@ export class CampClient<V extends AnyVocabulary> {
           kind: 'hello',
           sessionId: this.opts.room,
           participantId: this.participantId,
+          resumeToken: this.token,
           lastSeq: this.seq.lastSeq,
         }),
       );
@@ -198,6 +208,7 @@ export class CampClient<V extends AnyVocabulary> {
       case 'welcome': {
         const w = m as unknown as WelcomeMessageOf<V>;
         this.participantId = (w.participantId as string | null) ?? this.participantId;
+        if (w.resumeToken) this.token = w.resumeToken;
         this.seq.reset((w.snapshot as { seq?: number }).seq ?? 0);
         this.handlers.onWelcome?.(w);
         this.handlers.onSnapshot?.(w.snapshot as SnapshotOf<V>);

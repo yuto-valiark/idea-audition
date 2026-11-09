@@ -26,17 +26,27 @@ export function createCampServer<V extends AnyVocabulary, S>(
     autoCreateRooms?: boolean;
     /** 誰もいなくなった部屋を消すまでの時間 */
     idleReleaseMs?: number;
+    /**
+     * 同時に持てる部屋の数の上限（既定 100）。超えたら新しい部屋は作らず、入ってきた人には ROOM_NOT_FOUND を返す。
+     * 知らない部屋 ID で入ると部屋ができる既定の作り（autoCreateRooms）でも、部屋を無限に作られてメモリを使い切られないように
+     */
+    maxRooms?: number;
     helloTimeoutMs?: number;
     log?: (m: string) => void;
   },
 ) {
   const rooms = new Map<string, { room: CampRoom<V, S>; timer?: ReturnType<typeof setTimeout> }>();
+  const maxRooms = opts.maxRooms ?? 100;
   let closing = false;
   const registry: RoomRegistry<V> = {
     async get(id) {
       let entry = rooms.get(id);
       if (!entry) {
         if (opts.autoCreateRooms === false) return null;
+        if (rooms.size >= maxRooms) {
+          opts.log?.(`room limit reached (${maxRooms}); not creating ${JSON.stringify(id)}`);
+          return null;
+        }
         entry = { room: new CampRoom(id, opts.room) };
         rooms.set(id, entry);
       }
@@ -79,9 +89,15 @@ export function createCampServer<V extends AnyVocabulary, S>(
     rooms: {
       get: (id: string) => rooms.get(id)?.room,
     },
-    /** 部屋を作って ID を返す（ID を省くと推測されにくい ID を振る）。誰も入らなければ idleReleaseMs で消える */
+    /**
+     * 部屋を作って ID を返す（ID を省くと推測されにくい ID を振る）。誰も入らなければ idleReleaseMs で消える。
+     * 部屋の数が maxRooms に達していたら例外を投げる（呼ぶ側で「いまは作れない」と返す）
+     */
     createRoom(id: string = randomRoomId()) {
-      if (!rooms.has(id)) rooms.set(id, { room: new CampRoom(id, opts.room) });
+      if (!rooms.has(id)) {
+        if (rooms.size >= maxRooms) throw new Error(`room limit reached (${maxRooms})`);
+        rooms.set(id, { room: new CampRoom(id, opts.room) });
+      }
       registry.release(id);
       return id;
     },

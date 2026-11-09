@@ -608,75 +608,6 @@
   color: #b69cc8;
   padding: 5px 0;
 }
-.ia-prelim .history{
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin: 0 14px 13px;
-  padding: 5px 13px;
-  background: linear-gradient(90deg, #2a103d99, #1b0a2c);
-  border: 1px solid #5b2c8077;
-  border-radius: 7px;
-  min-height: 44px;
-  z-index: 8;
-  flex-shrink: 0;
-}
-.ia-prelim .history h2{
-  font-size: 9px;
-  font-weight: bold;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin: 0;
-}
-.ia-prelim .history-items{
-  display: flex;
-  overflow-x: auto;
-  align-items: center;
-  gap: 18px;
-  flex: 1;
-  scrollbar-width: thin;
-}
-.ia-prelim .history-items button{
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 8px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  padding-right: 16px;
-  border-right: 1px solid #62417b55;
-}
-.ia-prelim .history-items .mascot{
-  width: 30px;
-  height: 30px;
-}
-.ia-prelim .history-items b{
-  font-size: 7px;
-  font-weight: normal;
-  border: 1px solid;
-  border-radius: 12px;
-  padding: 2px 6px;
-}
-.ia-prelim .passed{
-  color: #ffce65;
-  background: #6b431d33;
-  border-color: #ba832c !important;
-}
-.ia-prelim .skipped{
-  color: #af9bc2;
-  border-color: #715782 !important;
-}
-.ia-prelim .empty-history{
-  color: #80658f;
-  font-size: 9px;
-}
-.ia-prelim .history-count{
-  font-size: 7px;
-  color: #755b86;
-  letter-spacing: 1px;
-}
 .ia-prelim .gold-stage .stage-light{
   background: linear-gradient(#ffde8577, #eeb64027 65%, transparent);
 }
@@ -873,9 +804,6 @@
   }
 .ia-prelim .ring-floor{
     top: 60%;
-  }
-.ia-prelim .history{
-    min-height: 46px;
   }}
 @media (min-width: 1700px){.ia-prelim .stage-topline{
     padding: 22px 30px;
@@ -982,24 +910,6 @@
   }
 .ia-prelim .stage-bottom button{
     font-size: 11px;
-  }
-.ia-prelim .history{
-    margin: 0 20px 16px;
-    min-height: 55px;
-  }
-.ia-prelim .history h2{
-    font-size: 11px;
-  }
-.ia-prelim .history-items button{
-    font-size: 10px;
-    gap: 9px;
-  }
-.ia-prelim .history-items .mascot{
-    width: 36px;
-    height: 36px;
-  }
-.ia-prelim .history-items b{
-    font-size: 9px;
   }}
 @media (max-width: 1249px){.ia-prelim .waiting-room{
     width: 235px;
@@ -1128,20 +1038,6 @@
   }
 .ia-prelim .stage-bottom button{
     font-size: 8px;
-  }
-.ia-prelim .history h2{
-    font-size: 8px;
-  }
-.ia-prelim .history{
-    gap: 10px;
-    margin-inline: 10px;
-    padding-inline: 8px;
-  }
-.ia-prelim .history-count{
-    display: none;
-  }
-.ia-prelim .history-items{
-    gap: 10px;
   }
 .ia-prelim .pass-title strong{
     font-size: 70px;
@@ -1327,36 +1223,6 @@
 .ia-prelim .stage-bottom button{
     font-size: 8px;
     padding: 7px;
-  }
-.ia-prelim .history{
-    margin: 0 7px 8px;
-    min-height: 42px;
-    gap: 7px;
-    padding: 3px 6px;
-  }
-.ia-prelim .history h2{
-    font-size: 7px;
-    max-width: 65px;
-    line-height: 1.6;
-  }
-.ia-prelim .history h2 > svg{
-    width: 8px;
-  }
-.ia-prelim .history-items button{
-    font-size: 7px;
-    gap: 4px;
-    padding-right: 8px;
-  }
-.ia-prelim .history-items .mascot{
-    width: 25px;
-    height: 25px;
-  }
-.ia-prelim .history-items b{
-    font-size: 6px;
-    padding: 2px 4px;
-  }
-.ia-prelim .empty-history{
-    font-size: 8px;
   }
 .ia-prelim .detail-heading .mascot{
     width: 75px;
@@ -1734,3 +1600,188 @@
 .ia-prelim .ia-end-prelim:hover { filter: brightness(1.08); }
 /* 合格者の人数（1〜4人）に合わせて、待機室の枠を等分する */
 .ia-prelim .waiting-slots .waiting-slot { width: auto; flex: 1 1 0; min-width: 0; }
+
+
+/* ---- 内枠なし：舞台を囲む線と背景を外し、画面の背景になじませる（#42） ---- */
+.ia-prelim .workspace{
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  /* 審査員の台が画面の外に出ないよう、舞台は画面の高さに合わせて縮める */
+  min-height: 0;
+}
+.ia-prelim .stage{
+  background: radial-gradient(ellipse at 50% 45%, #44207044, transparent 62%);
+  min-height: 0;
+}
+
+/* ---- 審査員の台：上にその人のブザー、正面にその人の顔（ワイプ）。テレビのワイプのように並べる ---- */
+.ia-prelim .buzzers{
+  align-items: flex-end;
+  gap: clamp(12px, 2.2vw, 40px);
+  min-height: 0;
+}
+.ia-prelim .podium{
+  position: relative;
+  /* ブザーと天板は台の幅（cqw）に合わせて縮める */
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /*
+   * 横幅は人数と画面の高さで決める。左右の欄（「○人が押した」・一時停止／交代。台の列を真ん中に置くため同じ幅）と舞台の余白の分（約600px）を残して、
+   * 人数（--count）で割る。高さは 22vh を超えない（台が高くなりすぎて、キャラが隠れないように）
+   */
+  width: min(240px, calc(22vh * 4 / 3), calc((100vw - 600px) / var(--count, 4) - 2.2vw));
+  flex: 0 1 auto;
+  min-width: 96px;
+}
+.ia-prelim .podium[data-offline]{
+  opacity: 0.45;
+}
+.ia-prelim .podium .buzzer{
+  width: 56%;
+  min-width: 0;
+  height: 30cqw;
+  /* ブザーは天板の手前寄り・低めに載せる（台座の下端が正面の上端のすぐ奥） */
+  margin-bottom: -6cqw;
+  z-index: 3;
+}
+.ia-prelim .podium .buzzer-collar{
+  bottom: 8cqw;
+  height: 10cqw;
+  border-color: #ffe3a0;
+  background: linear-gradient(#fff0bf, #e0a93a 55%, #8a5a12);
+  box-shadow:
+    0 2px 0 #6d4510,
+    0 4px 8px #000a,
+    0 0 12px #ffcf5a66;
+}
+.ia-prelim .podium .buzzer-dome{
+  bottom: 12cqw;
+  height: 17cqw;
+}
+.ia-prelim .podium .ia-you{
+  display: none;
+}
+/*
+ * 審査員の台（箱）：奥へ倒れた天板＋ガラスのような正面＋金の縁の画面。
+ * 縁は細い暖色の光の線、左右の側面と下側は陰で厚みを出す
+ */
+.ia-prelim .podium-screen{
+  --rim: #f3c9a066;
+  --rim-strong: #ffd9b0aa;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  /* 枠は細く（箱の大きさはそのままで、中の画面を大きく見せる） */
+  padding: 3cqw 3.5cqw 3.5cqw;
+  border-radius: 9cqw;
+  background:
+    /* 正面の上半分に映り込む光 */
+    linear-gradient(180deg, #ffffff1a 0%, #ffffff05 38%, transparent 55%),
+    linear-gradient(180deg, #4a2c6b 0%, #2c1745 50%, #1a0d2b 100%);
+  border: 1.5px solid var(--rim);
+  box-shadow:
+    /* 上の縁のハイライトと、左右の側面・下側の陰（厚み） */
+    inset 0 1.5px 0 #ffffffaa,
+    inset 0 0 0 1px #ffffff0d,
+    inset 3cqw 0 4cqw -2cqw #c99cff33,
+    inset -3cqw 0 4cqw -2cqw #05010d,
+    inset 0 -4cqw 5cqw -2cqw #05010dcc,
+    /* 外側：紫の光と床へ落ちる影 */
+    0 0 4cqw #a35bff55,
+    0 6cqw 8cqw -2cqw #000e;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+/*
+ * 天板：箱の上面。奥へ倒し、奥ほど細く見せる。
+ * 四隅は箱の正面と同じ丸みにして、手前の角が箱の丸い角からはみ出さない（切れて見えない）ようにする
+ */
+.ia-prelim .podium-screen::before{
+  content: "";
+  position: absolute;
+  left: -1.5px;
+  right: -1.5px;
+  bottom: calc(100% - 1.5px);
+  height: 36cqw;
+  border-radius: 9cqw;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 72%, #ffffff22, transparent 70%),
+    linear-gradient(0deg, #5b3880 0%, #3a2156 55%, #24123a 100%);
+  border: 1.5px solid var(--rim);
+  box-shadow: inset 0 -2px 0 #ffffff55;
+  transform: perspective(60cqw) rotateX(68deg);
+  transform-origin: 50% 100%;
+  z-index: -1;
+}
+/* 床に落ちる紫の光 */
+.ia-prelim .podium-screen::after{
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: calc(100% + 1cqw);
+  height: 7cqw;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #a35bff55, transparent 70%);
+  z-index: -1;
+}
+/* 中の画面：金の細い縁で、少し奥まって見えるように */
+.ia-prelim .podium-screen > div{
+  border-radius: 6.5cqw;
+  border: 1.5px solid #e9b98a;
+  box-shadow:
+    0 0 0 1px #00000088,
+    0 0 3cqw #f5c08a44,
+    inset 0 0 3cqw #000a;
+}
+/* 押した人の台は金色に光る */
+.ia-prelim .podium[data-pressed] .podium-screen{
+  --rim: #ffd36ecc;
+  --rim-strong: #ffe7a8;
+  box-shadow:
+    inset 0 1.5px 0 #fff3c8,
+    inset 0 0 0 1px #ffffff0d,
+    inset 3cqw 0 4cqw -2cqw #ffd36e33,
+    inset -3cqw 0 4cqw -2cqw #05010d,
+    inset 0 -4cqw 5cqw -2cqw #05010dcc,
+    0 0 6cqw #ffc94a99,
+    0 6cqw 8cqw -2cqw #000e;
+}
+/* 台の列を画面の真ん中に：左（押した人数・一時停止）と右（交代）を同じ幅の欄にする */
+.ia-prelim .buzzer-zone{
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+}
+.ia-prelim .buzz-side{
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 3vw, 48px);
+  min-width: 0;
+}
+.ia-prelim .buzz-left{
+  /* 「○人が押した」を一時停止の上に積んで、左の欄を細くする（台を大きく取れるように） */
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ia-prelim .buzz-right{
+  justify-content: flex-start;
+}
+.ia-prelim .buzz-side > .ia-buzz-target,
+.ia-prelim .buzz-side > .ia-skip{
+  flex-shrink: 0;
+}
+.ia-prelim .buzz-left > .ia-buzz-target{
+  min-height: 34px;
+}
+/* 合格の演出中なども場所だけ残す（台の位置がずれないように）。幅は名前の長さによらず一定 */
+.ia-prelim .ia-buzz-target{
+  width: 150px;
+}
+.ia-prelim .ia-slot{
+  visibility: hidden;
+}

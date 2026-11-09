@@ -19,6 +19,20 @@ import type { ProposalContent } from '@idea-audition/protocol';
  * 外部 API なしで通しデモをするための固定データ（AC-33、ADR-0005 §1）。
  * 学食テーマの案は reference/mock-app/app/page.tsx から流用。
  */
+/** 固定データの企画の呼び名（本物の AI が付ける aliases のかわり） */
+const FIXTURE_ALIASES: Record<string, string[]> = {
+  'サークル飯マップ': ['サークル飯'],
+  '混雑予測ナビ': ['混雑予測'],
+  '学食スタンプラリー': ['スタンプラリー'],
+  'AR食堂ツアー': ['食堂ツアー'],
+  'おまかせランチくじ': ['ランチくじ'],
+  '推しメニュー総選挙': ['総選挙'],
+  'もったいない定食': ['もったいない'],
+  'ひとり飯ラウンジ': ['ひとり飯', 'ラウンジ'],
+  'シェフの実験室': ['実験室'],
+  '朝ごはんパスポート': ['パスポート'],
+};
+
 const CAFETERIA_IDEAS: IdeaDraft[] = [
   ['サークル飯マップ', '同じ「好き」でつながる。\nサークルおすすめの学食を共有。', '♧'],
   ['混雑予測ナビ', 'もう、席探しに迷わない。\n空いている時間をAIがご案内。', '⌁'],
@@ -35,7 +49,7 @@ const CAFETERIA_IDEAS: IdeaDraft[] = [
   ['シェフの実験室', '学生のアイデアが一皿に。\n料理長と新メニューを開発。', '✧'],
   ['朝ごはんパスポート', '一日の始まりをおいしく。\nお得な朝食で生活リズムを。', '☀'],
   ['学食おすそわけ便', '忙しい友達に届けよう。\n昼ごはんの持ち帰り予約。', '◇'],
-].map(([title, summary, icon]) => ({ title: title!, summary: summary!, icon: icon! }));
+].map(([title, summary, icon]) => ({ title: title!, summary: summary!, icon: icon!, ...(FIXTURE_ALIASES[title!] ? { aliases: FIXTURE_ALIASES[title!] } : {}) }));
 
 const GENERIC_PATTERNS: [string, string, string][] = [
   ['{t}スタンプラリー', '巡るほど楽しくなる。\n{t}を小さな冒険に。', '♧'],
