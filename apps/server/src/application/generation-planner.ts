@@ -260,7 +260,8 @@ export interface ContextFilterOptions {
 /**
  * 1人目以降が合格（決勝進出）した際にAI生成プランナーに渡す会話文脈を制御する（B2）。
  * 実験・比較可能な3つの戦略を提供する:
- * - 'reset_with_summary' (推奨デフォルト): 直近合格者の評価理由・概要（[合格済み案] タイトル: キャッチコピー）のみを残し、合格前のログはクリア
+ * - 'reset_with_summary' (推奨デフォルト): 合格前の会話（発言・まだ決まっていない論点）はクリアし、合格者の概要（[合格済み案] タイトル: キャッチコピー）に置き換える。
+ *   チームで決めた条件（合意した論点）と、否定した方向（却下した論点・見送った案）は残す（合意を次の案に反映し続けるため）
  * - 'drop_all': 会話履歴・合意台帳を完全リセット
  * - 'keep_recent_only': 直近N件（デフォルト2件）の発言のみ渡す
  */
@@ -307,11 +308,12 @@ export function filterContextForGeneration(
       });
       return {
         version: rawContext.version,
-        agreed: [],
+        // 決まった条件と、否定した方向は残す。合格した案についての会話だけを外す
+        agreed: rawContext.agreed,
         proposed: [],
-        rejected: [],
+        rejected: rawContext.rejected,
         favoredIdeas: finalists.map((i) => i.revisions.at(-1)!.title),
-        rejectedIdeas: [],
+        rejectedIdeas: rawContext.rejectedIdeas,
         recentRemarks: summaries.map((text) => ({
           judge: '合格決定',
           text,

@@ -94,11 +94,11 @@ describe('同じ方向ばかりにしない', () => {
     s.promote(target);
     expect(s.upper).toHaveLength(1);
 
-    // 1. reset_with_summary（推奨デフォルト）：合格案の概要のみを残し、合格以前の合意台帳と会話ログをクリア
+    // 1. reset_with_summary（推奨デフォルト）：合格前の会話と未決の論点は外し、合格案の概要に置き換える。決まった条件と否定した方向は残す
     const ctxSummary = filterContextForGeneration(s, rawContext, { strategy: 'reset_with_summary' });
-    expect(ctxSummary.agreed).toEqual([]);
+    expect(ctxSummary.agreed).toEqual(rawContext.agreed);
     expect(ctxSummary.proposed).toEqual([]);
-    expect(ctxSummary.rejected).toEqual([]);
+    expect(ctxSummary.rejected).toEqual(rawContext.rejected);
     expect(ctxSummary.favoredIdeas).toEqual(['合格案A']);
     expect(ctxSummary.recentRemarks).toHaveLength(1);
     expect(ctxSummary.recentRemarks[0]!.judge).toBe('合格決定');
