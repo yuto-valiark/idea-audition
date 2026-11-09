@@ -1231,3 +1231,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 最終オーディション：台座ごと舞台を持ち上げる（画面の下に寄りすぎないように） */
+.finalStage {
+  --lift: 13vh;
+}
+.finalStage .finalLineup {
+  padding-bottom: calc(var(--lift) + 6vh);
+}
+.finalStage .upperRing {
+  bottom: var(--lift);
+}
+.finalStage .upperDrum {
+  bottom: calc(var(--lift) - 40px);
+}
+.finalStage .floorGrid {
+  bottom: calc(var(--lift) - 6%);
+}
