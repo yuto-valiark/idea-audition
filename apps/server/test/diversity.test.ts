@@ -32,7 +32,7 @@ describe('同じ方向ばかりにしない', () => {
           calls.push(`${JSON.stringify(params.config)}\n${params.contents}`);
           return {
             text: JSON.stringify({
-              ideas: [{ slot: 0, title: '案', reading: 'アン', summary: 'a\nb', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: { cost: 0, novelty: 0, ease: 0, buzz: 0, sustain: 0, social: 0, scale: 0, reach: 0 } }],
+              ideas: [{ slot: 0, title: '案', reading: 'アン', aliases: [], summary: 'a\nb', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: { cost: 0, novelty: 0, ease: 0, buzz: 0, sustain: 0, social: 0, scale: 0, reach: 0 } }],
             }),
           };
         },

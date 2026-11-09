@@ -412,6 +412,7 @@ export class AuditionSession {
             inspiredBy: draft.inspiredBy ?? null,
             profile: draft.profile ?? null,
             reading: draft.reading ?? null,
+            aliases: draft.aliases ?? null,
             outline: draft.outline ?? null,
           },
         ],
@@ -828,6 +829,9 @@ export class AuditionSession {
       basedOnConsensus: this.ledger.version,
       inspiredBy: draft.inspiredBy ?? null,
       profile: current.profile ?? null,
+      // 企画名が同じなら、読みと呼び名は引き継ぐ（変わったら呼び名は古いので持たない）
+      reading: draft.title === current.title ? (current.reading ?? null) : null,
+      aliases: draft.title === current.title ? (current.aliases ?? null) : null,
       // 中身が変わったら新しい「誰の・困りごと・どう解く」。無ければ今の版のもの（旧版より前のものは使わない）
       outline: draft.outline ?? current.outline ?? null,
     };
@@ -892,6 +896,7 @@ export class AuditionSession {
       inspiredBy: draft.inspiredBy ?? null,
       profile: draft.profile ?? current.profile ?? null,
       reading: draft.reading ?? null,
+      aliases: draft.aliases ?? null,
     };
     idea.revisions.push(revision);
     c.reaction = { kind: 'revised', judgeId: null, text: '別案を考えました', at: this.deps.clock.now() };
