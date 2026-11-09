@@ -1578,3 +1578,29 @@
     margin-bottom: 4px;
   }
 }
+
+/*
+ * 決勝：舞台を下げ（持ち上げを小さく）、フリップを縦に長くして、案の画像を切り抜かずに全部出す。
+ * 画像は横長（約 16:9）。オフィシャルの比較表と同じく、幅いっぱいで縦はそのまま
+ */
+.finalStage {
+  --lift: 2vh;
+  /* フリップの高さを、舞台の高さ（見出し・名札を除いた分）までに収める */
+  container-type: size;
+}
+.finalFlip {
+  max-height: min(clamp(280px, 60vh, 680px), calc(100cqh - 120px));
+}
+.finalFlip .flipImage {
+  flex: none;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #0a0614;
+}
+@media (max-height: 780px) {
+  .finalFlip .flipImage {
+    height: auto;
+    max-height: 22vh;
+  }
+}

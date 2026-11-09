@@ -1057,7 +1057,7 @@ export class SessionActor {
 
   /**
    * 画像を1枚ずつ順に頼む。一度に頼むと Gemini の画像モデルが 429（混雑）で断る。
-   * 429 のときは少し待って頼み直す（3秒・8秒・15秒）
+   * 429 のときは少し待って頼み直す（5秒・15秒・30秒・60秒。画像モデルの1分あたりの上限が小さい）
    */
   private imageChain: Promise<unknown> = Promise.resolve();
   private requestImage(input: ProposalImageInput): Promise<string | null> {
@@ -1674,7 +1674,7 @@ export class SessionActor {
 }
 
 /** 画像モデルが混雑（429）で断ったときに待つ時間 */
-const IMAGE_RETRY_MS = [3_000, 8_000, 15_000];
+const IMAGE_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
 
 /** 案のイメージ画像（バイト列のまま持ち、HTTP で返す） */
 export interface IdeaImage {

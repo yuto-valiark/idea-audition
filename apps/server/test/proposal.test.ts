@@ -131,10 +131,10 @@ describe('企画書', () => {
     const second = actor.session.lowerSlots.find((x) => x && x !== first)!;
     actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: second }));
     await advance(0);
-    // 1枚目は混雑で断られ、3秒待ってから頼み直す。2枚目はその後
+    // 1枚目は混雑で断られ、5秒待ってから頼み直す。2枚目はその後
     const ideaOf = (id: string) => actor.session.characters.get(id)!.ideaId;
     expect(actor.ideaImage(ideaOf(first))).toBeNull();
-    await advance(3_000);
+    await advance(5_000);
     expect(actor.ideaImage(ideaOf(first))).not.toBeNull();
     expect(actor.ideaImage(ideaOf(second))).not.toBeNull();
     expect(maxRunning).toBe(1);

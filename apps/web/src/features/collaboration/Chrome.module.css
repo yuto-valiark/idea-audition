@@ -124,6 +124,13 @@
   flex-shrink: 0;
 }
 
+/* 決勝（予選の台が無いとき）はワイプを大きくする。舞台を下げても、顔がよく見えるように */
+@media (min-width: 761px) {
+  .footer:not([data-compact]) {
+    --wipe-base: clamp(76px, 16vh, 168px);
+  }
+}
+
 .judges {
   align-self: flex-end;
   display: flex;
