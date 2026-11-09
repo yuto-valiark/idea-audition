@@ -90,7 +90,7 @@
   min-width: 0;
 }
 
-.claim[data-status='agreed'] .claim[data-pinned] .replaced {
+.replaced {
   margin: 4px 0 0;
   font-size: 11px;
   color: #cbb8db;
