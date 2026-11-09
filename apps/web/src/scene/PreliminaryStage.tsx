@@ -32,9 +32,10 @@ export function PreliminaryStage() {
       <div className="workspace">
         <section className={'stage ' + (celebrating ? 'gold-stage' : '')} aria-label="オーディションステージ">
           <div className="stage-topline">
-            <span className="stage-kicker">
-              <span />
-              PRELIMINARY AUDITION
+            <span className="ia-theme">
+              <b>● LIVE</b>
+              <small>本日のテーマ</small>
+              <strong>{snapshot.theme}</strong>
             </span>
           </div>
           <div className="stage-light light-one" />

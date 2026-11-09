@@ -1557,3 +1557,19 @@
   opacity: 0.92;
   filter: drop-shadow(0 0 18px #b250ffaa) drop-shadow(0 0 40px #8a2be255);
 }
+
+/* 囲いを広げ、テーマもこの中に入れる */
+.ia-prelim { padding-top: 10px; }
+.ia-prelim .workspace { border-top: 1px solid #7d3ab4; border-radius: 12px; }
+.ia-prelim .ia-theme { display: flex; align-items: center; gap: 14px; }
+.ia-prelim .ia-theme b {
+  font-size: 11px; letter-spacing: 1px; padding: 4px 10px; border-radius: 5px;
+  background: #db25573b; border: 1px solid #f0587366; color: #ff8aa0;
+}
+.ia-prelim .ia-theme small { font-size: 11px; color: #aa8bc1; }
+.ia-prelim .ia-theme strong { font-size: 17px; font-weight: 800; letter-spacing: .4px; }
+/* キャラの吹き出しは頭の上ではなく左側に出す（上で切れないように） */
+.ia-prelim .ia-bubble {
+  left: auto; right: 92%; top: 34%; translate: 0 0;
+  width: max-content; max-width: 280px;
+}
