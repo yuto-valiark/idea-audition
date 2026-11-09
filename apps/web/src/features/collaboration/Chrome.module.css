@@ -369,3 +369,39 @@
 .footer[data-compact] .myControls > button {
   width: 40px;
 }
+
+/* オフィシャル会議モード（#36）：ヘッダーと下のバーを白地に合わせる */
+:global(:root[data-formality='official']) .header {
+  background: var(--bg-elev);
+}
+:global(:root[data-formality='official']) .tag {
+  color: var(--ink-muted);
+}
+:global(:root[data-formality='official']) .right {
+  color: var(--ink-soft);
+}
+:global(:root[data-formality='official']) .copy,
+:global(:root[data-formality='official']) .aiBadge,
+:global(:root[data-formality='official']) .actions button {
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elev);
+  color: var(--ink);
+}
+:global(:root[data-formality='official']) .invite {
+  border-color: var(--purple);
+  background: var(--purple);
+}
+:global(:root[data-formality='official']) .actions b {
+  background: var(--purple);
+  color: #fff;
+}
+:global(:root[data-formality='official']) .footer {
+  border-top-color: var(--line);
+}
+:global(:root[data-formality='official']) .hint {
+  color: var(--ink-muted);
+}
+:global(:root[data-formality='official']) .aiBadge[data-mode='gemini'] {
+  border-color: var(--ok);
+  color: var(--ok);
+}

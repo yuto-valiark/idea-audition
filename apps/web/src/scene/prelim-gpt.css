@@ -1785,3 +1785,14 @@
 .ia-prelim .ia-slot{
   visibility: hidden;
 }
+
+/* オフィシャル会議モード（#36）：舞台の上の行は白い背景に直接のるので、文字を濃くする */
+:root[data-formality='official'] .ia-prelim .ia-theme b {
+  color: var(--warn);
+}
+:root[data-formality='official'] .ia-prelim .ia-theme small {
+  color: var(--ink-muted);
+}
+:root[data-formality='official'] .ia-prelim .ia-theme strong {
+  color: var(--ink);
+}

@@ -28,7 +28,7 @@ export function Header() {
       <div className={styles.brand}>
         <img className={styles.logo} src="/brand/logo-neon-sm.webp" alt="IDEA AUDITION" />
       </div>
-      <div className={styles.tag}>{pick(formality, 'AIがプレゼン。あなたが審査員。', 'AIが企画案を発表します。参加者が審査します')}</div>
+      <div className={styles.tag}>{pick(formality, 'AIがプレゼン。あなたが審査員。', '意思決定を、審査形式で。')}</div>
       <FormalityToggle />
       {room === 'active' && (
       <div className={styles.right}>

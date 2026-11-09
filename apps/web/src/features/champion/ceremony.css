@@ -1641,3 +1641,31 @@
     height: 306px;
   }
 }
+
+/* オフィシャル会議モード（#36）：見出しは「最優秀案」を紺の文字で落ち着いて出す（ネオンの縁取りはやめる） */
+:root[data-formality='official'] .ia-ceremony .champion-heading > span {
+  color: var(--ink-muted);
+}
+/* 王冠と月桂樹も金のままだと白地に溶けるので、紺に寄せて光彩を外す */
+:root[data-formality='official'] .ia-ceremony .champion-heading > svg {
+  color: var(--purple);
+  filter: none;
+}
+:root[data-formality='official'] .ia-ceremony .ceremony-laurels {
+  filter: none;
+}
+:root[data-formality='official'] .ia-ceremony .ceremony-laurels g {
+  fill: var(--purple);
+  stroke: var(--purple);
+  opacity: 0.35;
+}
+:root[data-formality='official'] .ia-ceremony .champion-neon-title h1 {
+  font-style: normal;
+  transform: none;
+}
+:root[data-formality='official'] .ia-ceremony .champion-neon-title h1 strong {
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  letter-spacing: 4px;
+}

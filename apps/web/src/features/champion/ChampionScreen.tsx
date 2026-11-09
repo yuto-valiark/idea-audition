@@ -112,13 +112,21 @@ export function ChampionScreen() {
         >
           <div className="champion-heading">
             <Crown />
-            <span>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</span>
+            <span>
+              {formality === 1 ? `会議 ${snapshot.sessionId.toUpperCase()} の結果` : `THE WINNER OF SESSION ${snapshot.sessionId.toUpperCase()}`}
+            </span>
             <div className="champion-neon-title">
               <Laurels />
-              <h1>
-                <span>IDEA</span>
-                <strong>CHAMPION</strong>
-              </h1>
+              {formality === 1 ? (
+                <h1>
+                  <strong>最優秀案</strong>
+                </h1>
+              ) : (
+                <h1>
+                  <span>IDEA</span>
+                  <strong>CHAMPION</strong>
+                </h1>
+              )}
             </div>
             <div className="champion-title-line" />
           </div>
@@ -154,7 +162,7 @@ export function ChampionScreen() {
           <div className="winner-plan-header">
             <span>
               <Trophy size={12} />
-              WINNING IDEA
+              {pick(formality, 'WINNING IDEA', '最優秀案')}
             </span>
             {votes !== null && (
               <b>
