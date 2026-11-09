@@ -2,14 +2,27 @@
 
 AIがプレゼン。あなたが審査員。— アイデア出しをオーディション審査で終わらせる企画案決めツール。
 
-設計資料は [docs/README.md](docs/README.md)。実装計画は [docs/implementation-plan.md](docs/implementation-plan.md)。
+- **本番**：https://idea-audition-852280753109.asia-northeast1.run.app （トップで「オーディションを作る」→ リンクを送って一緒に審査）
+- **機能の一覧（完成形と今の状態）**：[docs/00-product/feature-status.md](docs/00-product/feature-status.md)
+- **構成図**：[docs/02-architecture/system-map.html](docs/02-architecture/system-map.html)
+- 設計資料は [docs/README.md](docs/README.md)。実装計画は [docs/implementation-plan.md](docs/implementation-plan.md)
+
+## 遊び方
+
+1. ホストが部屋を作り、テーマ・持ち時間（15〜90秒）・合格者の人数（1〜4人）を決めてリンクを送る（審査員は4人まで。5人目からは聞くだけ）
+2. **予選**：AI キャラが1人ずつ企画をプレゼン。気になったら話しかけて深掘り（その間は時間が止まる）。全員がゴールデンブザーを押したら合格
+3. **決勝**：合格した案どうしが批評し合い、改良していく。注目したいキャラをタップして質問・改善を頼む。前の版にも戻せる
+4. **優勝**：投票で決めると、企画書がすぐ出る（PDF・文章コピー・共有）
+
+話した内容は合意メモ（賛成・反対した人と人数）にまとまり、次の案づくりに使われます。
 
 ## 構成
 
 ```text
-apps/web          React + TypeScript + Vite（ステージUI、CAMPクライアント）
-apps/server       Node.js + TypeScript（セッションアクター、CAMP の WebSocket 終端）
-packages/protocol CAMP v1 の契約（Zod スキーマ・型・キャラ素材カタログ）
+apps/web          React + TypeScript + Vite（ステージUI、CAMPクライアント、通話、声の入力）
+apps/server       Node.js + TypeScript（セッションアクター、CAMP の WebSocket 終端、Gemini、音声の中継、通話の接続情報）
+packages/camp     CAMP 本体（@camp-protocol/kit：人の操作と AI の結果を1つの順番で確定するプロトコル）
+packages/protocol IDEA AUDITION の語彙（Command・Event・snapshot の形、キャラ素材カタログ）
 reference/        ChatGPT で作ったモックアプリ（参考資料。ビルド対象外）
 ```
 
@@ -24,14 +37,15 @@ pnpm dev
 
 - Web: http://localhost:5173 （`/camp` を Vite が server の 8787 番へプロキシ）
 - Server: ws://localhost:8787/camp、ヘルスチェック http://localhost:8787/health
-- 同じセッションに入るには同じ URL を開きます。`?s=<セッション名>` で別のセッションになります（省略時は `demo`）
-- 審査員は1つのセッションに4人まで。5人目以降は観覧モード
+- トップの「オーディションを作る」で部屋のリンク（`/a/xxx-xxxx-xxx`）ができます。同じリンクを別のタブや端末で開くと、一緒に審査できます
+- 審査員は1つの部屋に4人まで。5人目以降は観覧モード
 
 AI は既定で固定データ（`FixtureGateway`）を使うので、GCP の権限が無くても全機能を試せます。
 
-- **AI のモード**：開始画面で「AI：Gemini（クレジットを使う）」と「固定データ（無料）」を選べ、審査の途中でもホストがヘッダーのバッジで切り替えられます（Gemini はサーバーが `AI_GATEWAY=gemini` のときだけ選べる）。
+- **AI のモード**：本番は Gemini で固定です。開発サーバーでは、部屋の URL に `?ai=fixture` を付けると固定データ（Gemini を呼ばない）で始められます（Gemini はサーバーが `AI_GATEWAY=gemini` のときだけ使える）。
+- **通話の中継（TURN）**：`.env` に Cloudflare の `TURN_KEY_ID`・`TURN_KEY_API_TOKEN` を入れると、直接つながらない回線でも声が届きます。無ければ Google の STUN だけで通話します。
 - **手元で Gemini を使う・クレジットの使い方**：[docs/05-platform/gemini-credits.md](docs/05-platform/gemini-credits.md)
-- **本番**：https://idea-audition-852280753109.asia-northeast1.run.app （トップで部屋を作り、リンクを送って一緒に審査する）、デプロイ手順は [docs/05-platform/deployment.md](docs/05-platform/deployment.md)
+- **デプロイ手順**：[docs/05-platform/deployment.md](docs/05-platform/deployment.md)
 - 設定の一覧は `.env.example`。
 
 ## テスト・ビルド
