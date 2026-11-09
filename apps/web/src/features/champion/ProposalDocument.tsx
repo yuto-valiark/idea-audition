@@ -1,5 +1,6 @@
 import { PITCH_ROLE_ICON, TASTE_AXES, type ProposalContent, type SessionSnapshot } from '@idea-audition/protocol';
 import { TasteRadar } from '../taste/TasteRadar.tsx';
+import { isTasteRead, tasteLeaning } from '../taste/taste-summary.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import styles from './ProposalDocument.module.css';
 
@@ -325,20 +326,18 @@ function TasteReport({ snapshot }: { snapshot: SessionSnapshot }) {
         <TasteRadar snapshot={snapshot} print />
         <div>
           {active.map((j) => {
-            const v = taste.judges[j.judgeId]!;
-            const top = v
-              .map((x, i) => ({ x, i }))
-              .sort((a, b) => Math.abs(b.x) - Math.abs(a.x))
-              .slice(0, 2)
-              .filter((t) => Math.abs(t.x) >= 0.2)
-              .map((t) => `${TASTE_AXES[t.i]!.label}${t.x > 0 ? '高め' : '控えめ'}`);
+            const n = taste.signals[j.judgeId] ?? 0;
+            // 反応が少ないうちは、たまたま押した案の特徴がそのまま好みに見えるので、判断しない
+            const text = isTasteRead(taste, j.judgeId)
+              ? `${tasteLeaning(taste.judges[j.judgeId]!).join('・') || '偏りなし'}（反応 ${n} 回）`
+              : `反応が少ないため（${n}回）、好みは判断していません`;
             return (
               <p key={j.judgeId} className={styles.small}>
-                <b style={{ color: j.color }}>●</b> {j.label}：{top.join('・') || '偏りなし'}（反応 {taste.signals[j.judgeId]} 回）
+                <b style={{ color: j.color }}>●</b> {j.label}：{text}
               </p>
             );
           })}
-          {taste.divergence && (
+          {taste.divergence && isTasteRead(taste, taste.divergence.judgeA) && isTasteRead(taste, taste.divergence.judgeB) && (
             <p className={styles.small}>
               {label(taste.divergence.judgeA)}と{label(taste.divergence.judgeB)}は「{TASTE_AXES[taste.divergence.axis]!.label}」で好みが割れていたため、間をとる案を混ぜて出しました。
             </p>

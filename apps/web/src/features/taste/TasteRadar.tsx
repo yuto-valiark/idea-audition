@@ -3,7 +3,7 @@ import { TASTE_AXES, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { pick, useFormality } from '../../shared/formality.ts';
-import { activeTasteJudges } from './taste-summary.ts';
+import { activeTasteJudges, isTasteRead, signalsUntilRead, tasteLeaning } from './taste-summary.ts';
 import styles from './Taste.module.css';
 
 const SIZE = 220;
@@ -104,6 +104,8 @@ export function TasteRadar({ snapshot, print = false, compact = false }: { snaps
           <polygon
             key={j.judgeId}
             className={styles.judgeShape}
+            // 読み取り中（反応が少ない）の人は、薄い点線で描く
+            data-reading={!isTasteRead(taste, j.judgeId) || undefined}
             points={polygon(v)}
             fill={j.color}
             fillOpacity={print ? 0.18 : 0.22}
@@ -132,41 +134,30 @@ function TasteNotes({ snapshot }: { snapshot: SessionSnapshot }) {
   const { taste, judges } = snapshot;
   const label = (id: string) => judges.find((j) => j.judgeId === id)?.label ?? '審査員';
   const active = activeTasteJudges(taste, judges);
-  if (active.length === 0) {
-    return (
-      <p className={styles.empty}>
-        まだ好みは分かりません。キャラを決勝へ上げる・見送る・詳細を開く・「いいね」「うーん」と話す、などの反応から少しずつ読み取ります。
-      </p>
-    );
-  }
+  if (active.length === 0) return <p className={styles.empty}>まだ読み取れていません</p>;
+  // 割れの表示は、2人とも読み取れてから（反応が少ないうちの差は、たまたまの差なので）
+  const div = taste.divergence;
+  const split = div && isTasteRead(taste, div.judgeA) && isTasteRead(taste, div.judgeB) ? div : null;
   return (
     <div className={styles.notes}>
       <ul className={styles.legend}>
         {active.map((j) => {
-          const v = taste.judges[j.judgeId]!;
-          const top = v
-            .map((x, i) => ({ x, i }))
-            .sort((a, b) => Math.abs(b.x) - Math.abs(a.x))
-            .slice(0, 2)
-            .filter((t) => Math.abs(t.x) >= 0.2)
-            .map((t) => `${TASTE_AXES[t.i]!.label}${t.x > 0 ? '高め' : '控えめ'}`);
+          const read = isTasteRead(taste, j.judgeId);
+          const leaning = read ? tasteLeaning(taste.judges[j.judgeId]!) : [];
           return (
-            <li key={j.judgeId} style={{ ['--judge' as string]: j.color }}>
+            <li key={j.judgeId} style={{ ['--judge' as string]: j.color }} data-reading={!read || undefined}>
               <span />
-              <b>{j.label}</b> {top.join('・') || 'まだ偏りなし'}
+              <b>{j.label}</b> {read ? leaning.join('・') || '偏りなし' : `読み取り中（あと${signalsUntilRead(taste, j.judgeId)}回）`}
               <small>反応 {taste.signals[j.judgeId]}</small>
             </li>
           );
         })}
       </ul>
-      {taste.divergence && (
+      {split && (
         <p className={styles.split}>
-          🤝 {label(taste.divergence.judgeA)}と{label(taste.divergence.judgeB)}は「{TASTE_AXES[taste.divergence.axis]!.label}」で好みが割れています。間をとる案を混ぜて出します。
+          🤝 {label(split.judgeA)}と{label(split.judgeB)}は「{TASTE_AXES[split.axis]!.label}」で好みが割れています。間をとる案を混ぜて出します。
         </p>
       )}
-      <p className={styles.hint}>
-        💡 好みに寄せた案 · 🤝 2人の間をとる案 · 🧭 まだ出ていない方向 · 🎲 ワイルドカード、を混ぜて下段に出します。
-      </p>
     </div>
   );
 }
