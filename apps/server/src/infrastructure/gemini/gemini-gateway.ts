@@ -469,7 +469,7 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
    * 雑談・アプリや機材の話・聞き間違いは keep=false。迷うときは残す（本物の発言を落とさない）。
    */
   async triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage> {
-    const stage = input.stage.length ? input.stage.map((c) => `- ${c.characterName}：${c.title}`).join('\n') : '（なし）';
+    const stage = input.stage.length ? input.stage.map((c) => `- ${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n') : '（なし）';
     const recent = input.recentRemarks.length ? input.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n') : '（なし）';
     const prompt = `# テーマ
 ${input.theme}
@@ -485,7 +485,7 @@ ${recent}
   - on_topic：テーマや舞台の企画について、質問・感想・要望・方針・条件・反応（いいね／微妙／迷い）を言っている。直前の発言を受けた短い返事（「それはいいね」）も含む
   - off_topic：雑談、アプリ・画面・マイク・通信の操作や不具合の話、審査と関係のない会話、独り言
   - garbled：聞き間違いや言葉の切れ端で、何を言いたいのか分からない
-- summary：on_topic のときだけ、その発言を言い直した1文（60文字以内）。言い淀み（えーと・あの）や繰り返しを除くだけで、言った内容は変えず、足さない。キャラの名前・企画名・数字はそのまま残す。質問は質問、頼みは頼み、否定は否定のままにする。off_topic と garbled のときは空文字
+- summary：on_topic のときだけ、その発言を言い直した1文（60文字以内）。言い淀み（えーと・あの）や繰り返しを除くだけで、言った内容は変えず、足さない。キャラの名前・企画名・数字はそのまま残す。企画の説明文は話題かどうかの判断にだけ使い、言い直しには足さない。質問は質問、頼みは頼み、否定は否定のままにする。off_topic と garbled のときは空文字
 - 迷って決められないときは on_topic にして、発言をそのまま summary に入れる`;
     const out = await this.call('triageUtterance', this.config.fast, prompt, TriageSchema);
     if (out.verdict !== 'on_topic') return { keep: false, reason: out.verdict };

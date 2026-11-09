@@ -178,7 +178,7 @@ describe('GeminiGateway', () => {
     const g = new GeminiGateway(client, config);
     const input = {
       theme: '学食',
-      stage: [{ characterName: 'MOMO', title: '混雑予測ナビ' }],
+      stage: [{ characterName: 'MOMO', title: '混雑予測ナビ', summary: '行列が分かる\n学食の混み具合を予測' }],
       recentRemarks: [{ judge: '審査員 A', text: 'コストは低めがいい' }],
       text: 'えーと費用ってどれくらい？',
     };

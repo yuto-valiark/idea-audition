@@ -85,8 +85,8 @@ export interface EmbeddingPort {
 /** 声の発言を、審査の話題かどうか判定してもらうための材料（issue #3） */
 export interface UtteranceTriageInput {
   theme: string;
-  /** 舞台にいるキャラと、その企画名（「ルナが言っていた案」のような言及の判断に使う） */
-  stage: { characterName: string; title: string }[];
+  /** 舞台にいるキャラと、その企画名・説明文（「ルナが言っていた案」のような言及や、企画の中身への質問の判断に使う） */
+  stage: { characterName: string; title: string; summary: string }[];
   /** 直前の発言（「それは微妙」のような、前の話を受けた発言を落とさないため） */
   recentRemarks: { judge: string; text: string }[];
   /** 会議の語彙で聞き間違いを直したあとの文字起こし */

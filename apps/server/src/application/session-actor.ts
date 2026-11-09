@@ -747,7 +747,10 @@ export class SessionActor {
     if (spotlight && !onStage.includes(spotlight)) onStage.push(spotlight);
     return this.ai.triageUtterance({
       theme: s.theme,
-      stage: onStage.map((id) => ({ characterName: this.characterName(id), title: s.currentRevision(s.characters.get(id)!.ideaId).title })),
+      stage: onStage.map((id) => {
+        const rev = s.currentRevision(s.characters.get(id)!.ideaId);
+        return { characterName: this.characterName(id), title: rev.title, summary: rev.summary };
+      }),
       recentRemarks: buildConsensusContext(s).recentRemarks.slice(-3),
       text,
     });
