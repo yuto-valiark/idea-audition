@@ -11,12 +11,8 @@ import styles from './Call.module.css';
 export function CallControls() {
   const room = useSession((s) => s.room);
   const { me, isSpectator } = useMe();
-  const inCall = useCall((s) => s.inCall);
-  const joining = useCall((s) => s.joining);
   const blocked = useCall((s) => s.blocked);
-  const peers = useCall((s) => s.peers.length);
   const unlock = useCall((s) => s.unlock);
-  const listenOnly = useCall((s) => s.listenOnly);
   if (room !== 'active' || (!isSpectator && !me)) return null;
   if (blocked) {
     return (
@@ -25,13 +21,8 @@ export function CallControls() {
       </button>
     );
   }
-  if (!inCall) return joining ? <span className={styles.live}><Headphones size={14} /> つないでいます…</span> : null;
-  return (
-    <span className={styles.live} title={isSpectator ? '観覧中は声を聞くだけです（話せるのは審査員の4人まで）' : 'みんなの声が聞こえます。マイクのボタンでミュート'}>
-      <Headphones size={14} /> {peers > 0 ? `${peers}人と通話中` : 'ほかの人を待っています'}
-      {listenOnly || isSpectator ? '（聞くだけ）' : ''}
-    </span>
-  );
+  // 通話の人数などの表示は出さない（音が止められているときの「音声をオンにする」だけ）
+  return null;
 }
 
 /** 審査員の札に出す印：通話中なら🎧、話していれば光る */

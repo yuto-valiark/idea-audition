@@ -92,7 +92,8 @@ export function Intro() {
               <option value="team">みんなで審査</option>
               <option value="solo">ひとりで審査</option>
             </select>
-            {aiAvailable.length > 1 && (
+            {/* AI のモードの切り替えは開発版だけ（本番は Gemini） */}
+            {import.meta.env.DEV && aiAvailable.length > 1 && (
               <select
                 value={shownAi}
                 disabled={guest}

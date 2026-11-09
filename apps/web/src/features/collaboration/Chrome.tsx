@@ -42,7 +42,7 @@ export function Header() {
         <Users size={15} />
         <span>{connected}人で参加中</span>
         {isSpectator && <span className={styles.spectator}>観覧モード</span>}
-        <AiModeBadge />
+        {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
         {lobby && !isSpectator && <CallMicButton />}
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">

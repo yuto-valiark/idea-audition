@@ -40,6 +40,11 @@ export function FinalStage() {
       data-hover={hover || undefined}
       data-spotlight={spotlight ? true : undefined}
       aria-label="最終オーディション"
+      onClick={(e) => {
+        // 注目中に、キャラやボタン以外の場所を押したら注目をやめる
+        if (!spotlight || (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+        void send('SET_SPOTLIGHT', { instanceId: null });
+      }}
     >
       <div className={`${styles.floorGrid}`} aria-hidden />
       <div className={styles.heading}>
