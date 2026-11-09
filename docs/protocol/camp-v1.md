@@ -53,20 +53,21 @@ WebSocket が決めるのは「バイト列を双方向に順番どおり届け�
 ### 3.1 hello
 
 ```json
-{ "camp": "1", "kind": "hello", "sessionId": "main", "participantId": "j_…", "lastSeq": 128 }
+{ "camp": "1", "kind": "hello", "sessionId": "main", "participantId": "j_…", "resumeToken": "…", "lastSeq": 128 }
 ```
 
-- `participantId`：前回もらった ID。あれば同じ審査員として戻る。
+- `participantId`：前回もらった ID。
+- `resumeToken`：前回の welcome で本人にだけ渡された合言葉。`participantId` と合言葉の両方が合うときだけ、同じ審査員として戻る（`participantId` は snapshot で全員に見えるので、それだけで戻れるとなりすませてしまう）。
 - `lastSeq`：最後に反映した Event の `seq`。
 - `sessionId`：部屋の ID。IDEA AUDITION ではホストが `POST /api/rooms` で作った部屋だけがあり、URL `/a/<部屋 ID>` を開いた人が入る（Google Meet と同じ）。ない部屋は `protocol_error{ROOM_NOT_FOUND}` を返して 4404 で閉じる。
 
 ### 3.2 welcome
 
 ```json
-{ "camp": "1", "kind": "welcome", "participantId": "j_… | null", "snapshot": { "seq": 131, "…": "…" } }
+{ "camp": "1", "kind": "welcome", "participantId": "j_… | null", "resumeToken": "… | null", "snapshot": { "seq": 131, "…": "…" } }
 ```
 
-`participantId` が `null` なら観覧者です。
+`participantId` が `null` なら観覧者です。`resumeToken` は本人の接続にだけ送り、snapshot やイベントには入れません。
 
 ### 3.3 command
 
@@ -235,14 +236,14 @@ sequenceDiagram
   loop 400ms・800ms・1.6秒…最大5秒
     C->>S: 再接続
   end
-  C->>S: hello(participantId, lastSeq)
+  C->>S: hello(participantId, resumeToken, lastSeq)
   S-->>C: welcome(snapshot)
   C->>S: result が来ていない Command を同じ commandId で再送
   S-->>C: 実行済みなら前回の result、未実行なら実行して result
 ```
 
 - サーバーは差分の再送をせず、**常に snapshot で全体を渡します**。snapshot は小さく（数十KB）、差分の欠落を考えなくてよいためです。
-- 同じ `participantId` で戻れば、審査員の席とホストの権限は元に戻ります（ホストが移っていれば移ったまま）。
+- 同じ `participantId` と合言葉で戻れば、審査員の席とホストの権限は元に戻ります（ホストが移っていれば移ったまま）。合言葉が合わなければ、新しい審査員（満員なら観覧者）として入ります。
 - 審査員の接続がすべて切れると、AI の生成と下段の入れ替えを止めます。最初の1人が戻ると再開します。
 
 ## 9. AI の遅れた結果
@@ -276,6 +277,7 @@ Gemini の呼び出しは数百ミリ秒〜数十秒かかり、その間に人�
 ## 12. 安全
 
 - サーバーは送り手の申告（`senderId` など）を信用せず、接続に結び付いた `participantId` で判断します。
+- 前の審査員として戻るには、その審査員の welcome で渡した合言葉（`resumeToken`、24バイトの乱数）が要ります。比べるときは時間差で中身が漏れない方法を使います。
 - 合言葉は廃止しました（2026-11-08）。部屋の ID（26^10 通り）を知っている人だけが入れます。部屋を作る回数は送り手ごとに1時間10回、同時に置ける部屋は20までに制限して、Gemini のクレジットを守ります。
 - 文字列は長さを制限します（発言は400文字、ID は80文字）。
 

@@ -39,6 +39,11 @@ export const HelloMessage = z.object({
   kind: z.literal('hello'),
   sessionId: id,
   participantId: id.optional(),
+  /**
+   * welcome で本人だけに渡された合言葉（§7）。participantId だけでは同じ人として戻れない
+   * （participantId は snapshot でほかの人にも見えるので、なりすましに使えてしまう）
+   */
+  resumeToken: z.string().min(1).max(128).optional(),
   lastSeq: z.number().int().optional(),
 });
 export type HelloMessage = z.infer<typeof HelloMessage>;
@@ -63,6 +68,8 @@ export const welcomeMessage = <S extends z.ZodType>(snapshot: S) =>
     kind: z.literal('welcome'),
     /** null は満員による観覧 */
     participantId: z.string().nullable(),
+    /** つなぎ直すときに hello で返す合言葉。この接続の本人にだけ送る（観覧なら null） */
+    resumeToken: z.string().nullable().optional(),
     snapshot,
   });
 
