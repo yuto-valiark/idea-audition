@@ -1,17 +1,10 @@
-import { Pin, PinOff, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { useEffect } from 'react';
 import type { ClaimView, SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { judgeById, useMe } from '../../shared/selectors.ts';
 import styles from './Consensus.module.css';
-
-const STATUS_LABEL: Record<ClaimView['status'], string> = {
-  agreed: '合意',
-  proposed: '提案中',
-  rejected: '却下',
-  superseded: '置き換え',
-};
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
@@ -38,15 +31,12 @@ export function ConsensusMemo() {
     <section className={styles.panel} aria-label="合意メモ">
       <header>
         <strong>合意メモ</strong>
-        <small>会話から自動で記録 · v{snapshot.consensus.version}</small>
         <button aria-label="閉じる" onClick={() => setOpen(false)}>
           <X size={16} />
         </button>
       </header>
       {claims.length === 0 ? (
-        <p className={styles.empty}>
-          まだ論点はありません。「コストは低めがいい」「留学生も対象にしたい」のように話すと、ここに記録されます。
-        </p>
+        <p className={styles.empty}>まだ論点はありません</p>
       ) : (
         <div className={styles.groups}>
           {groups.map(([title, items]) =>
@@ -67,62 +57,75 @@ export function ConsensusMemo() {
 
 function ClaimRow({ claim, snapshot }: { claim: ClaimView; snapshot: SessionSnapshot }) {
   const send = useSession((s) => s.send);
-  const { isSpectator } = useMe();
+  const { isSpectator, judgeId: me } = useMe();
   const inactive = claim.status === 'superseded';
-  const judgeMark = (judgeId: string | null) => {
+  const person = (judgeId: string | null) => {
     const j = judgeId ? judgeById(snapshot, judgeId) : null;
-    return j ? (
-      <span className={styles.judge} style={{ ['--judge' as string]: j.color }}>
-        {j.letter ?? j.label.slice(-1)}
-      </span>
-    ) : null;
+    return j ? { id: j.judgeId, name: j.name ?? j.label, color: j.color } : null;
   };
+  const stances = Object.entries(claim.stances);
+  const supporters = stances.filter(([, s]) => s === 'support').map(([id]) => person(id)).filter((p) => !!p);
+  const opposers = stances.filter(([, s]) => s === 'oppose').map(([id]) => person(id)).filter((p) => !!p);
+  const members = Math.max(1, snapshot.judges.filter((j) => j.connected).length);
+  const creator = person(claim.createdBy);
+  const replacement = claim.supersededBy ? snapshot.consensus.claims.find((c) => c.label === claim.supersededBy) : null;
+  const myStance = me ? claim.stances[me] : undefined;
+  const say = (stance: 'support' | 'oppose') =>
+    void send('SUBMIT_UTTERANCE', {
+      text: stance === 'support' ? `「${claim.text}」に賛成` : `「${claim.text}」には反対`,
+      source: 'text',
+      replyToClaim: claim.label,
+    });
   return (
     <div className={styles.claim} data-status={claim.status}>
       <div className={styles.claimHead}>
-        <b>{claim.label}</b>
-        <span className={styles.badge}>{claim.pinned ? '確定' : STATUS_LABEL[claim.status]}</span>
         <p>{claim.text}</p>
       </div>
-      <div className={styles.stances}>
-        {Object.entries(claim.stances).map(([judgeId, stance]) => (
-          <span key={judgeId} data-stance={stance}>
-            {judgeMark(judgeId)}
-            {stance === 'support' ? '賛成' : '反対'}
-          </span>
-        ))}
-        {claim.supersededBy && <span>→ {claim.supersededBy} に置き換え</span>}
+      {replacement && <p className={styles.replaced}>→ {replacement.text}</p>}
+      <div className={styles.votes}>
+        <div className={styles.meter} aria-hidden>
+          <i style={{ width: `${Math.min(100, (supporters.length / members) * 100)}%` }} />
+        </div>
+        <span className={styles.count}>
+          賛成 {supporters.length}/{members}
+        </span>
       </div>
-      <ol className={styles.timeline}>
-        {claim.history.map((h, i) => (
-          <li key={i}>
-            {time(h.at)} {judgeMark(h.judgeId)} {i === 0 && h.judgeId === claim.createdBy ? '提案' : h.stance === 'support' ? '賛成' : '反対'}
-          </li>
-        ))}
-      </ol>
-      {!isSpectator && !inactive && (
-        <div className={styles.actions}>
-          <button
-            title="賛成（会話として記録されます）"
-            onClick={() => void send('SUBMIT_UTTERANCE', { text: `${claim.label}「${claim.text}」に賛成`, source: 'text', replyToClaim: claim.label })}
-          >
-            <ThumbsUp size={13} />
-          </button>
-          <button
-            title="反対（会話として記録されます）"
-            onClick={() => void send('SUBMIT_UTTERANCE', { text: `${claim.label}「${claim.text}」には反対`, source: 'text', replyToClaim: claim.label })}
-          >
-            <ThumbsDown size={13} />
-          </button>
-          <button
-            title={claim.pinned ? '確定を取り消す' : 'これで決まり（確定）'}
-            onClick={() => void send(claim.pinned ? 'UNPIN_CLAIM' : 'PIN_CLAIM', { label: claim.label })}
-          >
-            {claim.pinned ? <PinOff size={13} /> : <Pin size={13} />}
-          </button>
+      {(supporters.length > 0 || opposers.length > 0) && (
+        <div className={styles.people}>
+          {supporters.map((p) => (
+            <Person key={p.id} name={p.name} color={p.color} stance="support" />
+          ))}
+          {opposers.map((p) => (
+            <Person key={p.id} name={p.name} color={p.color} stance="oppose" />
+          ))}
         </div>
       )}
+      <div className={styles.foot}>
+        <small className={styles.meta}>
+          {creator ? `${creator.name} · ` : ''}
+          {time(claim.createdAt)}
+        </small>
+        {!isSpectator && !inactive && (
+          <div className={styles.actions}>
+            <button title="賛成" aria-pressed={myStance === 'support'} data-on={myStance === 'support' || undefined} onClick={() => say('support')}>
+              <ThumbsUp size={14} />
+            </button>
+            <button title="反対" aria-pressed={myStance === 'oppose'} data-on={myStance === 'oppose' || undefined} onClick={() => say('oppose')}>
+              <ThumbsDown size={14} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+function Person({ name, color, stance }: { name: string; color: string; stance: 'support' | 'oppose' }) {
+  return (
+    <span className={styles.person} data-stance={stance} style={{ ['--judge' as string]: color }} title={stance === 'support' ? '賛成' : '反対'}>
+      {stance === 'support' ? <ThumbsUp size={10} /> : <ThumbsDown size={10} />}
+      {name}
+    </span>
   );
 }
 

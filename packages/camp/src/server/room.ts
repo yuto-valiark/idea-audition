@@ -15,6 +15,7 @@ import type {
   SnapshotOf,
 } from '../core/vocabulary.ts';
 import type { Connection, RoomEndpoint } from './transport.ts';
+import { createResumeToken, resumeTokenMatches } from './resume-token.ts';
 
 /**
  * 小さなアプリ向けの、すぐ使える部屋（RoomEndpoint の実装）。
@@ -88,6 +89,8 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
   private nextParticipant = 0;
   private connections = new Map<string, { conn: Connection; participantId: string | null }>();
   private people: Participant[] = [];
+  /** 参加者ごとのつなぎ直し用の合言葉（snapshot には入れない） */
+  private tokens = new Map<string, string>();
   private results = new ResultCache<unknown>(500);
   private signalTimes = new Map<string, number[]>();
   private api: RoomApi<V, S>;
@@ -116,10 +119,20 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
       emit: (type, detail = {}) => room.emit(type as string, detail, null, null),
       task: (work, then, onError) => {
         const epoch = room.epoch;
-        work().then(
-          (r) => epoch === room.epoch && then(r),
-          (e) => epoch === room.epoch && onError?.(e),
-        );
+        // 結果を反映する処理が例外を出しても、受け止めて記録する（受け止めないとプロセスごと止まる）
+        const safely = (f: () => void) => {
+          try {
+            f();
+          } catch (e) {
+            console.error('[camp] task callback failed', e);
+          }
+        };
+        Promise.resolve()
+          .then(work)
+          .then(
+            (r) => epoch === room.epoch && safely(() => then(r)),
+            (e) => epoch === room.epoch && safely(() => onError?.(e)),
+          );
       },
       reset: (s) => {
         room.epoch++;
@@ -141,23 +154,35 @@ export class CampRoom<V extends AnyVocabulary, S> implements RoomEndpoint<V> {
 
   attach(conn: Connection, hello: HelloMessage) {
     const max = this.def.maxParticipants ?? 8;
+    // 同じ人として戻れるのは、welcome で渡した合言葉を返してきたときだけ（参加者 ID はほかの人にも見えている）
     let person = hello.participantId ? this.people.find((p) => p.id === hello.participantId) : undefined;
+    if (person && !resumeTokenMatches(this.tokens.get(person.id), hello.resumeToken)) person = undefined;
     const rejoined = !!person;
     if (person) person.connected = true;
     else {
       if (this.people.length >= max) {
         // 切断した人の席を空ける。全員接続中なら観覧
         const stale = this.people.find((p) => !p.connected);
-        if (stale) this.people = this.people.filter((p) => p !== stale);
+        if (stale) {
+          this.people = this.people.filter((p) => p !== stale);
+          this.tokens.delete(stale.id);
+        }
       }
       if (this.people.length < max) {
         person = { id: `p_${++this.nextParticipant}`, connected: true, isHost: false, joinedAt: this.now() };
         this.people.push(person);
+        this.tokens.set(person.id, createResumeToken());
       }
     }
     this.ensureHost();
     this.connections.set(conn.id, { conn, participantId: person?.id ?? null });
-    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: person?.id ?? null, snapshot: this.snapshot() });
+    conn.send({
+      camp: CAMP_VERSION,
+      kind: 'welcome',
+      participantId: person?.id ?? null,
+      resumeToken: person ? (this.tokens.get(person.id) ?? null) : null,
+      snapshot: this.snapshot(),
+    });
     if (person) this.def.onJoin?.(this.api, person.id, rejoined);
   }
 

@@ -2,9 +2,11 @@ import { Copy, Crown, Play, Plus, Share2, Users, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { useEffect, useState } from 'react';
+import { CHALLENGE_SEC_OPTIONS, MAX_FINALISTS, UPPER_CAPACITY } from '@idea-audition/protocol';
 import { roomUrl, useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import styles from './Intro.module.css';
 import './start-screen.css';
 
@@ -16,7 +18,8 @@ export function Intro() {
   const room = useSession((s) => s.room);
   const roomId = useSession((s) => s.sessionId);
   const createRoom = useSession((s) => s.createRoom);
-  const { isSpectator, isHost } = useMe();
+const { isSpectator, isHost } = useMe();
+  const formality = useFormality();
   const themeDraft = useSession((s) => s.themeDraft);
   const judgeCount = useSession((s) => s.snapshot?.judges.length ?? 0);
   const [theme, setTheme] = useState(DEMO_THEME);
@@ -26,22 +29,29 @@ export function Intro() {
   const devFixture = import.meta.env.DEV && new URLSearchParams(location.search).get('ai') === 'fixture';
   const chosenAi = devFixture && aiAvailable.includes('fixture') ? 'fixture' : aiAvailable.includes('gemini') ? 'gemini' : (aiAvailable[0] ?? 'fixture');
   const [busy, setBusy] = useState(false);
+  const [finalists, setFinalists] = useState<number>(UPPER_CAPACITY);
+  const [challengeSec, setChallengeSec] = useState<number>(60);
   // ホストが入れているテーマと設定を、ほかの人の画面にもそのまま見せる（人が増えたときも送り直す）
   useEffect(() => {
     if (!isHost || room !== 'active' || connection !== 'open') return;
     const t = setTimeout(
-      () => useSession.getState().client?.sendEphemeral('THEME_DRAFT', { theme: theme.slice(0, 120), mode, aiMode: chosenAi }),
+      () =>
+        useSession
+          .getState()
+          .client?.sendEphemeral('THEME_DRAFT', { theme: theme.slice(0, 120), mode, aiMode: chosenAi, finalists, challengeSec }),
       200,
     );
     return () => clearTimeout(t);
-  }, [isHost, room, connection, theme, mode, chosenAi, judgeCount]);
+  }, [isHost, room, connection, theme, mode, chosenAi, judgeCount, finalists, challengeSec]);
   const guest = room === 'active' && !isHost;
   const shownTheme = guest ? (themeDraft?.theme ?? '') : theme;
+  const shownFinalists = guest ? (themeDraft?.finalists ?? UPPER_CAPACITY) : finalists;
+  const shownSec = guest ? (themeDraft?.challengeSec ?? 60) : challengeSec;
 
   async function start() {
     if (!theme.trim() || busy || !isHost) return;
     setBusy(true);
-    await send('START_AUDITION', { theme: theme.trim(), mode, aiMode: chosenAi });
+    await send('START_AUDITION', { theme: theme.trim(), mode, aiMode: chosenAi, finalists, challengeSec });
     setBusy(false);
   }
 
@@ -91,16 +101,30 @@ export function Intro() {
           </div>
         </motion.div>
         <motion.div className="welcome-copy" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
-          <h1>
-            まだ、人間が<span>アイデア出してるの？</span>
-          </h1>
-          <p>
-            <strong>AIが次々にアイデアをプレゼン。</strong>
-            <br />
-            あなたの直感で選び、みんなで磨いて、最高の1案へ。
-          </p>
+          {formality === 1 ? (
+            <>
+              <h1>企画案の検討を、審査形式で。</h1>
+              <p>
+                <strong>AIが企画案を発表します。</strong>
+                <br />
+                参加者の審査で磨き、最も優れた1案を決定します。
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>
+                まだ、人間が<span>アイデア出してるの？</span>
+              </h1>
+              <p>
+                <strong>AIが次々にアイデアをプレゼン。</strong>
+                <br />
+                あなたの直感で選び、みんなで磨いて、最高の1案へ。
+              </p>
+            </>
+          )}
         </motion.div>
-        <div className="welcome-showcase" aria-hidden>
+        {formality === 0 && (
+          <div className="welcome-showcase" aria-hidden>
           <div className="welcome-characters">
             {(['momo', 'sprout', 'luna'] as const).map((name, n) => (
               <motion.div
@@ -127,6 +151,7 @@ export function Intro() {
           </div>
           <div className="welcome-platform-reflection" />
         </div>
+        )}
 
         <div className="welcome-action">
           {lobby ? (
@@ -145,21 +170,37 @@ export function Intro() {
                   value={shownTheme}
                   maxLength={120}
                   readOnly={guest}
-                  aria-label="今回のオーディションテーマ"
+                  aria-label={pick(formality, '今回のオーディションテーマ', '今回のテーマ')}
                   placeholder={guest ? 'ホストがテーマを入力しています…' : undefined}
                   onChange={(e) => setTheme(e.target.value)}
                 />
               </div>
+              <div className={styles.rules}>
+                <Choice
+                  label="持ち時間"
+                  options={CHALLENGE_SEC_OPTIONS.map((v) => ({ value: v, text: `${v}秒` }))}
+                  value={shownSec}
+                  disabled={guest}
+                  onChange={setChallengeSec}
+                />
+                <Choice
+                  label="合格者"
+                  options={Array.from({ length: MAX_FINALISTS }, (_, i) => ({ value: i + 1, text: `${i + 1}人` }))}
+                  value={shownFinalists}
+                  disabled={guest}
+                  onChange={setFinalists}
+                />
+              </div>
               {guest ? (
-                <div className={styles.waiting}>ホストが始めるのを待っています</div>
+                <div className={styles.waiting}>{pick(formality, 'ホストが始めるのを待っています', 'ホストが開始するのを待っています')}</div>
               ) : (
                 <button className="create-audition" disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
                   <Play />
-                  <span>オーディションをはじめる</span>
+                  <span>{pick(formality, 'オーディションをはじめる', '会議をはじめる')}</span>
                 </button>
               )}
               {(connection !== 'open' || isSpectator) && (
-                <small className={styles.note}>{connection !== 'open' ? '接続しています…' : '観覧モード'}</small>
+                <small className={styles.note}>{connection !== 'open' ? '接続しています…' : pick(formality, '観覧モード', '観覧')}</small>
               )}
             </form>
           ) : (
@@ -173,23 +214,23 @@ export function Intro() {
               }}
             >
               <Plus />
-              <span>オーディションを作る</span>
+              <span>{pick(formality, 'オーディションを作る', '会議を作成')}</span>
             </button>
           )}
           <div className="welcome-steps">
             <span>
               <Zap />
-              テーマを決める
+              {pick(formality, 'テーマを決める', 'テーマを設定')}
             </span>
             <i />
             <span>
               <Users />
-              直感で選んで、育てる
+              {pick(formality, '直感で選んで、育てる', '審査して、磨く')}
             </span>
             <i />
             <span>
               <Crown />
-              最高の1案を決める
+              {pick(formality, '最高の1案を決める', '最も優れた1案を決定')}
             </span>
           </div>
         </div>
@@ -263,6 +304,40 @@ function InviteLink({ url }: { url: string }) {
           <Share2 size={15} /> 招待
         </button>
       )}
+    </div>
+  );
+}
+
+/** ロビーの設定（持ち時間・合格者の人数）。ほかの人にはホストの選んだ値が見える */
+function Choice({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: { value: number; text: string }[];
+  value: number;
+  disabled: boolean;
+  onChange(v: number): void;
+}) {
+  return (
+    <div className={styles.choice} role="radiogroup" aria-label={label}>
+      <span className={styles.themeLabel}>{label}</span>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          data-on={o.value === value || undefined}
+          disabled={disabled}
+          onClick={() => onChange(o.value)}
+        >
+          {o.text}
+        </button>
+      ))}
     </div>
   );
 }

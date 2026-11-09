@@ -11,8 +11,8 @@ importers:
   apps/server:
     dependencies:
       '@camp-protocol/kit':
-        specifier: workspace:*
-        version: link:../../packages/camp
+        specifier: ^0.1.0
+        version: 0.1.0
       '@google-cloud/firestore':
         specifier: ^9.4.0
         version: 9.4.0
@@ -54,8 +54,8 @@ importers:
   apps/web:
     dependencies:
       '@camp-protocol/kit':
-        specifier: workspace:*
-        version: link:../../packages/camp
+        specifier: ^0.1.0
+        version: 0.1.0
       '@idea-audition/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -125,8 +125,8 @@ importers:
   packages/protocol:
     dependencies:
       '@camp-protocol/kit':
-        specifier: workspace:*
-        version: link:../camp
+        specifier: ^0.1.0
+        version: 0.1.0
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -143,6 +143,10 @@ packages:
   '@babel/runtime@7.29.13':
     resolution: {integrity: sha512-v+oN26xP4YIlQsbQ/CbTH1WG5m/l/DjKKZNy/Kp3f/AFvbgt7Em/D0FeMM3O2hX0YzeN2M16W8lOpyhIkfCBcQ==}
     engines: {node: '>=6.9.0'}
+
+  '@camp-protocol/kit@0.1.0':
+    resolution: {integrity: sha512-dKtcN0hdaiTy1xz7uzgjwI3f0zjQ/5yA5IM+vkGQnu/GB30hvpeidVEwVOXcWXwuA//vams9H8Cu7sVkZr3YRQ==}
+    engines: {node: '>=20'}
 
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -1723,6 +1727,14 @@ packages:
 snapshots:
 
   '@babel/runtime@7.29.13': {}
+
+  '@camp-protocol/kit@0.1.0':
+    dependencies:
+      ws: 8.22.1
+      zod: 4.6.7
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true

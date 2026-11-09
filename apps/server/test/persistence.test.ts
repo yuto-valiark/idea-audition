@@ -62,13 +62,15 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     expect(store.events.get('demo')!.map((e) => e.seq)).toEqual(
       Array.from({ length: lastEvent.seq }, (_, i) => i + 1),
     );
-    const judgeId = (a.received.find((m) => m.kind === 'welcome') as WelcomeMessage).participantId!;
+    const firstWelcome = a.received.find((m) => m.kind === 'welcome') as WelcomeMessage;
+    const judgeId = firstWelcome.participantId!;
+    const resumeToken = firstWelcome.resumeToken!;
 
     // サーバー再起動：新しいアクターを保存先から開く
     const second = deps(store);
     const reopened = await SessionActor.open('demo', second.deps);
     const b = fakeConnection('b');
-    reopened.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo', participantId: judgeId });
+    reopened.attach(b.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo', participantId: judgeId, resumeToken });
     const welcome = b.received.find((m) => m.kind === 'welcome') as WelcomeMessage;
     expect(welcome.participantId).toBe(judgeId);
     expect(welcome.snapshot.seq).toBe(lastEvent.seq);
@@ -110,9 +112,9 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     const guest = s.join(undefined);
     if (!host.ok || !guest.ok) throw new Error('join failed');
     const restored = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
-    restored.join(guest.value.judgeId!);
+    restored.join(guest.value.judgeId!, guest.value.resumeToken!);
     expect(restored.judges.find((j) => j.judgeId === guest.value.judgeId)!.isHost).toBe(true);
-    restored.join(host.value.judgeId!);
+    restored.join(host.value.judgeId!, host.value.resumeToken!);
     expect(restored.judges.find((j) => j.judgeId === host.value.judgeId)!.isHost).toBe(true);
     expect(restored.judges.filter((j) => j.isHost)).toHaveLength(1);
   });

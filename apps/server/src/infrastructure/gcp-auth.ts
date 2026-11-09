@@ -27,9 +27,13 @@ export function localAuthClient(env: NodeJS.ProcessEnv): OAuth2Client | null {
 }
 
 async function gcloudAccessToken(configName: string) {
-  const { stdout } = await run('gcloud', ['auth', 'print-access-token'], {
+  // print-access-token は手元に残っている古いトークン（残り数分のこともある）を返すことがあり、
+  // 有効期限が分からないまま使うと、切れたあとも更新されず 401 になる。
+  // config-helper で新しいトークンと本当の有効期限を受け取り、その5分前に更新する
+  const { stdout } = await run('gcloud', ['config', 'config-helper', '--format=json', '--force-auth-refresh'], {
     env: { ...process.env, CLOUDSDK_ACTIVE_CONFIG_NAME: configName },
   });
-  // gcloud のトークンは約60分有効。余裕を見て50分で更新する
-  return { access_token: stdout.trim(), expiry_date: Date.now() + 50 * 60_000 };
+  const { credential } = JSON.parse(stdout) as { credential: { access_token: string; token_expiry?: string } };
+  const expiry = credential.token_expiry ? Date.parse(credential.token_expiry) : Date.now() + 30 * 60_000;
+  return { access_token: credential.access_token, expiry_date: expiry - 5 * 60_000 };
 }

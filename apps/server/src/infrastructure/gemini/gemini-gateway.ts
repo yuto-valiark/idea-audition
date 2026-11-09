@@ -10,6 +10,8 @@ import type {
   RefineInput,
   RefineOutput,
   TasteHint,
+  UtteranceTriage,
+  UtteranceTriageInput,
   VaryInput,
 } from '../../application/ports.ts';
 import { ProposalContent, TASTE_AXES } from '@idea-audition/protocol';
@@ -100,6 +102,8 @@ const IdeaItem = z.object({
   title: z.string().min(1),
   /** 企画名の読み（全角カタカナ） */
   reading: z.string(),
+  /** 審査員が企画名のかわりに口にしそうな短い呼び名 */
+  aliases: z.array(z.string()),
   summary: z.string().min(1),
   /** 詳細画面の3行：誰の・何の困りごとを・どう解くか */
   who: z.string(),
@@ -118,6 +122,7 @@ const IdeasSchema = z.object({ ideas: z.array(IdeaItem).min(1) });
 const VarySchema = z.object({
   title: z.string().min(1),
   reading: z.string(),
+  aliases: z.array(z.string()),
   summary: z.string().min(1),
   icon: z.enum(ICONS),
   keepStrength: z.string(),
@@ -148,6 +153,12 @@ const RefineSchema = z.object({
 
 const AnswerSchema = z.object({ understood: z.boolean(), answer: z.string() });
 
+/** 声の発言の仕分け（issue #3）。迷ったら on_topic（本物の発言を落とさない） */
+const TriageSchema = z.object({
+  verdict: z.enum(['on_topic', 'off_topic', 'garbled']),
+  summary: z.string(),
+});
+
 const ConsensusSchema = z.object({
   ops: z.array(
     z.object({
@@ -163,6 +174,10 @@ const ConsensusSchema = z.object({
       byLabel: z.string(),
       /** 根拠にした発言の seq。無ければ 0 */
       seq: z.number().int(),
+      /** add_claim：テーマとどう関係するか（20文字以内）。他の操作では空文字 */
+      themeNote: z.string(),
+      /** add_claim：テーマの範囲内の方針・条件なら true、離れている・関係が薄いなら false。他の操作では true */
+      onTheme: z.boolean(),
     }),
   ),
 });
@@ -210,6 +225,17 @@ export function renderContext(theme: string, ctx: ConsensusContext | undefined):
 function renderRemarks(ctx: ConsensusContext | undefined) {
   if (!ctx?.recentRemarks.length) return '';
   return `\n# 直近の発言\n${ctx.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n')}\n`;
+}
+
+/**
+ * 呼び名を整える。企画名と同じもの・短すぎる／長すぎるもの・重複は除き、最大3個。
+ * 企画名に含まれない語は、音声認識の語彙を汚すので除く（企画名の一部を取り出したものだけ）。
+ */
+function toAliases(list: string[], title: string): string[] | undefined {
+  const norm = (x: string) => x.replace(/\s+/g, '');
+  const t = norm(title);
+  const out = [...new Set(list.map((a) => norm(a)).filter((a) => a.length >= 2 && a.length <= 12 && a !== t && t.includes(a)))].slice(0, 3);
+  return out.length ? out : undefined;
 }
 
 /** 読みはカタカナだけ残す（ひらがなはカタカナに直す）。使えなければ undefined */
@@ -396,6 +422,7 @@ ${
 }
 - title：企画名。12文字以内
 - reading：企画名の読みを全角カタカナで（英字も読みで。例「学食SNS」→「ガクショクエスエヌエス」）
+- aliases：審査員が会話で企画名のかわりに口にしそうな短い呼び名を1〜3個（各2〜10文字）。企画名の一部分をそのまま切り出したものだけ（例「ひとり飯ラウンジ」→「ひとり飯」「ラウンジ」、「学食スタンプラリー」→「スタンプラリー」）。企画名と同じもの、どの企画にもある一語（「学食」「アプリ」など）は入れない。無ければ空配列
 - summary：説明。20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は具体的な中身
 - who：誰のための案か。20文字以内（例「一人暮らしの大学生」）
 - pain：その人のどんな困りごと・不満を扱うか。24文字以内
@@ -416,6 +443,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
         profile: toProfile(i.profile),
         persona: slot?.persona.name,
         reading: toReading(i.reading),
+        aliases: toAliases(i.aliases, clean(i.title, 16)),
         ...(i.who.trim() && i.how.trim() ? { outline: { who: clean(i.who, 24), pain: clean(i.pain, 30), how: clean(i.how, 30) } } : {}),
       };
     });
@@ -431,6 +459,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
 - 元の案の一番の良さは残し、迷われていそうな点（大がかりすぎる・ピンと来ない・誰向けか分からない、など）を1つ選んで変える
 - title：企画名。12文字以内。元の企画名と分かる程度に似せてよい
 - reading：企画名の読みを全角カタカナで
+- aliases：審査員が会話で企画名のかわりに口にしそうな短い呼び名を1〜3個（各2〜10文字）。企画名の一部分をそのまま切り出したものだけ。企画名と同じもの、どの企画にもある一語は入れない。無ければ空配列
 - summary：20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は何を変えたか
 - icon：${ICONS.join(' ')} から1つ
 - keepStrength：元の案から残した一番の良さ。20文字以内
@@ -446,6 +475,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
       icon: out.icon,
       profile: toProfile(out.profile),
       reading: toReading(out.reading),
+      aliases: toAliases(out.aliases, clean(out.title, 16)),
       ...(keep ? { keepStrengths: [keep] } : {}),
       ...(improve ? { improvementPoints: [improve] } : {}),
       ...(clean(out.changeNote, 28) ? { changeNote: clean(out.changeNote, 28) } : {}),
@@ -553,6 +583,35 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
   }
 
   /**
+   * 声の発言を仕分ける（issue #3）。審査の話題だけ残し、言い直した1文にして返す。
+   * 雑談・アプリや機材の話・聞き間違いは keep=false。迷うときは残す（本物の発言を落とさない）。
+   */
+  async triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage> {
+    const stage = input.stage.length ? input.stage.map((c) => `- ${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n') : '（なし）';
+    const recent = input.recentRemarks.length ? input.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n') : '（なし）';
+    const prompt = `# テーマ
+${input.theme}
+# 舞台にいるキャラと企画
+${stage}
+# 直前の審査員の発言
+${recent}
+
+# 今回の依頼
+審査員の声を文字起こしした次の発言を仕分けてください。
+発言：「${input.text}」
+- verdict
+  - on_topic：テーマや舞台の企画について、質問・感想・要望・方針・条件・反応（いいね／微妙／迷い）を言っている。直前の発言を受けた短い返事（「それはいいね」）も含む
+  - off_topic：雑談、アプリ・画面・マイク・通信の操作や不具合の話、審査と関係のない会話、独り言
+  - garbled：聞き間違いや言葉の切れ端で、何を言いたいのか分からない
+- summary：on_topic のときだけ、その発言を言い直した1文（60文字以内）。言い淀み（えーと・あの）や繰り返しを除くだけで、言った内容は変えず、足さない。キャラの名前・企画名・数字はそのまま残す。企画の説明文は話題かどうかの判断にだけ使い、言い直しには足さない。質問は質問、頼みは頼み、否定は否定のままにする。off_topic と garbled のときは空文字
+- 迷って決められないときは on_topic にして、発言をそのまま summary に入れる`;
+    const out = await this.call('triageUtterance', this.config.fast, prompt, TriageSchema);
+    if (out.verdict !== 'on_topic') return { keep: false, reason: out.verdict };
+    const summary = clean(out.summary, 80);
+    return { keep: true, summary: summary || null };
+  }
+
+  /**
    * 合意台帳の差分を作る（ADR-0007）。前の台帳と、その後の発言・行動だけを渡し、操作の列を返させる。
    * 状態（合意かどうか）はサーバーが賛否から計算するので、ここでは決めさせない。
    */
@@ -579,28 +638,47 @@ ${input.decisions.map((d) => `- ${d.judge ?? '自動'}：${DECISION_LABEL[d.kind
 - add_claim：新しい方針・条件（例「実現コストは低く」「留学生も対象に」）。text は30文字以内の言い切り。言い出した人を judge、その人の賛否を stance に
 - set_stance：既存の論点への賛成・反対（「いいね」「それは微妙」など、前の発言・論点への反応も含む）。label と judge と stance を入れる
 - supersede：新しい論点が古い論点を置き換える場合（方針が変わった）。label に古い方、byLabel に新しい方（同じ回で add_claim した論点は C${nextLabelNumber(input)} から順に番号が振られる）
+- テーマとの照合：add_claim は、上の「テーマ」の企画の方針・条件（対象・場面・提供する価値・仕組み・費用・進め方など）として成り立つものだけにする。テーマと関係のない話題（別の分野の企画、雑談、テーマの対象外への変更）は論点にしない。add_claim ごとに、themeNote にテーマとの関係を20文字以内で書き、テーマの範囲内なら onTheme を true、離れている・関係が薄いなら false にする（false の論点は記録されない）
 - 根拠は審査員（人間）の発言と行動だけ。AI キャラの答えや企画の中身、自分の推測から論点を作らない
 - add_claim の text は、審査員が実際に言った内容の言い換えにとどめる。seq にその発言の番号を入れる（行動から作る場合は 0）
 - 行動から論点を作ってよいのは、同じ審査員が同じ方向の案を2回以上選んだときだけ（judge はその人、stance は support）
 - 反対（oppose）は、審査員がはっきり否定した（「それは微妙」「やめよう」など）か、案を見送った（不合格にした）ときだけ。選ばれなかった案があるだけでは反対にしない
 - 単なる質問・雑談・個別の企画への感想や改良の頼みだけなら何も出さない（ops は空配列）
-- 使わない項目は空文字、stance が無ければ none、seq が無ければ 0`;
+- 使わない項目は空文字、stance が無ければ none、seq が無ければ 0。add_claim 以外では themeNote は空文字、onTheme は true`;
     const out = await this.call('updateConsensus', this.config.fast, prompt, ConsensusSchema);
     const drafts: ConsensusOpDraft[] = [];
     const judges = new Set(input.judges);
     const spoke = new Set(input.utterances.map((u) => u.seq));
     const acted = new Set(input.decisions.map((d) => d.judge).filter((j): j is string => !!j));
+    // 新しい論点の番号は、モデルは「自分が出した add_claim の順」で数える（C{next} から）。
+    // 捨てた論点があると実際の番号とずれるので、同じ回の論点を指す label・byLabel は実際の番号に直し、
+    // 捨てた論点を指す操作は捨てる
+    let assumed = input.nextClaimNumber;
+    let actual = input.nextClaimNumber;
+    const relabel = new Map<string, string | null>();
+    const resolve = (label: string) => (relabel.has(label) ? relabel.get(label)! : label);
     for (const o of out.ops) {
       const seq = o.seq > 0 && spoke.has(o.seq) ? o.seq : null;
       const judge = judges.has(o.judge.trim()) ? o.judge.trim() : null;
-      if (o.op === 'add_claim' && o.text.trim()) {
-        // 人の発言か行動に結び付かない論点は捨てる（AI の推測で合意・却下が増えないように）
-        if (!judge || (seq === null && !acted.has(judge))) continue;
+      if (o.op === 'add_claim') {
+        const modelLabel = `C${assumed++}`;
+        // 人の発言か行動に結び付かない論点は捨てる（AI の推測で合意・却下が増えないように）。
+        // テーマから離れた論点も捨てる（議論の軸がずれないように）
+        const offTheme = !o.onTheme;
+        if (!o.text.trim() || !judge || (seq === null && !acted.has(judge)) || offTheme) {
+          if (offTheme && o.text.trim()) this.log(`[consensus] dropped off-theme claim「${clean(o.text, 40)}」(${clean(o.themeNote, 30)})`);
+          relabel.set(modelLabel, null);
+          continue;
+        }
+        relabel.set(modelLabel, `C${actual++}`);
         drafts.push({ op: 'add_claim', text: clean(o.text, 40), judge, stance: o.stance === 'none' ? null : o.stance, seq });
       } else if (o.op === 'set_stance' && judge && o.stance !== 'none' && o.label.trim()) {
-        drafts.push({ op: 'set_stance', label: o.label.trim(), judge, stance: o.stance, seq });
+        const label = resolve(o.label.trim());
+        if (label) drafts.push({ op: 'set_stance', label, judge, stance: o.stance, seq });
       } else if (o.op === 'supersede' && o.label.trim() && o.byLabel.trim()) {
-        drafts.push({ op: 'supersede', label: o.label.trim(), byLabel: o.byLabel.trim() });
+        const label = resolve(o.label.trim());
+        const byLabel = resolve(o.byLabel.trim());
+        if (label && byLabel) drafts.push({ op: 'supersede', label, byLabel });
       }
     }
     return drafts;

@@ -22,12 +22,12 @@ interface SessionState {
   /** none：部屋に入っていない（トップ）、active：部屋に入っている、not_found：リンクの部屋が見つからない */
   room: 'none' | 'active' | 'not_found';
   /** ロビーでホストが入力中のテーマ（ホスト以外の画面に見せる） */
-  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null } | null;
+  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null; finalists?: number; challengeSec?: number } | null;
   connect(sessionId: string): void;
   /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
   createRoom(): Promise<boolean>;
   /** 部屋を出てトップに戻る */
-  leaveRoom(): void;
+  leaveRoom(): Promise<void>;
   send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts?: SendOptions): Promise<CommandOutcome>;
 }
 
@@ -37,17 +37,26 @@ const storageKey = (sessionId: string) => `idea-audition:judge:${sessionId}`;
 export const roomPath = (roomId: string) => `/a/${roomId}`;
 export const roomUrl = (roomId: string) => `${location.origin}${roomPath(roomId)}`;
 
-function readJudgeId(sessionId: string) {
+/** 開き直しても同じ審査員として戻るための、審査員 ID と合言葉（このタブのあいだだけ覚える） */
+interface SavedSeat {
+  judgeId: string;
+  resumeToken?: string;
+}
+
+function readSeat(sessionId: string): SavedSeat | undefined {
   try {
-    return sessionStorage.getItem(storageKey(sessionId)) ?? undefined;
+    const raw = sessionStorage.getItem(storageKey(sessionId));
+    if (!raw) return undefined;
+    // 前の版は審査員 ID だけを文字列で保存していた（合言葉が無いので、新しい審査員として入り直す）
+    return raw.startsWith('{') ? (JSON.parse(raw) as SavedSeat) : { judgeId: raw };
   } catch {
     return undefined;
   }
 }
 
-function writeJudgeId(sessionId: string, judgeId: string) {
+function writeSeat(sessionId: string, seat: SavedSeat) {
   try {
-    sessionStorage.setItem(storageKey(sessionId), judgeId);
+    sessionStorage.setItem(storageKey(sessionId), JSON.stringify(seat));
   } catch {
     /* プライベートモード等では保存しない */
   }
@@ -64,24 +73,27 @@ export const useSession = create<SessionState>((set, get) => ({
 
   connect(sessionId) {
     get().client?.close();
-    const client = new CampClient(
+    const current = () => get().client === client;
+    const client: CampClient = new CampClient(
       sessionId,
       {
-        onRoomNotFound: () => set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
+        // 退出したあと（client を差し替えたあと）に古い接続から届いたものは無視する
+        onRoomNotFound: () => current() && set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
         onWelcome: (m) => {
-          if (m.participantId) writeJudgeId(sessionId, m.participantId);
+          if (!current()) return;
+          if (m.participantId) writeSeat(sessionId, { judgeId: m.participantId, ...(m.resumeToken ? { resumeToken: m.resumeToken } : {}) });
           set({ judgeId: m.participantId, snapshot: m.snapshot, room: 'active' });
         },
-        onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
-        onEphemeral: handleEphemeral,
-        onState: (connection) => set({ connection }),
+        onEvent: (m) => current() && handleEvent(m, (snapshot) => set({ snapshot })),
+        onEphemeral: (m) => current() && handleEphemeral(m),
+        onState: (connection) => current() && set({ connection }),
         onProtocolError: (m) => {
           if (m.code === 'UNSUPPORTED_VERSION') {
             useDisplay.getState().toast('サーバーが新しくなりました。画面を再読み込みしてください', 'warn');
           }
         },
       },
-      readJudgeId(sessionId),
+      readSeat(sessionId),
     );
     set({ sessionId, client, room: 'active', connection: 'connecting', snapshot: null, judgeId: null, themeDraft: null });
     client.connect();
@@ -106,10 +118,21 @@ export const useSession = create<SessionState>((set, get) => ({
     }
   },
 
-  leaveRoom() {
-    get().client?.close();
+  async leaveRoom() {
+    const { client, sessionId, judgeId } = get();
+    try {
+      if (sessionId) sessionStorage.removeItem(storageKey(sessionId));
+    } catch {
+      // 保存できない環境では何もしない
+    }
+    // 画面はすぐトップに戻す
     if (location.pathname !== '/') history.pushState(null, '', '/');
     set({ sessionId: '', client: null, snapshot: null, judgeId: null, room: 'none', connection: 'connecting' });
+    // 退出をサーバーに伝えてから切る（ほかの人の一覧から自分の名前が消える）。返事が来なくても1.5秒で切る
+    if (client && judgeId) {
+      await Promise.race([client.send('LEAVE_SESSION', {}).catch(() => undefined), new Promise((r) => setTimeout(r, 1_500))]);
+    }
+    client?.close();
   },
 
   async send(type, payload, opts) {
@@ -177,7 +200,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
-      const full = e.snapshot.upper.length >= 3;
+      const full = e.snapshot.upper.length >= (e.snapshot.finalists ?? 3);
       display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
       break;
     }
@@ -248,24 +271,23 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       }
       break;
     case 'JUDGE_UTTERANCE_RECEIVED':
-      if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
+      // 声の発言は、聞こえたままも AI が言い直したものも画面に出さない（issue #2・#3）。テキストで打った発言だけ字幕に出す
+      if (d.source === 'text' && typeof d.judgeId === 'string' && typeof d.text === 'string') {
         display.addCaption({
           judgeId: d.judgeId,
           text: d.text,
-          source: d.source === 'live' ? 'live' : 'text',
           intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
-          corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
-        // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       }
+      // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       break;
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
       for (const c of changes) {
-        if (c.to === 'agreed') display.toast(`合意：${c.label}「${c.text}」`, 'gold');
-        else if (c.to === 'rejected') display.toast(`却下：${c.label}「${c.text}」`);
-        else if (c.to === 'proposed' && !('from' in c && c.from)) display.toast(`新しい論点：${c.label}「${c.text}」`);
+        if (c.to === 'agreed') display.toast(`合意：「${c.text}」`, 'gold');
+        else if (c.to === 'rejected') display.toast(`却下：「${c.text}」`);
+        else if (c.to === 'proposed' && !('from' in c && c.from)) display.toast(`新しい論点：「${c.text}」`);
       }
       break;
     }
@@ -273,8 +295,8 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       display.toast(d.mode === 'gemini' ? 'AI を Gemini に切り替えました（クレジットを使います）' : 'AI を固定データに切り替えました（無料）');
       break;
     case 'CHAMPION_VOTE_STARTED':
+      // 投票の始まりは、見出しの「最終投票」の帯と各案の投票ボタンで分かる（お知らせは帯に重なるので出さない）
       display.setMyVote(null);
-      display.toast('最終投票が始まりました。推したい1案に投票してください', 'gold');
       break;
     case 'TIE_DETECTED':
       display.toast('同票です。ホストが優勝を決めます', 'gold');
@@ -285,6 +307,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'SESSION_STARTED':
     case 'SESSION_RESET':
       display.clearBubbles();
+      if (e.type === 'SESSION_RESET') display.clearChatLog();
       display.select(null);
       break;
   }

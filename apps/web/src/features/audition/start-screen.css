@@ -1793,3 +1793,58 @@
 .welcome-screen[data-lobby] .welcome-action {
   margin-top: 1vh;
 }
+
+/* オフィシャル会議モード（#36）：会場の演出（照明・観客・床）を消し、白地に紺のアクセントで文字を置く */
+:root[data-formality='official'] .welcome-screen {
+  background: var(--bg);
+  color: var(--ink);
+}
+:root[data-formality='official'] .welcome-environment {
+  display: none;
+}
+:root[data-formality='official'] .welcome-logo-img {
+  filter: none;
+}
+:root[data-formality='official'] .welcome-eyebrow {
+  color: var(--ink-muted);
+}
+:root[data-formality='official'] .welcome-eyebrow i {
+  background: var(--line-strong);
+}
+:root[data-formality='official'] .welcome-copy h1 {
+  font-style: normal;
+  color: var(--ink);
+  text-shadow: none;
+}
+:root[data-formality='official'] .welcome-copy h1 span,
+:root[data-formality='official'] .welcome-copy p strong {
+  color: var(--ink);
+}
+:root[data-formality='official'] .welcome-copy p {
+  color: var(--ink-soft);
+}
+:root[data-formality='official'] .create-audition {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--purple);
+  box-shadow: none;
+  color: #fff;
+  text-shadow: none;
+}
+:root[data-formality='official'] .create-audition:hover {
+  background: var(--purple-soft);
+  box-shadow: 0 2px 6px #0b57d044;
+}
+:root[data-formality='official'] .create-audition > svg:first-child {
+  filter: none;
+}
+:root[data-formality='official'] .welcome-steps {
+  color: var(--ink-soft);
+}
+:root[data-formality='official'] .welcome-steps svg {
+  color: var(--purple);
+  filter: none;
+}
+:root[data-formality='official'] .welcome-steps > i {
+  background: var(--line-strong);
+}

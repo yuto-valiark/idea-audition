@@ -6,8 +6,6 @@ export type VoiceState = 'off' | 'starting' | 'listening' | 'unavailable';
 
 interface Handlers {
   onState(state: VoiceState, reason?: string): void;
-  onInterim(text: string): void;
-  onFinal(text: string): void;
   /** 声の特徴から「うーん」を見つけたとき */
   onHum?(e: HumEvent): void;
 }
@@ -33,14 +31,19 @@ export class VoiceClient {
 
   constructor(private readonly handlers: Handlers) {}
 
-  async start(sessionId: string, judgeId: string) {
+  /** shared：通話で開いているマイク。あれば同じマイクを複製して使い、もう一度マイクを開かない */
+  async start(sessionId: string, judgeId: string, shared: MediaStream | null = null) {
     if (this.active) return;
     this.active = true;
     this.handlers.onState('starting');
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      // 同じマイクを2回開くと、iPhone の Safari などでは先に開いた方（通話）の音が止まる。通話のマイクがあればそれを複製する
+      const track = shared?.getAudioTracks().find((t) => t.readyState === 'live');
+      this.stream = track
+        ? new MediaStream([track.clone()])
+        : await navigator.mediaDevices.getUserMedia({
+            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
     } catch {
       this.stop();
       this.handlers.onState('unavailable', 'マイクを使えません（ブラウザの許可を確認してください）');
@@ -65,9 +68,8 @@ export class VoiceClient {
       const parsed = VoiceServerMessage.safeParse(json);
       if (!parsed.success) return;
       const m = parsed.data;
+      // voice_interim / voice_final（自分の文字起こし）は画面に出さないので読まない（issue #2）
       if (m.kind === 'voice_ready') this.handlers.onState('listening');
-      else if (m.kind === 'voice_interim') this.handlers.onInterim(m.text);
-      else if (m.kind === 'voice_final') this.handlers.onFinal(m.text);
       else if (m.kind === 'voice_unavailable') {
         this.stop();
         this.handlers.onState('unavailable', m.reason);

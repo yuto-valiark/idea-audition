@@ -30,7 +30,7 @@ slides[8]=('HOW IT WORKS','''
 <div class="frame" style="position:absolute;left:60px;top:250px;width:860px"><img src="01-deepdive.png"></div>
 <div style="position:absolute;left:960px;right:60px;top:250px;display:grid;gap:22px">
 <div class="card" style="padding:22px 26px"><div style="display:flex;gap:12px;align-items:center;font-size:26px;font-weight:900"><span class="num">1</span>深掘りタイム</div><p class="sub" style="font-size:19px;margin-top:8px">気になったら質問。話している間は交代のカウントが止まる</p></div>
-<div class="card" style="padding:22px 26px"><div style="display:flex;gap:12px;align-items:center;font-size:26px;font-weight:900"><span class="num">2</span>会話が「合意」になる</div><p class="sub" style="font-size:19px;margin-top:8px">「導入コストを低く抑えること」「毎日継続できる仕組みにすること」を Gemini が論点として記録</p></div>
+<div class="card" style="padding:22px 26px"><div style="display:flex;gap:12px;align-items:center;font-size:26px;font-weight:900"><span class="num">2</span>会話が「合意」になる</div><p class="sub" style="font-size:19px;margin-top:8px">「導入コストは低く抑えるべきだ」「毎日継続して遊べる仕組みにする」を Gemini が論点にして、賛成した人を記録</p></div>
 <div class="card" style="padding:22px 26px;border-color:#ff72ed"><div style="display:flex;gap:12px;align-items:center;font-size:26px;font-weight:900"><span class="num">3</span>次の案と改良に反映</div><p class="sub" style="font-size:19px;margin-top:8px">合意が動いたら古い作り置きを捨て、新しい条件で作り直す</p></div>
 </div>''')
 slides[9]=('THE ENGINEERING','''
@@ -64,9 +64,9 @@ slides[11]=('GOOGLE CLOUD',f'''
 <h1 style="position:absolute;left:60px;top:112px;font-size:54px">Google の技術で、<em>最後までつくる。</em></h1>
 <div class="card" style="position:absolute;left:60px;top:215px;bottom:55px;width:790px;padding:22px 30px;display:flex;flex-direction:column">
 <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px"><img src="vertexai.svg" width="40"><span style="font-size:30px;font-weight:900">Vertex AI × Gemini</span><span style="font-size:17px;color:#cdb8e8;margin-left:auto">AI は Gemini だけ</span></div>
-{row('Gemini 3.5 Flash','案・回答・合意','審査のテンポを止めない速さ。決まった形（JSON）で受け取り、そのまま画面と台帳へ')}
+{row('Gemini 3.5 Flash','案・回答・合意・発言の仕分け','審査のテンポを止めない速さ。雑談は捨て、審査の話だけを言い直して使う')}
 {row('Gemini 3.8 Flash','改良・批評・企画書','質が要るところだけ上位モデル。優勝が決まる前から企画書を作り置き')}
-{row('Gemini Live','声の文字起こし','会議の語彙（キャラ名・企画名・論点）で聞き間違いを直す')}
+{row('Gemini Live','声の文字起こし・声の調子','会議の語彙で聞き取り、声の温度感も文脈に入れる')}
 {row('Gemini Embedding','似た案を出さない','合格した案とほぼ同じ案を除き、審査員の好みとの近さを測る')}
 </div>
 <div style="position:absolute;left:880px;right:60px;top:215px;bottom:55px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:20px">
@@ -96,15 +96,15 @@ slides[14]=('PROOF',f'''
 <h1 style="position:absolute;left:60px;top:118px;font-size:60px">本当に、<em>作る意味があったのか。</em></h1>
 <div style="position:absolute;left:60px;right:60px;top:250px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px">
 {stat('0','秒','優勝から企画書が出るまで','以前は本番で 11〜13 秒 → 決勝の間に作り置き')}
-{stat('161','件','自動テスト（すべて合格）','4人同時のブザーでも合格は1回・再送は二重に実行しない など')}
+{stat('198','件','自動テスト（すべて合格）','4人同時のブザーでも合格は1回・再送は二重に実行しない など')}
 {stat('5 → 1','人','予選で同時に見る案','5人並びで見るものが多すぎる → 1人ずつ登場')}
 </div>
 <div class="card" style="position:absolute;left:60px;right:60px;top:560px;padding:24px 30px">
 <div style="font-size:22px;font-weight:900;margin-bottom:12px">使ってもらって、直したこと</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 40px;font-size:18px;color:#e3d3f5">
 <span>✓ 5人並びで見るものが多すぎる → 1人ずつ登場</span><span>✓ 改良で旧版の条件が残る → 版ごとに中身を持つ</span>
-<span>✓ 時間に急かされる → 深掘りタイムで止まる</span><span>✓ 同じ質問が2回出る → 二重送信を防止</span>
-<span>✓ 企画書が出るまで待つ → 作り置きで 0 秒</span><span>✓ 質問が誰宛か分からない → スポットライトで共有</span>
+<span>✓ 15秒では発言が間に合わない → 持ち時間を選べる・一時停止</span><span>✓ 同じ質問が2回出る → 二重送信を防止</span>
+<span>✓ 企画書が出るまで待つ → 作り置きで 0 秒</span><span>✓ 回線によって声が届かない → 中継（TURN）でつなぐ</span>
 </div></div>''')
 slides[15]=('THE MESSAGE','''
 <img src="logo.webp" style="position:absolute;right:60px;top:170px;width:700px;filter:drop-shadow(0 0 24px #b250ffaa)">

@@ -20,6 +20,8 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
     theme: s.theme,
     lowerSlots: [...s.lowerSlots],
     upper: s.upper.map((f) => ({ ...f })),
+    finalists: s.finalistTarget,
+    challengeMs: s.challengeMs ?? undefined,
     buzzer: { instanceId: s.lowerSlots[0] ?? null, judgeIds: [...s.buzzers] },
     spotlight: s.spotlight && s.upper.some((f) => f.instanceId === s.spotlight!.instanceId) ? { ...s.spotlight } : null,
     characters: Object.fromEntries(
@@ -39,6 +41,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
             spawnedAt: iso(c.spawnedAt),
             paused: c.pausedLeftMs != null,
             pausedLeftMs: c.pausedLeftMs ?? null,
+            holdBy: c.holdBy ?? null,
             reaction:
               c.reaction && now - c.reaction.at < REACTION_VISIBLE_MS
                 ? { kind: c.reaction.kind, judgeId: c.reaction.judgeId, text: c.reaction.text, at: iso(c.reaction.at) }

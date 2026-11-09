@@ -1,11 +1,15 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
+import { Compass, Handshake, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { useCall } from '../call/call-store.ts';
+import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
-import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
+import { CallControls, CallMicButton, CameraButton, JudgeWipeBand } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
-import { Captions, MicButton, UtteranceInput } from '../voice/VoiceControls.tsx';
+import { MicButton } from '../voice/VoiceControls.tsx';
+import { Captions, UtteranceInput } from '../chat/Chat.tsx';
 import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
 import { TastePanel } from '../taste/TasteRadar.tsx';
 import styles from './Chrome.module.css';
@@ -18,12 +22,14 @@ export function Header() {
   const lobby = useSession((s) => s.snapshot?.status === 'lobby');
   const connected = judges.filter((j) => j.connected).length;
   const { isSpectator } = useMe();
+  const formality = useFormality();
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
         <img className={styles.logo} src="/brand/logo-neon-sm.webp" alt="IDEA AUDITION" />
       </div>
-      <div className={styles.tag}>AIがプレゼン。あなたが審査員。</div>
+      <div className={styles.tag}>{pick(formality, 'AIがプレゼン。あなたが審査員。', '意思決定を、審査形式で。')}</div>
+      <FormalityToggle />
       {room === 'active' && (
       <div className={styles.right}>
         {connection === 'open' ? (
@@ -32,16 +38,17 @@ export function Header() {
           </span>
         ) : (
           <span className={styles.statusWarn}>
-            <WifiOff size={14} /> 再接続中…
+            <WifiOff size={14} /> {pick(formality, '再接続中…', '再接続しています')}
           </span>
         )}
         <span className={styles.divider} />
         <Users size={15} />
-        <span>{connected}人で参加中</span>
-        {isSpectator && <span className={styles.spectator}>観覧モード</span>}
+        <span>{formality === 1 ? `参加者 ${connected} 名` : `${connected}人で参加中`}</span>
+        {isSpectator && <span className={styles.spectator}>{pick(formality, '観覧モード', '観覧')}</span>}
         {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
         {lobby && !isSpectator && <CallMicButton />}
+        <SoundToggle />
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>
@@ -51,9 +58,61 @@ export function Header() {
           </button>
         )}
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
+        <LeaveButton />
       </div>
       )}
     </header>
+  );
+}
+
+/** オフィシャル会議モードの切り替え（#36）。表示だけを切り替え、進行には影響しない */
+function FormalityToggle() {
+  const formality = useDisplay((s) => s.formality);
+  const setFormality = useDisplay((s) => s.setFormality);
+  const official = formality === 1;
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={() => setFormality(official ? 0 : 1)}
+      aria-pressed={official}
+      title="表示モードを切り替える（カジュアル／オフィシャル会議モード）"
+    >
+      {official ? 'オフィシャル' : 'カジュアル'}
+    </button>
+  );
+}
+
+/** オーディションを抜けてトップに戻る（D2）。通話も切る。審査の途中なので一度だけ確かめる */
+function LeaveButton() {
+  const leaveRoom = useSession((s) => s.leaveRoom);
+  const formality = useFormality();
+  const onLeave = () => {
+    if (!window.confirm(pick(formality, 'オーディションから退出しますか？（同じリンクを開けば、また参加できます）', '会議から退出しますか？（同じリンクを開けば、また参加できます）'))) return;
+    useCall.getState().leave();
+    void leaveRoom();
+  };
+  return (
+    <button type="button" className={styles.copy} onClick={onLeave} title={pick(formality, 'オーディションから退出する', '会議から退出する')}>
+      <LogOut size={14} /> {pick(formality, '退出', '会議から退出')}
+    </button>
+  );
+}
+
+/** 効果音のオン・オフ（この端末に覚える） */
+function SoundToggle() {
+  const muted = useMuted();
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={() => setMuted(!muted)}
+      aria-pressed={!muted}
+      aria-label="効果音"
+      title={muted ? '効果音をオンにする' : '効果音をオフにする'}
+    >
+      {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} {muted ? '音オフ' : '音オン'}
+    </button>
   );
 }
 
@@ -64,42 +123,37 @@ export function Footer() {
   const consensusOpen = useDisplay((s) => s.consensusOpen);
   const setConsensusOpen = useDisplay((s) => s.setConsensusOpen);
   const tasteOpen = useDisplay((s) => s.tasteOpen);
+  const formality = useFormality();
   const setTasteOpen = useDisplay((s) => s.setTasteOpen);
   const { judgeId, isHost } = useMe();
+  // 予選は審査員の顔を舞台の台に出すので、ここではワイプを出さない（決勝ではここに並べる）
+  const prelimStage = useDisplay((s) => s.prelimStage);
   if (!snapshot) return null;
   return (
-    <footer className={styles.footer}>
+    <footer
+      className={styles.footer}
+      data-compact={prelimStage || undefined}
+      style={{ ['--n' as string]: Math.max(1, snapshot.judges.length) }}
+    >
       <Captions />
       <div className={styles.judges}>
-        {snapshot.judges.map((j) => (
-          <div
-            key={j.judgeId}
-            className={styles.judge}
-            data-you={j.judgeId === judgeId || undefined}
-            data-offline={!j.connected || undefined}
-            style={{ ['--judge' as string]: j.color }}
-          >
-            <span className={styles.avatar}>{j.letter ?? j.label.slice(-1)}</span>
-            <div>
-              <strong>
-                {j.label}
-                {j.judgeId === judgeId ? '（あなた）' : ''}
-              </strong>
-              <small>
-                <span /> {j.connected ? (j.isHost ? 'ホスト' : '参加中') : '切断中'}
-              </small>
-            </div>
-            {j.isHost && <Crown size={13} className={styles.hostCrown} aria-label="ホスト" />}
-            <CallBadge judgeId={j.judgeId} />
-            {j.judgeId === judgeId ? <MicButton /> : null}
+        {!prelimStage && <JudgeWipeBand />}
+        {judgeId && (
+          <div className={styles.myControls}>
+            <MicButton />
+            <CameraButton />
           </div>
-        ))}
+        )}
       </div>
+      {/* 右側：チャット欄とボタン（ワイプの下端にそろえる） */}
+      <div className={styles.side}>
+        <div className={styles.sideRow}>
       <UtteranceInput />
       <div className={styles.actions}>
         <TastePanel />
-        <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title="反応から読み取ったみんなの好み">
-          🧭 <span className={styles.btnLabel}>好み</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
+        <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title={pick(formality, '反応から読み取ったみんなの好み', '反応から読み取った参加者の評価の傾向')}>
+          {/* オフィシャルは絵文字の代わりに線のアイコン（狭い画面で文字を隠しても、何のボタンか分かるように） */}
+          {formality === 1 ? <Compass size={16} aria-hidden /> : '🧭 '}<span className={styles.btnLabel}>{pick(formality, '好み', '評価の傾向')}</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
         </button>
         <ConsensusMemo />
         <button
@@ -109,18 +163,18 @@ export function Footer() {
           }}
           aria-expanded={consensusOpen}
         >
-          🤝 <span className={styles.btnLabel}>合意メモ</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
+          {formality === 1 ? <Handshake size={16} aria-hidden /> : '🤝 '}<span className={styles.btnLabel}>{pick(formality, '合意メモ', '合意事項メモ')}</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
         </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">
-          <Layers size={16} /> <span className={styles.btnLabel}>アイデアBOX</span> <b>{snapshot.ideaBox.length}</b>
+          <Layers size={16} /> <span className={styles.btnLabel}>{pick(formality, 'アイデアBOX', '提案一覧')}</span> <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />
         </button>
         {isHost && (
           <button
-            title="最初からやり直す"
-            aria-label="最初からやり直す"
+            title={pick(formality, '最初からやり直す', 'セッションを最初から開始')}
+            aria-label={pick(formality, '最初からやり直す', 'セッションを最初から開始')}
             onClick={() => {
-              if (confirm('セッションを最初からやり直しますか？（全員の画面が開始画面に戻ります）')) {
+              if (confirm(pick(formality, 'セッションを最初からやり直しますか？（全員の画面が開始画面に戻ります）', 'セッションを最初から開始しますか？（全員の画面が開始画面に戻ります）'))) {
                 void send('RESET_SESSION', {});
               }
             }}
@@ -128,6 +182,8 @@ export function Footer() {
             <RotateCcw size={16} />
           </button>
         )}
+        </div>
+        </div>
       </div>
     </footer>
   );

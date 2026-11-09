@@ -70,6 +70,8 @@ export interface IdeaDraft {
   persona?: string;
   /** 企画名の読み（カタカナ）。音声の聞き間違いを直すのに使う */
   reading?: string;
+  /** 審査員が企画名のかわりに口にしそうな短い呼び名（「ひとり飯ラウンジ」→「ひとり飯」）。音声認識の語彙に使う */
+  aliases?: string[];
   /** 詳細画面の3行（誰の・何の困りごとを・どう解くか） */
   outline?: Outline;
   /** 別案（迷いを受けた版）で、元の案から残した良さ・変えた点・ひとことの理由 */
@@ -125,6 +127,7 @@ export interface Revision {
   inspiredBy?: Inspiration | null;
   profile?: number[] | null;
   reading?: string | null;
+  aliases?: string[] | null;
   outline?: Outline | null;
 }
 
@@ -147,6 +150,8 @@ export interface CharacterInstance {
   leavingAt: number | null;
   /** 深掘りタイムで止めているあいだの、残り時間（止めていなければ null） */
   pausedLeftMs?: number | null;
+  /** 一時停止ボタンで止めた審査員（止めていなければ null） */
+  holdBy?: string | null;
   reaction?: Reaction | null;
 }
 
@@ -172,6 +177,8 @@ export interface Judge {
   isHost: boolean;
   connected: boolean;
   joinedAt: number;
+  /** つなぎ直し用の合言葉（本人にだけ welcome で渡す。snapshot には出さない） */
+  resumeToken?: string;
 }
 
 export interface Vote {
@@ -248,4 +255,7 @@ export interface SessionState {
   aiMode?: AiMode;
   /** ADR-0009 で追加 */
   taste?: TasteState;
+  /** 決勝に進む人数と、1人の持ち時間（ロビーで選ぶ。古い保存データには無い） */
+  finalistTarget?: number;
+  challengeMs?: number | null;
 }

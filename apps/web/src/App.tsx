@@ -3,13 +3,16 @@ import { useSession } from './store/session-store.ts';
 import { Arena } from './features/audition/Arena.tsx';
 import { Intro } from './features/audition/Intro.tsx';
 import { ChampionScreen } from './features/champion/ChampionScreen.tsx';
+import { ResultReveal, useResultReveal } from './features/champion/ResultReveal.tsx';
 import { Footer, Header, Toasts } from './features/collaboration/Chrome.tsx';
 import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx';
 import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import { NameGate } from './features/audition/NameGate.tsx';
 import { useCall } from './features/call/call-store.ts';
-import { useMe } from './shared/selectors.ts';
+import { useDisplay } from './store/display-store.ts';
+import { JudgeWipeBand } from './features/call/CallControls.tsx';
+import { finalistTarget, useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
 
 /** URL の /a/<部屋 ID> から部屋を読む（Google Meet と同じく、リンクを開いた人がその部屋に入る） */
@@ -24,6 +27,10 @@ export function App() {
   const leaveRoom = useSession((s) => s.leaveRoom);
   const status = useSession((s) => s.snapshot?.status);
   const hasChampion = useSession((s) => !!s.snapshot?.champion);
+    const formality = useDisplay((s) => s.formality);
+    useEffect(() => {
+          document.documentElement.dataset.formality = formality === 1 ? 'official' : 'casual';
+    }, [formality]);
 
   useEffect(() => {
     const follow = () => {
@@ -49,8 +56,10 @@ export function App() {
     if (room === 'active' && connection === 'open' && (named || isSpectator)) void useCall.getState().join();
   }, [room, connection, named, isSpectator]);
 
+  // 優勝が決まった瞬間は、審査の画面のまま「結果発表」のカウントダウンを出してから、表彰へ切り替える
+  const revealing = useResultReveal(status);
   const screen =
-    status === 'audition_active' || status === 'champion_selection'
+    status === 'audition_active' || status === 'champion_selection' || revealing
       ? 'arena'
       : status === 'completed' && hasChampion
         ? 'champion'
@@ -67,7 +76,13 @@ export function App() {
           <Footer />
         </>
       )}
-      {screen === 'champion' && <ChampionScreen />}
+      {screen === 'champion' && (
+        <>
+          <ChampionScreen />
+          <JudgeWipeBand floating />
+        </>
+      )}
+      <ResultReveal show={revealing} />
       {screen === 'arena' && <DetailModal />}
       <IdeaBoxModal />
       <DragLayer />
@@ -80,7 +95,10 @@ export function App() {
 
 function Studio() {
   // 予選のステージは囲いの中に自前の照明がある。外の照明と二重にならないよう、予選のあいだは外を消す
-  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < 3);
+  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < finalistTarget(s.snapshot));
+    const formality = useDisplay((s) => s.formality);
+    // オフィシャル会議モードでは舞台照明などの装飾を出さない（#36）
+    if (formality === 1) return <div className={styles.studio} aria-hidden />;
   return (
     <div className={styles.studio} aria-hidden>
       <div className={styles.truss} />

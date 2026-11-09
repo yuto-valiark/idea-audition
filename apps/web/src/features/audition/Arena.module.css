@@ -100,3 +100,11 @@
   white-space: nowrap;
   font-weight: 700;
 }
+
+/* オフィシャル会議モード（#36）：テーマの行は白地に直接のるので、文字を濃くする */
+:global(:root[data-formality='official']) .themeBar {
+  border-bottom-color: var(--line);
+}
+:global(:root[data-formality='official']) .themeLabel {
+  color: var(--ink-muted);
+}

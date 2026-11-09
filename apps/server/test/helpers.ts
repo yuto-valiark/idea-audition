@@ -8,6 +8,8 @@ import type {
   RefineInput,
   RefineOutput,
   Scheduler,
+  UtteranceTriage,
+  UtteranceTriageInput,
   VaryInput,
 } from '../src/application/ports.ts';
 import type { IdeaDraft } from '../src/domain/types.ts';
@@ -127,6 +129,15 @@ export class StubAi implements IdeaGenerationPort {
     // 「もにゃもにゃ」を含む質問は、意味が通らないものとして扱う（聞き間違いのテスト用）
     if (input.question.includes('もにゃもにゃ')) return null;
     return `回答:${input.question}`;
+  }
+  triageCalls: UtteranceTriageInput[] = [];
+  /** 次の仕分けの結果（テストで差し替える）。既定は「そのまま残す」 */
+  nextTriage: (input: UtteranceTriageInput) => UtteranceTriage = () => ({ keep: true, summary: null });
+  failTriage = false;
+  async triageUtterance(input: UtteranceTriageInput) {
+    this.triageCalls.push(input);
+    if (this.failTriage) throw new Error('triage failed');
+    return this.nextTriage(input);
   }
   varyCalls: VaryInput[] = [];
   async varyIdea(input: VaryInput) {

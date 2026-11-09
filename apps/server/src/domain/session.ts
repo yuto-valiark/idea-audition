@@ -1,8 +1,10 @@
+import { createResumeToken, resumeTokenMatches } from '@camp-protocol/kit/server';
 import {
   type ProposalContent,
   type AiMode,
   CHARACTER_DESIGNS,
   LOWER_SLOT_COUNT,
+  MAX_FINALISTS,
   MAX_JUDGES,
   UPPER_CAPACITY,
   type SessionMode,
@@ -98,6 +100,10 @@ export class AuditionSession {
   aiMode: AiMode = 'fixture';
   /** このサーバーで選べるモード（アクターが設定する。保存しない） */
   aiAvailable: AiMode[] = ['fixture'];
+  /** 決勝に進む人数。ホストが途中で決勝に進めたら、その時点の人数になる */
+  finalistTarget = UPPER_CAPACITY;
+  /** 1人の持ち時間（ミリ秒）。null ならアクターの既定 */
+  challengeMs: number | null = null;
 
   /** 審査員ごとの好み（ADR-0009） */
   taste: TasteState = emptyTaste();
@@ -152,6 +158,8 @@ export class AuditionSession {
       startedAt: this.startedAt,
       aiMode: this.aiMode,
       taste: structuredClone(this.taste),
+      finalistTarget: this.finalistTarget,
+      challengeMs: this.challengeMs,
     };
   }
 
@@ -198,16 +206,21 @@ export class AuditionSession {
     s.startedAt = state.startedAt ?? null;
     if (state.aiMode) s.aiMode = state.aiMode;
     s.taste = state.taste ? structuredClone(state.taste) : emptyTaste();
+    s.finalistTarget = state.finalistTarget ?? UPPER_CAPACITY;
+    s.challengeMs = state.challengeMs ?? null;
     return s;
   }
 
   /* ------------------------------ 参加者 ------------------------------ */
 
-  join(requestedJudgeId?: string): DomainResult<{ judgeId: string | null }> {
+  /**
+   * 参加。前の審査員として戻れるのは、審査員 ID と、その人に渡した合言葉（resumeToken）の両方が合うときだけ。
+   * 審査員 ID は snapshot で全員に見えるので、ID だけで戻れるとなりすませてしまう。
+   */
+  join(requestedJudgeId?: string, resumeToken?: string): DomainResult<{ judgeId: string | null; resumeToken: string | null }> {
     const now = this.deps.clock.now();
-    const existing = requestedJudgeId
-      ? this.judges.find((j) => j.judgeId === requestedJudgeId)
-      : undefined;
+    const named = requestedJudgeId ? this.judges.find((j) => j.judgeId === requestedJudgeId) : undefined;
+    const existing = named && resumeTokenMatches(named.resumeToken, resumeToken) ? named : undefined;
     const events: DomainEvent[] = [];
     let judge: Judge | undefined = existing;
 
@@ -220,14 +233,14 @@ export class AuditionSession {
           judge.isHost = true;
           events.push({ type: 'JUDGE_JOINED', detail: { judgeId: judge.judgeId, reconnected: true } });
           events.push({ type: 'HOST_CHANGED', detail: { judgeId: judge.judgeId } });
-          return ok(events, { judgeId: judge.judgeId });
+          return ok(events, { judgeId: judge.judgeId, resumeToken: judge.resumeToken ?? null });
         }
       }
     } else {
       if (this.judges.length >= MAX_JUDGES) {
         // 切断済みの審査員の枠を空ける。全員接続中なら観覧モード。
         const stale = this.judges.filter((j) => !j.connected).sort((a, b) => a.joinedAt - b.joinedAt)[0];
-        if (!stale) return ok([], { judgeId: null });
+        if (!stale) return ok([], { judgeId: null, resumeToken: null });
         this.judges = this.judges.filter((j) => j !== stale);
       }
       const used = new Set(this.judges.map((j) => j.slotIndex));
@@ -238,12 +251,13 @@ export class AuditionSession {
         isHost: false,
         connected: true,
         joinedAt: now,
+        resumeToken: createResumeToken(),
       };
       this.judges.push(judge);
     }
     events.push({ type: 'JUDGE_JOINED', detail: { judgeId: judge.judgeId, reconnected: !!existing } });
     events.push(...this.ensureHost());
-    return ok(events, { judgeId: judge.judgeId });
+    return ok(events, { judgeId: judge.judgeId, resumeToken: judge.resumeToken ?? null });
   }
 
   leave(judgeId: string): DomainResult {
@@ -256,6 +270,22 @@ export class AuditionSession {
       events.push(...this.ensureHost());
     }
     if (this.vote?.status === 'open') events.push(...this.closeVoteIfEveryoneVoted());
+    return ok(events);
+  }
+
+  /**
+   * 退出ボタン：切断と違い、席を空けて一覧からも消す（切断なら席を残して戻ってくるのを待つ）。
+   * ホストなら次の人に渡し、押していたブザーは取り消す。投票済みの票はそのまま数える。
+   */
+  quit(judgeId: string): DomainResult {
+    const judge = this.judges.find((j) => j.judgeId === judgeId);
+    if (!judge) return ok([]);
+    const left = this.leave(judgeId);
+    const events = left.ok ? left.events : [];
+    this.judges = this.judges.filter((j) => j !== judge);
+    this.buzzers.delete(judgeId);
+    const first = events.find((e) => e.type === 'JUDGE_LEFT');
+    if (first) first.detail.removed = true;
     return ok(events);
   }
 
@@ -285,12 +315,14 @@ export class AuditionSession {
 
   /* ---------------------------- セッション ---------------------------- */
 
-  start(theme: string, mode: SessionMode, aiMode?: AiMode): DomainResult {
+  start(theme: string, mode: SessionMode, aiMode?: AiMode, opts: { finalists?: number; challengeMs?: number } = {}): DomainResult {
     if (this.status !== 'lobby' && this.status !== 'completed') return reject('SESSION_NOT_ACTIVE');
     this.clearBoard();
     this.theme = theme;
     this.mode = mode;
     if (aiMode && this.aiAvailable.includes(aiMode)) this.aiMode = aiMode;
+    this.finalistTarget = Math.max(1, Math.min(MAX_FINALISTS, opts.finalists ?? UPPER_CAPACITY));
+    this.challengeMs = opts.challengeMs ?? null;
     this.status = 'audition_active';
     this.startedAt = this.deps.clock.now();
     return ok([{ type: 'SESSION_STARTED', detail: { theme, mode } }]);
@@ -343,7 +375,7 @@ export class AuditionSession {
   fillEmptySlots(choose?: (stock: readonly IdeaDraft[]) => { index: number; pitch: Pitch | null } | null): DomainEvent[] {
     if (this.status !== 'audition_active') return [];
     // 合格者が3人そろったら最終オーディション。新しい挑戦者はもう出さない
-    if (this.upper.length >= UPPER_CAPACITY) return [];
+    if (this.finalsReady) return [];
     const events: DomainEvent[] = [];
     for (let slot = 0; slot < this.lowerSlots.length; slot++) {
       if (this.lowerSlots[slot] !== null) continue;
@@ -380,6 +412,7 @@ export class AuditionSession {
             inspiredBy: draft.inspiredBy ?? null,
             profile: draft.profile ?? null,
             reading: draft.reading ?? null,
+            aliases: draft.aliases ?? null,
             outline: draft.outline ?? null,
           },
         ],
@@ -521,6 +554,44 @@ export class AuditionSession {
     return [{ type: 'CHALLENGE_RESUMED', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
   }
 
+  /** 合格者が決勝の人数に達した（予選は終わり） */
+  get finalsReady() {
+    return this.upper.length >= this.finalistTarget;
+  }
+
+  /**
+   * 一時停止ボタン。いまの挑戦者の交代のカウントを止める・再開する。
+   * 止めているあいだは、深掘りタイムが終わっても再開しない（再開はアクターが resumeChallenge で行う）。
+   */
+  holdChallenge(judgeId: string, instanceId: string, on: boolean): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const c = this.characters.get(instanceId);
+    if (!c) return reject('UNKNOWN_CHARACTER');
+    if (c.location !== 'lower' || this.lowerSlots[0] !== instanceId) return reject('NOT_IN_LOWER');
+    if ((c.holdBy != null) === on) return ok([]);
+    c.holdBy = on ? judgeId : null;
+    const events: DomainEvent[] = on ? this.pauseChallenge(instanceId) : [];
+    if (events.length === 0) events.push({ type: on ? 'CHALLENGE_PAUSED' : 'CHALLENGE_RESUMED', detail: { instanceId, holdBy: c.holdBy } });
+    else events[0]!.detail.holdBy = judgeId;
+    return ok(events);
+  }
+
+  /** 合格者が決勝の人数に満たなくても、いまの合格者で決勝に進む（ホストのみ）。いまの挑戦者は見送りにする */
+  endPreliminary(judgeId: string): DomainResult {
+    if (this.status !== 'audition_active' || this.finalsReady) return reject('SESSION_NOT_ACTIVE');
+    if (!this.isHost(judgeId)) return reject('NOT_HOST');
+    if (this.upper.length === 0) return reject('NOT_AUTHORIZED');
+    this.finalistTarget = this.upper.length;
+    this.buzzers.clear();
+    const events: DomainEvent[] = [{ type: 'PRELIMINARY_ENDED', detail: { finalists: this.finalistTarget } }];
+    const challenger = this.lowerSlots[0];
+    if (challenger) {
+      const r = this.rotate(challenger, new Set(), { allowEmpty: true });
+      if (r.ok) events.push(...r.events);
+    }
+    return ok(events);
+  }
+
   /** 退場予告をすべて取り消す（誰もいなくなったとき） */
   cancelAllLeaving() {
     for (const c of this.characters.values()) c.leavingAt = null;
@@ -543,7 +614,7 @@ export class AuditionSession {
     const c = this.characters.get(instanceId);
     if (!c) return reject('UNKNOWN_CHARACTER');
     if (c.location !== 'lower' || this.lowerSlots[0] !== instanceId) return reject('NOT_IN_LOWER');
-    if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
+    if (this.finalsReady) return reject('UPPER_FULL');
     if (on === this.buzzers.has(judgeId)) return ok([], { unanimous: false });
     if (on) this.buzzers.add(judgeId);
     else this.buzzers.delete(judgeId);
@@ -678,7 +749,7 @@ export class AuditionSession {
     if (!character) return reject('UNKNOWN_CHARACTER');
     const slot = this.lowerSlots.indexOf(instanceId);
     if (character.location !== 'lower' || slot < 0) return reject('NOT_IN_LOWER');
-    if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
+    if (this.finalsReady) return reject('UPPER_FULL');
 
     this.lowerSlots[slot] = null;
     this.buzzers.clear();
@@ -769,6 +840,9 @@ export class AuditionSession {
       basedOnConsensus: this.ledger.version,
       inspiredBy: draft.inspiredBy ?? null,
       profile: current.profile ?? null,
+      // 企画名が同じなら、読みと呼び名は引き継ぐ（変わったら呼び名は古いので持たない）
+      reading: draft.title === current.title ? (current.reading ?? null) : null,
+      aliases: draft.title === current.title ? (current.aliases ?? null) : null,
       // 中身が変わったら新しい「誰の・困りごと・どう解く」。無ければ今の版のもの（旧版より前のものは使わない）
       outline: draft.outline ?? current.outline ?? null,
     };
@@ -833,6 +907,7 @@ export class AuditionSession {
       inspiredBy: draft.inspiredBy ?? null,
       profile: draft.profile ?? current.profile ?? null,
       reading: draft.reading ?? null,
+      aliases: draft.aliases ?? null,
     };
     idea.revisions.push(revision);
     c.reaction = { kind: 'revised', judgeId: null, text: '別案を考えました', at: this.deps.clock.now() };
@@ -840,6 +915,44 @@ export class AuditionSession {
       {
         type: 'CANDIDATE_REVISED',
         detail: { instanceId, ideaId: idea.ideaId, revisionId: revision.revisionId, version: revision.version },
+      },
+    ]);
+  }
+
+  /**
+   * 改良履歴の版を巻き戻す（B4）。
+   * 対象の targetVersion のリビジョン内容を復元し、新しい版として追加して current を更新する。
+   */
+  revertRevision(characterId: string, targetVersion: number): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const character = this.characters.get(characterId);
+    if (!character) return reject('UNKNOWN_CHARACTER');
+    const idea = this.ideas.get(character.ideaId);
+    if (!idea) return reject('UNKNOWN_CHARACTER');
+    const target = idea.revisions.find((r) => r.version === targetVersion);
+    if (!target) return reject('STALE_VERSION');
+    const current = idea.revisions.at(-1)!;
+    const now = this.deps.clock.now();
+    const nextVersion = idea.revisions.length + 1;
+    const revision: Revision = {
+      ...target,
+      revisionId: this.deps.ids.next('rev'),
+      version: nextVersion,
+      basedOnRevisionId: current.revisionId,
+      reason: `v${targetVersion} に巻き戻し`,
+      createdAt: now,
+    };
+    idea.revisions.push(revision);
+    character.reaction = { kind: 'revised', judgeId: null, text: `v${targetVersion} に戻しました`, at: now };
+    return ok([
+      {
+        type: 'CANDIDATE_REVISED',
+        detail: {
+          instanceId: characterId,
+          ideaId: idea.ideaId,
+          revisionId: revision.revisionId,
+          version: revision.version,
+        },
       },
     ]);
   }
@@ -956,4 +1069,47 @@ export class AuditionSession {
     ];
     return [{ type: 'CHAMPION_SELECTED', detail: { instanceId, how, tally: this.vote?.tally ?? null } }];
   }
+}
+
+/**
+ * 改良履歴を前の版に巻き戻す純粋関数（B4）。
+ * 対象の targetVersion のリビジョン内容を復元し、新しい版（version = revisions.length + 1、reason: `v${targetVersion} に巻き戻し`）
+ * として追加した新しい SessionState を返す。
+ */
+export function revertIdeaRevision(
+  session: SessionState,
+  characterId: string,
+  targetVersion: number,
+  now?: number,
+): SessionState {
+  const character = session.characters.find((c) => c.instanceId === characterId);
+  if (!character) return session;
+  const ideaIndex = session.ideas.findIndex((i) => i.ideaId === character.ideaId);
+  if (ideaIndex === -1) return session;
+  const idea = session.ideas[ideaIndex]!;
+  const target = idea.revisions.find((r) => r.version === targetVersion);
+  if (!target) return session;
+
+  const current = idea.revisions.at(-1)!;
+  const nextVersion = idea.revisions.length + 1;
+  const currentTime = now ?? Date.now();
+  const newRevision: Revision = {
+    ...target,
+    revisionId: `rev_${nextVersion}_revert_${currentTime}`,
+    version: nextVersion,
+    basedOnRevisionId: current.revisionId,
+    reason: `v${targetVersion} に巻き戻し`,
+    createdAt: currentTime,
+  };
+
+  const nextIdeas = [...session.ideas];
+  nextIdeas[ideaIndex] = {
+    ...idea,
+    revisions: [...idea.revisions, newRevision],
+  };
+
+  return {
+    ...session,
+    ideas: nextIdeas,
+  };
 }

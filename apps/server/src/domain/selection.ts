@@ -49,8 +49,8 @@ export function novelty(c: Candidate, shown: SelectionContext['shown']): number 
   return 1 - Math.max(...shown.map((s) => similarity(c, s)));
 }
 
-/** 探る枠・ワイルドカードで、決勝の案への近さを減点する重み */
-const FINALIST_AWAY = 0.6;
+/** 探る枠・ワイルドカードおよび好み枠で、決勝の案への近さを減点する重み */
+export const FINALIST_AWAY = 0.8;
 
 /** 決勝の案のどれかへの近さ（0〜1）。決勝が無ければ 0 */
 export function closeness(c: Candidate, others: SelectionContext['finalists']): number {
@@ -61,9 +61,9 @@ export function closeness(c: Candidate, others: SelectionContext['finalists']): 
 export function roleScore(c: Candidate, ctx: SelectionContext): number {
   switch (ctx.role) {
     case 'fit':
-      return fitTo(c, ctx.targets[0]!, ctx.centroids[0] ?? null);
+      return fitTo(c, ctx.targets[0]!, ctx.centroids[0] ?? null) - FINALIST_AWAY * closeness(c, ctx.finalists);
     case 'bridge':
-      return Math.min(...ctx.targets.map((t, i) => fitTo(c, t, ctx.centroids[i] ?? null)));
+      return Math.min(...ctx.targets.map((t, i) => fitTo(c, t, ctx.centroids[i] ?? null))) - FINALIST_AWAY * closeness(c, ctx.finalists);
     case 'explore':
       return novelty(c, ctx.shown) - FINALIST_AWAY * closeness(c, ctx.finalists);
     case 'wildcard':

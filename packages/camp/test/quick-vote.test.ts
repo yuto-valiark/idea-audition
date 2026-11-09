@@ -117,6 +117,69 @@ describe('@camp-protocol/kit × Quick Vote', () => {
     expect(await guest.send('VOTE', { option: 1 })).toEqual({ ok: true });
   });
 
+  it('参加者 ID だけでは他人として戻れない（welcome で本人にだけ渡す合言葉が要る）', async () => {
+    const { room, clients } = await openRoom(2);
+    const [host, guest] = clients as [Client, Client];
+    expect(host.resumeToken).toBeTruthy();
+    expect(host.resumeToken).not.toBe(guest.resumeToken);
+    // host の ID は snapshot で全員に見えている。それを名乗って入っても、合言葉が無ければ別の参加者になる
+    const impostor = await join(room, host.id!);
+    expect(impostor.id).not.toBe(host.id);
+    expect(impostor.snap()!.participants.find((p: { id: string; isHost: boolean }) => p.id === host.id)?.isHost).toBe(true);
+    // 合言葉を渡せば、ページを開き直しても同じ人として戻れる
+    const back = await new Promise<Client>((resolve) => {
+      const c = new CampClient(quickVote, {
+        url,
+        room,
+        participantId: guest.id!,
+        resumeToken: guest.resumeToken!,
+        createSocket: (u) => new WebSocket(u) as unknown as WebSocketLike,
+      }) as Client;
+      c.on({ onWelcome: () => resolve(c) }).connect();
+    });
+    expect(back.id).toBe(guest.id);
+  });
+
+  it('遅い処理の結果を反映する処理が例外を出しても、サーバーは止まらない', async () => {
+    const { createCampServer: create } = await import('../src/server/index.ts');
+    const errors: unknown[] = [];
+    const original = console.error;
+    console.error = (...a: unknown[]) => void errors.push(a);
+    const s = create(quickVote, {
+      port: 0,
+      room: {
+        initialState: () => ({ n: 0 }),
+        commands: {
+          OPEN_POLL(r) {
+            r.task(
+              async () => 1,
+              () => {
+                throw new Error('boom');
+              },
+            );
+          },
+        },
+        snapshot: (_s, info) =>
+          ({ seq: info.seq, status: 'idle', question: '', options: [], votes: {}, summary: null, hmm: 0, participants: info.participants }) as never,
+      },
+    }) as never as ReturnType<typeof createCampServer<typeof quickVote, unknown>>;
+    const port = await s.port;
+    const c = new CampClient(quickVote, { url: `ws://127.0.0.1:${port}/camp`, room: 'boom', createSocket: (u) => new WebSocket(u) as unknown as WebSocketLike });
+    await new Promise<void>((r) => c.on({ onWelcome: () => r() }).connect());
+    expect(await c.send('OPEN_POLL', { question: 'q', options: ['a', 'b'] })).toEqual({ ok: true });
+    await until(() => errors.length > 0);
+    console.error = original;
+    c.close();
+    await s.close();
+  });
+
+  it('部屋の数に上限があり、超えたら新しい部屋は作らない', async () => {
+    const s = createCampServer(quickVote, { port: 0, room: pollRoom(summarize), maxRooms: 1 }) as never as ReturnType<typeof createCampServer<typeof quickVote, unknown>>;
+    s.createRoom('one-room-ok');
+    expect(() => s.createRoom()).toThrow(/room limit/);
+    s.close();
+  });
+
   it('遅い処理（AI のまとめ）は、作り直したあとに届いても新しい投票に混ざらない', async () => {
     const { clients } = await openRoom(1);
     const host = clients[0]!;

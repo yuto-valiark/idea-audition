@@ -4,6 +4,7 @@ import { createCampTransport, rejectUpgrade, type RoomRegistry } from '@camp-pro
 import { vocabulary } from '@idea-audition/protocol';
 import type { SessionActor } from '../application/session-actor.ts';
 import { createStaticHandler } from './static-files.ts';
+import type { IceServerProvider } from '../infrastructure/turn.ts';
 
 /** 部屋（セッション）の管理。SessionActor が CAMP の RoomEndpoint を実装する。作られていない部屋は null */
 export interface ActorRegistry extends RoomRegistry<typeof vocabulary> {
@@ -23,6 +24,8 @@ export function startServer(opts: {
   voice: WebSocketServer | null;
   /** 部屋を作る（null なら POST /api/rooms は使えない） */
   createRoom: CreateRoom | null;
+  /** 通話の経路探しのサーバー（GET /api/ice）。null なら返さない（ブラウザは Google の STUN だけを使う） */
+  ice?: IceServerProvider | null;
   /** 本番で画面のファイルを配るディレクトリ（null なら配らない。開発時は Vite が配る） */
   staticDir: string | null;
   /** テスト用に上書きできる */
@@ -44,6 +47,12 @@ export function startServer(opts: {
       res
         .writeHead(r.ok ? 201 : r.status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
         .end(JSON.stringify(r.ok ? { roomId: r.roomId } : { error: r.reason }));
+      return;
+    }
+    if (req.url === '/api/ice' && req.method === 'GET' && opts.ice) {
+      const iceServers = await opts.ice.get();
+      // 接続情報は人ごと・時間ごとに変わるので、キャッシュさせない
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify({ iceServers }));
       return;
     }
     if (serveStatic && (await serveStatic(req, res))) return;

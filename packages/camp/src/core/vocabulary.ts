@@ -67,6 +67,8 @@ export interface WelcomeOf<S extends z.ZodType> {
   camp: Camp;
   kind: 'welcome';
   participantId: string | null;
+  /** つなぎ直し用の合言葉（本人にだけ届く。観覧なら null） */
+  resumeToken?: string | null;
   snapshot: z.output<S>;
 }
 

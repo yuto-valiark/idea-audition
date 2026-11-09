@@ -213,4 +213,45 @@ describe('版の一貫性（実機レビュー P1-1）', () => {
     expect(idea.revisions.at(-1)!.outline!.how).toBe('手元の封印袋に入れる');
     expect(idea.revisions[0]!.outline!.how).toBe('ロッカーに預ける');
   });
+
+  it('前の版に巻き戻すと、その内容が新しい版として追記され復元される（Issue #8 [B4]）', () => {
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
+    s.join();
+    s.start('学食', 'solo');
+    s.addToStock([{ title: 'スマホ封印食卓', summary: 'a\nb', icon: '📵', outline: { who: '学生', pain: 'スマホばかり', how: 'ロッカーに預ける' } }]);
+    s.fillEmptySlots();
+    const id = s.lowerSlots.find((x) => x !== null)!;
+    expect(s.promote(id).ok).toBe(true);
+    const idea = s.ideaOf(id)!;
+    const base = idea.revisions.at(-1)!.revisionId;
+    // v2 作成
+    s.publishRevision(id, base, {
+      title: 'スマホ封印食卓 改',
+      summary: '改良概要',
+      keepStrengths: ['集中'],
+      improvementPoints: ['便利'],
+      reason: '改良',
+      outline: { who: '学生', pain: 'スマホばかり', how: '封印袋' },
+    });
+    expect(idea.revisions).toHaveLength(2);
+    expect(idea.revisions.at(-1)!.version).toBe(2);
+    expect(idea.revisions.at(-1)!.title).toBe('スマホ封印食卓 改');
+
+    // v1 に巻き戻し
+    const revertResult = s.revertRevision(id, 1);
+    expect(revertResult.ok).toBe(true);
+    expect(idea.revisions).toHaveLength(3);
+    const v3 = idea.revisions.at(-1)!;
+    expect(v3.version).toBe(3);
+    expect(v3.title).toBe('スマホ封印食卓');
+    expect(v3.outline?.how).toBe('ロッカーに預ける');
+    expect(v3.reason).toBe('v1 に巻き戻し');
+
+    // 存在しないバージョンへの巻き戻しは失敗する
+    const invalidRevert = s.revertRevision(id, 99);
+    expect(invalidRevert.ok).toBe(false);
+    if (!invalidRevert.ok) {
+      expect(invalidRevert.reason).toBe('STALE_VERSION');
+    }
+  });
 });

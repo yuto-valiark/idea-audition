@@ -14,6 +14,7 @@ import { startServer, type CreateRoom } from './presentation/ws-server.ts';
 import { CreationLimiter, RoomDirectory } from './application/room-directory.ts';
 import { createVoiceServer } from './presentation/voice-server.ts';
 import { GeminiLiveTranscriber } from './infrastructure/gemini/live-transcriber.ts';
+import { createIceServerProvider } from './infrastructure/turn.ts';
 
 const log = (m: string, extra?: unknown) =>
   console.log(`[${new Date().toISOString()}] ${m}`, ...(extra === undefined ? [] : [extra]));
@@ -81,6 +82,8 @@ const transcriber = createTranscriber();
 const store = createStore();
 const config = {
   ...DEFAULT_ACTOR_CONFIG,
+  // 声の発言を AI で仕分け・言い直しする（UTTERANCE_TRIAGE=off で無効。雑談・アプリの話・聞き間違いを捨てる、issue #3）
+  triage: env('UTTERANCE_TRIAGE', 'on') !== 'off',
   // 下段の入れ替え（ROTATION=off で無効）。数値はすべてミリ秒
   rotation:
     env('ROTATION', 'on') === 'off'
@@ -128,11 +131,16 @@ process.on('SIGTERM', async () => {
 });
 
 // Cloud Run は PORT を渡す。開発時は CAMP_PORTで固定する（PORT が別用途で設定されていても衝突しない）
+// 通話の中継（TURN）。Cloudflare のキーがあれば使い、無ければ Google の STUN だけ
+const ice = createIceServerProvider({ keyId: process.env.TURN_KEY_ID, apiToken: process.env.TURN_KEY_API_TOKEN, log });
+log(`call relay: ${ice.turn ? 'cloudflare turn' : 'stun only'}`);
+
 startServer({
   port: Number(process.env.CAMP_PORT ?? env('PORT', '8787')),
   registry: rooms,
   voice: createVoiceServer({ registry: rooms, transcriber, log }),
   createRoom,
+  ice,
   staticDir: process.env.STATIC_DIR ?? null,
   log,
 });

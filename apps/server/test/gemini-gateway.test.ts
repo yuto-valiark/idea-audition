@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GeminiGateway, type GenerateContentClient } from '../src/infrastructure/gemini/gemini-gateway.ts';
 import { ResilientGateway } from '../src/infrastructure/resilient-gateway.ts';
+import { FixtureGateway } from '../src/infrastructure/fixture/fixture-gateway.ts';
 import { StubAi } from './helpers.ts';
 
 const config = {
@@ -35,8 +36,8 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { slot: 0, title: 'ガチャ学食', reading: 'ガチャガクショク', summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
-          { slot: 0, title: '郷土の味', reading: 'きょうどのあじ', summary: '全国の味を\n週替わりで', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
+          { slot: 0, title: 'ガチャ学食', reading: 'ガチャガクショク', aliases: ['ガチャ', '学食ガチャ', 'ガチャ学食', 'ガ'], summary: '何が出るかお楽しみ\\n日替わりメニュー\\n3行目', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
+          { slot: 0, title: '郷土の味', reading: 'きょうどのあじ', aliases: [], summary: '全国の味を\n週替わりで', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
         ],
       }),
     ]);
@@ -44,7 +45,7 @@ describe('GeminiGateway', () => {
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     // 8軸は TASTE_AXES の順の配列になり、範囲外（buzz=2）は +1 に収まる
     expect(ideas).toEqual([
-      { title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null, profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0], persona: undefined, reading: 'ガチャガクショク', outline: { who: 'w', pain: 'p', how: 'h' } },
+      { title: 'ガチャ学食', summary: '何が出るかお楽しみ\n日替わりメニュー', icon: '☆', inspiredBy: null, profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0], persona: undefined, reading: 'ガチャガクショク', aliases: ['ガチャ'], outline: { who: 'w', pain: 'p', how: 'h' } },
     ]);
     expect(calls[0]!.model).toBe('fast-model');
     expect(calls[0]!.config.responseMimeType).toBe('application/json');
@@ -54,8 +55,8 @@ describe('GeminiGateway', () => {
     const { client, calls } = fakeClient([
       JSON.stringify({
         ideas: [
-          { slot: 2, title: '両立案', reading: 'リョウリツアン', summary: 'a\nb', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
-          { slot: 1, title: '好み案', reading: 'コノミアン', summary: 'c\nd', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
+          { slot: 2, title: '両立案', reading: 'リョウリツアン', aliases: [], summary: 'a\nb', who: 'w', pain: 'p', how: 'h', icon: '◎', inspiredBy: [], note: '', profile: P },
+          { slot: 1, title: '好み案', reading: 'コノミアン', aliases: [], summary: 'c\nd', who: 'w', pain: 'p', how: 'h', icon: '☆', inspiredBy: [], note: '', profile: P },
         ],
       }),
     ]);
@@ -83,12 +84,13 @@ describe('GeminiGateway', () => {
   });
 
   it('迷いの別案：元の案と迷いの言葉を渡し、8軸つきで1案返す', async () => {
-    const { client, calls } = fakeClient([JSON.stringify({ title: 'ミニ屋台', reading: 'ミニヤタイ', summary: '1日だけ\nまず小さく', icon: '♧', keepStrength: '屋台のにぎわい', improvement: '1日だけ・1か所で試す', changeNote: '大がかりすぎたので小さく始める形に', profile: P })]);
+    const { client, calls } = fakeClient([JSON.stringify({ title: 'ミニ屋台', reading: 'ミニヤタイ', aliases: ['屋台'], summary: '1日だけ\nまず小さく', icon: '♧', keepStrength: '屋台のにぎわい', improvement: '1日だけ・1か所で試す', changeNote: '大がかりすぎたので小さく始める形に', profile: P })]);
     const g = new GeminiGateway(client, config);
     const out = await g.varyIdea({ theme: '学食', characterName: 'MOMO', idea: { title: '屋台村', summary: 'a\nb', profile: null }, concern: 'うーん高そう' });
     expect(out).toMatchObject({
       title: 'ミニ屋台',
       summary: '1日だけ\nまず小さく',
+      aliases: ['屋台'],
       profile: [-0.5, 0.8, 0.2, 1, 0, 0, 0, 0],
       keepStrengths: ['屋台のにぎわい'],
       improvementPoints: ['1日だけ・1か所で試す'],
@@ -128,7 +130,7 @@ describe('GeminiGateway', () => {
   });
 
   it('不正な出力は1回やり直す', async () => {
-    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ slot: 0, title: 'T', reading: '', summary: 'S', who: 'w', pain: 'p', how: 'h', icon: '♡', inspiredBy: [], note: '', profile: P }] })]);
+    const { client, calls } = fakeClient(['{"ideas": "broken"}', JSON.stringify({ ideas: [{ slot: 0, title: 'T', reading: '', aliases: [], summary: 'S', who: 'w', pain: 'p', how: 'h', icon: '♡', inspiredBy: [], note: '', profile: P }] })]);
     const g = new GeminiGateway(client, config);
     const ideas = await g.generateIdeas({ theme: '学食', count: 1, avoidTitles: [] });
     expect(ideas).toHaveLength(1);
@@ -227,5 +229,39 @@ describe('GeminiGateway', () => {
       overview: '地域を30分探検する',
     });
     expect(url2).toBe('data:image/png;base64,WFla');
+  });
+
+  it('発言の仕分け：話題なら言い直した文、雑談・聞き間違いは残さない', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？' }),
+      JSON.stringify({ verdict: 'off_topic', summary: '' }),
+      JSON.stringify({ verdict: 'garbled', summary: '' }),
+      JSON.stringify({ verdict: 'on_topic', summary: '   ' }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const input = {
+      theme: '学食',
+      stage: [{ characterName: 'MOMO', title: '混雑予測ナビ', summary: '行列が分かる\n学食の混み具合を予測' }],
+      recentRemarks: [{ judge: '審査員 A', text: 'コストは低めがいい' }],
+      text: 'えーと費用ってどれくらい？',
+    };
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: '費用はいくらかかりますか？' });
+    await expect(g.triageUtterance({ ...input, text: 'マイク聞こえてる？' })).resolves.toEqual({ keep: false, reason: 'off_topic' });
+    await expect(g.triageUtterance({ ...input, text: 'ミストにぶとう' })).resolves.toEqual({ keep: false, reason: 'garbled' });
+    // 話題だが言い直しが空なら、聞こえたままの文を使う（落とさない）
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: null });
+    // 速いモデルで、テーマ・舞台の企画・直前の発言・判定する発言をプロンプトに入れる
+    expect(calls[0]!.model).toBe('fast-model');
+    expect(calls[0]!.contents).toContain('MOMO：混雑予測ナビ');
+    expect(calls[0]!.contents).toContain('審査員 A：「コストは低めがいい」');
+    expect(calls[0]!.contents).toContain('発言：「えーと費用ってどれくらい？」');
+  });
+
+  it('発言の仕分け：呼び出しに失敗したら固定データの簡易な仕分けに切り替わる', async () => {
+    const { client } = fakeClient([new Error('503')]);
+    const fixture = new FixtureGateway(0);
+    const resilient = new ResilientGateway(new GeminiGateway(client, config), fixture);
+    const input = { theme: 't', stage: [], recentRemarks: [], text: '画面が重いんだけど' };
+    await expect(resilient.triageUtterance(input)).resolves.toEqual({ keep: false, reason: 'off_topic' });
   });
 });

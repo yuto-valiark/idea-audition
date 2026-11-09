@@ -21,7 +21,7 @@ export type RejectReason = z.infer<typeof RejectReason>;
 
 /** UIに出す短い日本語 */
 export const REJECT_REASON_LABEL: Record<RejectReason, string> = {
-  UPPER_FULL: '最終オーディションは満席です（最大3体）',
+  UPPER_FULL: '最終オーディションは満席です',
   NOT_IN_LOWER: 'このキャラはもう下段にいません',
   NOT_IN_UPPER: 'このキャラは最終オーディションにいません',
   UNKNOWN_CHARACTER: 'キャラが見つかりません',
