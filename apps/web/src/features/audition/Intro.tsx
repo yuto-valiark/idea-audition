@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, Copy, Crown, Play, Plus, Share2, Users, Zap } from 'lucide-react';
+import { Copy, Crown, Play, Plus, Share2, Users, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { useEffect, useState } from 'react';
@@ -156,7 +156,6 @@ export function Intro() {
                 <button className="create-audition" disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
                   <Play />
                   <span>オーディションをはじめる</span>
-                  <ArrowRight className="create-arrow" />
                 </button>
               )}
               {(connection !== 'open' || isSpectator) && (
@@ -175,7 +174,6 @@ export function Intro() {
             >
               <Plus />
               <span>オーディションを作る</span>
-              <ArrowUpRight className="create-arrow" />
             </button>
           )}
           <div className="welcome-steps">
