@@ -8,7 +8,6 @@ import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, originalRevision, useMe } from '../shared/selectors.ts';
 import { onDropHover, registerDropZone } from './drag.ts';
 import { MentionBadge } from './LowerStage.tsx';
-import { InspiredBy } from '../features/consensus/ConsensusMemo.tsx';
 import styles from './Stage.module.css';
 
 export function FinalStage() {
@@ -134,6 +133,10 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
   const evolved = revision.version > 1;
   const bubbleTarget = bubble ? snapshot.characters[bubble.toInstanceId]?.name : null;
   const isTieCandidate = vote?.status === 'tie' && vote.tieInstanceIds.includes(instanceId);
+  // 「C1 を反映」ではなく、反映したみんなの意見そのものを出す
+  const reflected = (revision.inspiredBy?.claimLabels ?? [])
+    .map((label) => snapshot.consensus.claims.find((c) => c.label === label)?.text)
+    .filter((t): t is string => !!t);
 
   return (
     <article
@@ -168,7 +171,6 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         <Mascot designId={character.designId} className={styles.mascot} />
       </button>
       <button className={`${styles.flip} ${styles.finalFlip}`} onClick={() => select(instanceId)}>
-        {evolved && <div className={styles.origin}>元の案：{original.title}</div>}
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={revision.revisionId}
@@ -178,22 +180,34 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
             transition={{ duration: 0.45 }}
             className={styles.flipBody}
           >
+            {/* 優先順位：企画名 → 説明 → 誰の・困りごと・どう解く → この版で変えたこと → 反映した意見 */}
             <div className={styles.flipTitle}>{revision.title}</div>
             <p>{revision.summary}</p>
-            {revision.inspiredBy && <InspiredBy note={revision.inspiredBy.note} labels={revision.inspiredBy.claimLabels} />}
-            {evolved && (
+            {revision.outline && (
+              <dl className={styles.outline}>
+                <dt>誰の</dt>
+                <dd>{revision.outline.who}</dd>
+                <dt>困りごと</dt>
+                <dd>{revision.outline.pain}</dd>
+                <dt>どう解く</dt>
+                <dd>{revision.outline.how}</dd>
+              </dl>
+            )}
+            {evolved && revision.improvementPoints.length > 0 && (
               <ul className={styles.points}>
-                {revision.keepStrengths.slice(0, 1).map((t) => (
-                  <li key={`k${t}`} data-kind="keep">
-                    残す：{t}
-                  </li>
-                ))}
-                {revision.improvementPoints.slice(0, 2).map((t) => (
+                {revision.improvementPoints.slice(0, 3).map((t) => (
                   <li key={`i${t}`}>
                     <Check size={10} /> {t}
                   </li>
                 ))}
               </ul>
+            )}
+            {reflected.length > 0 && (
+              <div className={styles.reflected}>
+                {reflected.map((t) => (
+                  <span key={t}>💬 {t}</span>
+                ))}
+              </div>
             )}
           </motion.div>
         </AnimatePresence>
@@ -201,7 +215,7 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
           {finalist.status !== 'ready' ? (
             <BusyLabel label={STATUS_LABEL[finalist.status]} status={finalist.status} />
           ) : (
-            `✓ ${evolved ? '改善済み' : '選抜アイデア'} · Ver.${revision.version}`
+            <>Ver.{revision.version}{evolved && <span className={styles.originNote}>元：{original.title}</span>}</>
           )}
         </div>
       </button>

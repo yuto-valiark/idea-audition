@@ -140,8 +140,6 @@
   justify-content: center;
   gap: 3.5%;
   align-items: flex-end;
-  /* 予選のあとは最終オーディションだけで画面を使うので、大きく見せる（#5） */
-  zoom: 1.35;
   position: relative;
   z-index: 2;
   padding: 0 6% 16px;
@@ -1147,4 +1145,89 @@
   border-radius: 50%;
   background: radial-gradient(ellipse, #000a, transparent 70%);
   filter: blur(4px);
+}
+
+/* ===== 決勝のフリップ：3人だけなので大きく。中身が多ければ中で下に流す ===== */
+.finalLineup {
+  align-items: flex-end;
+  padding-bottom: 6vh;
+}
+.finalPerformer {
+  --mascot-col: clamp(110px, 9vw, 190px);
+  width: 32%;
+  max-width: clamp(360px, 31vw, 620px);
+}
+.finalFlip {
+  display: flex;
+  flex-direction: column;
+  min-height: clamp(150px, 24vh, 260px);
+  max-height: clamp(220px, 40vh, 430px);
+  padding: 12px 14px 10px;
+}
+.finalFlip .flipBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b88a4f55 transparent;
+  mask-image: linear-gradient(180deg, #000 85%, transparent 100%);
+  padding-bottom: 10px;
+}
+.finalFlip .flipTitle {
+  font-size: clamp(15px, 1.35vw, 23px);
+  white-space: normal;
+}
+.finalFlip p {
+  margin: 6px 0 4px;
+  font-size: clamp(11px, 0.85vw, 14px);
+  line-height: 1.6;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.outline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  margin: 8px 0 4px;
+  font-size: clamp(10.5px, 0.78vw, 13px);
+  line-height: 1.5;
+}
+.outline dt {
+  color: #ff9bf0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.outline dd {
+  margin: 0;
+  color: #efe4ff;
+}
+.finalFlip .points li {
+  font-size: clamp(10px, 0.75vw, 12.5px);
+}
+.reflected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.reflected span {
+  font-size: clamp(9.5px, 0.7vw, 11.5px);
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #12301fcc;
+  border: 1px solid #2e6b55;
+  color: #9ff0c9;
+}
+.finalFlip .improvement {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+}
+.originNote {
+  color: #a98c6a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
