@@ -22,7 +22,7 @@ interface SessionState {
   /** none：部屋に入っていない（トップ）、active：部屋に入っている、not_found：リンクの部屋が見つからない */
   room: 'none' | 'active' | 'not_found';
   /** ロビーでホストが入力中のテーマ（ホスト以外の画面に見せる） */
-  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null } | null;
+  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null; finalists?: number; challengeSec?: number } | null;
   connect(sessionId: string): void;
   /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
   createRoom(): Promise<boolean>;
@@ -177,7 +177,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
-      const full = e.snapshot.upper.length >= 3;
+      const full = e.snapshot.upper.length >= (e.snapshot.finalists ?? 3);
       display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
       break;
     }

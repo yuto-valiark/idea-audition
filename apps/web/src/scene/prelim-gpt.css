@@ -1708,3 +1708,29 @@
 /* 吹き出しは合格者待機室より手前に */
 .ia-prelim .solo-performance { z-index: 6; }
 .ia-prelim .ia-bubble { z-index: 20; }
+
+/* 一時停止ボタン（ブザーの左）と、一時停止中の表示 */
+.ia-prelim .ia-hold[data-on] {
+  border-color: #ffd36b !important;
+  color: #ffe9b0 !important;
+  box-shadow: 0 0 16px #ffcf4b77;
+}
+.ia-prelim .ia-held {
+  background: #2a1d06dd; border: 1.5px solid #ffd36b; box-shadow: 0 0 22px #ffcf4b55;
+  color: #fff3d6;
+}
+.ia-prelim .ia-held strong { font-size: 22px; font-weight: 900; color: #ffd76b; }
+.ia-prelim .ia-held span { font-size: 14px; font-weight: 700; color: #f3e2bd; }
+.ia-prelim .ia-held b { color: #fff; }
+
+/* ホストだけ：いまの合格者で決勝へ */
+.ia-prelim .ia-end-prelim {
+  margin-left: 6px;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; white-space: nowrap;
+  color: #1a0b2b; background: #ffd36b; border: none; cursor: pointer;
+}
+.ia-prelim .ia-end-prelim:hover { filter: brightness(1.08); }
+/* 合格者の人数（1〜4人）に合わせて、待機室の枠を等分する */
+.ia-prelim .waiting-slots .waiting-slot { width: auto; flex: 1 1 0; min-width: 0; }

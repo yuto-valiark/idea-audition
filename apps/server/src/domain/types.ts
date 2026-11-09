@@ -147,6 +147,8 @@ export interface CharacterInstance {
   leavingAt: number | null;
   /** 深掘りタイムで止めているあいだの、残り時間（止めていなければ null） */
   pausedLeftMs?: number | null;
+  /** 一時停止ボタンで止めた審査員（止めていなければ null） */
+  holdBy?: string | null;
   reaction?: Reaction | null;
 }
 
@@ -248,4 +250,7 @@ export interface SessionState {
   aiMode?: AiMode;
   /** ADR-0009 で追加 */
   taste?: TasteState;
+  /** 決勝に進む人数と、1人の持ち時間（ロビーで選ぶ。古い保存データには無い） */
+  finalistTarget?: number;
+  challengeMs?: number | null;
 }

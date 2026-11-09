@@ -1,11 +1,11 @@
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react';
-import { ArrowRight, Check, ChevronRight, Crown, SkipForward, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Crown, Pause, Play, SkipForward, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { PITCH_ROLE_ICON, UPPER_CAPACITY, type JudgeView, type SessionSnapshot } from '@idea-audition/protocol';
+import { PITCH_ROLE_ICON, type JudgeView, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../store/display-store.ts';
 import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
-import { EMPTY, currentRevision, useMe } from '../shared/selectors.ts';
+import { EMPTY, currentRevision, finalistTarget, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
 import { playSfx } from '../shared/sfx.ts';
 import './prelim-gpt.css';
@@ -13,7 +13,6 @@ import './prelim-gpt.css';
 /** 合格の演出の長さ（長いとテンポが落ちる） */
 export const PASS_CEREMONY_MS = 2_000;
 /** この秒数からカウントダウンを出す。URGENT 秒からは画面を赤くして急かす */
-const COUNTDOWN_FROM = 10;
 const URGENT_FROM = 5;
 
 /**
@@ -71,7 +70,13 @@ export function PreliminaryStage() {
               </motion.div>
             )}
           </AnimatePresence>
-          {!celebrating && challenger && <Countdown leavingAt={snapshot.characters[challenger]?.leavingAt ?? null} pausedLeftMs={snapshot.characters[challenger]?.pausedLeftMs ?? null} />}
+          {!celebrating && challenger && (
+            <Countdown
+              leavingAt={snapshot.characters[challenger]?.leavingAt ?? null}
+              pausedLeftMs={snapshot.characters[challenger]?.pausedLeftMs ?? null}
+              held={snapshot.characters[challenger]?.holdBy != null}
+            />
+          )}
           <BuzzerZone snapshot={snapshot} instanceId={celebrating ? null : challenger} celebrating={celebrating} />
           {celebrating && <PassEffect seed={passed!.seed} name={snapshot.characters[passed!.instanceId]?.name ?? ''} />}
         </section>
@@ -152,11 +157,12 @@ function WaitingRoom({ snapshot }: { snapshot: SessionSnapshot }) {
         <Crown size={17} />
         <h2>合格者待機室</h2>
         <b>
-          {snapshot.upper.length} / {UPPER_CAPACITY}
+          {snapshot.upper.length} / {finalistTarget(snapshot)}
         </b>
+        <EndPreliminary snapshot={snapshot} />
       </div>
-      <div className="waiting-slots">
-        {Array.from({ length: UPPER_CAPACITY }, (_, n) => {
+      <div className="waiting-slots" data-count={finalistTarget(snapshot)}>
+        {Array.from({ length: finalistTarget(snapshot) }, (_, n) => {
           const f = snapshot.upper[n];
           const c = f ? snapshot.characters[f.instanceId] : null;
           const rev = f ? currentRevision(snapshot, f.instanceId) : null;
@@ -389,6 +395,7 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
           </small>
         </span>
       )}
+      {!isSpectator && instanceId && <HoldButton snapshot={snapshot} instanceId={instanceId} />}
       <div className="buzzers" style={{ '--count': judges.length } as CSSProperties}>
         {judges.map((j) => (
           <Buzzer
@@ -494,20 +501,22 @@ function PassEffect({ seed, name }: { seed: number; name: string }) {
  * 残り10秒から大きくカウントダウン。5秒からは画面のふちが赤く脈打って急かす。
  * 深掘りタイム中はカウントダウンを止め、右上に残りの秒数だけを出す。
  */
-function Countdown({ leavingAt, pausedLeftMs }: { leavingAt: string | null; pausedLeftMs: number | null }) {
+function Countdown({ leavingAt, pausedLeftMs, held }: { leavingAt: string | null; pausedLeftMs: number | null; held: boolean }) {
   const left = useSecondsLeft(leavingAt);
   useTickSound(pausedLeftMs == null && leavingAt ? left : null);
-  if (pausedLeftMs != null) {
+  if (pausedLeftMs != null || held) {
     return (
-      <div className="ia-corner ia-deepdive" role="status">
-        <strong>🔍 深掘りタイム</strong>
-        <span>
-          残り <b>{Math.ceil(pausedLeftMs / 1000)}</b> 秒
-        </span>
+      <div className={'ia-corner ' + (held ? 'ia-held' : 'ia-deepdive')} role="status">
+        <strong>{held ? '⏸ 一時停止' : '🔍 深掘りタイム'}</strong>
+        {pausedLeftMs != null && (
+          <span>
+            残り <b>{Math.ceil(pausedLeftMs / 1000)}</b> 秒
+          </span>
+        )}
       </div>
     );
   }
-  if (!leavingAt || left <= 0 || left > COUNTDOWN_FROM) return null;
+  if (!leavingAt || left <= 0) return null;
   const urgent = left <= URGENT_FROM;
   return (
     <>
@@ -573,4 +582,42 @@ function useSecondsLeft(leavingAt: string | null) {
     return () => clearInterval(t);
   }, [leavingAt]);
   return leavingAt ? Math.max(0, Math.ceil((Date.parse(leavingAt) - Date.now()) / 1000)) : 0;
+}
+
+/** 予選の一時停止（だれでも押せる。押した人がいなくなったら自動で解除） */
+function HoldButton({ snapshot, instanceId }: { snapshot: SessionSnapshot; instanceId: string }) {
+  const send = useSession((s) => s.send);
+  const held = snapshot.characters[instanceId]?.holdBy != null;
+  return (
+    <button
+      className="ia-skip ia-hold"
+      data-on={held || undefined}
+      onClick={() => void send('HOLD_CHALLENGE', { instanceId, on: !held })}
+      aria-pressed={held}
+      aria-label={held ? '再開する' : '一時停止する'}
+      title={held ? '再開' : '一時停止'}
+    >
+      {held ? <Play size={22} /> : <Pause size={22} />}
+      <span>{held ? '再開' : '一時停止'}</span>
+    </button>
+  );
+}
+
+/** ホストだけ：合格者が決勝の人数に満たなくても、いまの合格者で決勝に進む */
+function EndPreliminary({ snapshot }: { snapshot: SessionSnapshot }) {
+  const send = useSession((s) => s.send);
+  const { isHost } = useMe();
+  const n = snapshot.upper.length;
+  if (!isHost || n === 0 || n >= finalistTarget(snapshot)) return null;
+  return (
+    <button
+      className="ia-end-prelim"
+      onClick={() => {
+        if (window.confirm(`いまの${n}人で決勝に進みますか？`)) void send('END_PRELIMINARY', {});
+      }}
+      title="いまの合格者で決勝へ"
+    >
+      決勝へ <ChevronRight size={13} />
+    </button>
+  );
 }

@@ -1358,3 +1358,9 @@
   /* 日本語を文節で折り返す（「推しメ／ニュー」のような語の途中での改行を避ける。対応していないブラウザはそのまま） */
   word-break: auto-phrase;
 }
+
+/* 決勝の人数がロビーで変わる：4人のときはカードを細く、キャラも少し小さく */
+.finalLineup[data-count='4'] .finalPerformer {
+  --mascot-col: clamp(90px, 8vw, 170px);
+  width: 24%;
+}

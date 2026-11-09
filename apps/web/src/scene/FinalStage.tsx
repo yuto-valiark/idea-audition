@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUpRight, Check, Crown, Plus, Trophy } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { UPPER_CAPACITY, type SessionSnapshot } from '@idea-audition/protocol';
+import type { SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../store/display-store.ts';
 import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
-import { EMPTY, currentRevision, originalRevision, useMe } from '../shared/selectors.ts';
+import { EMPTY, currentRevision, finalistTarget, originalRevision, useMe } from '../shared/selectors.ts';
 import { onDropHover, registerDropZone } from './drag.ts';
 import { MentionBadge } from './LowerStage.tsx';
 import styles from './Stage.module.css';
@@ -25,7 +25,8 @@ export function FinalStage() {
     };
   }, []);
 
-  const full = upper.length >= UPPER_CAPACITY;
+  const target = useSession((s) => finalistTarget(s.snapshot));
+  const full = upper.length >= target;
   const spotlight = useSession((s) => s.snapshot?.spotlight ?? null);
   const characters = useSession((s) => s.snapshot?.characters);
   const send = useSession((s) => s.send);
@@ -54,7 +55,7 @@ export function FinalStage() {
             最終オーディション <span>FINAL STAGE</span>
           </h2>
           <span className={`${styles.count} ${styles.gold}`}>
-            {upper.length} / {UPPER_CAPACITY}
+            {upper.length} / {target}
           </span>
         </div>
         <ChampionControls />
@@ -75,8 +76,8 @@ export function FinalStage() {
           </motion.div>
         )}
       </AnimatePresence>
-      <div className={styles.finalLineup}>
-        {Array.from({ length: UPPER_CAPACITY }, (_, i) => {
+      <div className={styles.finalLineup} data-count={target}>
+        {Array.from({ length: target }, (_, i) => {
           const f = upper[i];
           return f ? (
             <FinalistCard
@@ -89,7 +90,7 @@ export function FinalStage() {
           );
         })}
       </div>
-      {isDragging && full && <div className={styles.fullNotice}>満席です（最大3体）。いまは昇格できません</div>}
+      {isDragging && full && <div className={styles.fullNotice}>満席です。いまは昇格できません</div>}
       <div className={`${styles.ring} ${styles.upperRing}`} />
       <div className={styles.upperDrum} aria-hidden />
     </section>

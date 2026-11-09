@@ -4,7 +4,6 @@ import {
   LOWER_SLOT_COUNT,
   CHALLENGE_MS,
   ResultCache,
-  UPPER_CAPACITY,
   type ProposalContent,
   type AiMode,
   type CommandMessage,
@@ -124,7 +123,7 @@ const STOCK_LIMIT = 12;
 /** 決勝の案が落ち着いてから企画書を作り始めるまでの待ち時間 */
 const PROPOSAL_DRAFT_DELAY_MS = 3_000;
 /** 企画書の作り置きを見直すきっかけ */
-const DRAFT_TRIGGERS = new Set<string>(['PROMOTION_CONFIRMED', 'FINALIST_VERSION_PUBLISHED', 'CHAMPION_VOTE_STARTED']);
+const DRAFT_TRIGGERS = new Set<string>(['PRELIMINARY_ENDED', 'PROMOTION_CONFIRMED', 'FINALIST_VERSION_PUBLISHED', 'CHAMPION_VOTE_STARTED']);
 /** 案の生成を1回で頼む件数の上限（多いと返事が遅く、時間切れになる） */
 const GENERATION_CHUNK = 3;
 /** ロビーでテーマの入力が止まってから、最初の案を作り始めるまでの待ち時間 */
@@ -509,7 +508,13 @@ export class SessionActor {
       case 'START_AUDITION': {
         // テーマを決めて始めるのはホストだけ（ロビーでほかの人はホストの入力を見ている）
         if (!s.judges.some((j) => j.judgeId === judgeId && j.isHost)) return { ok: false, reason: 'NOT_HOST' };
-        const r = apply(s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode));
+        const { finalists, challengeSec } = cmd.payload;
+        const r = apply(
+          s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode, {
+            finalists,
+            challengeMs: challengeSec ? challengeSec * 1000 : (this.deps.config.rotation?.warningMs ?? CHALLENGE_MS),
+          }),
+        );
         if (r.ok) this.onStarted();
         return r;
       }
@@ -542,6 +547,20 @@ export class SessionActor {
         this.emit(r.events, meta);
         if (r.value.unanimous) return this.promoteCharacter(instanceId, pressers, meta);
         return { ok: true };
+      }
+      case 'HOLD_CHALLENGE': {
+        const { instanceId, on } = cmd.payload;
+        const r = s.holdChallenge(judgeId, instanceId, on);
+        if (!r.ok) return r;
+        this.emit(r.events, meta);
+        // 再開：深掘り中でなければ、止めたときの残りからすぐ数え直す
+        if (!on && !this.isEngaged(instanceId, this.deps.clock.now())) this.emit(s.resumeChallenge(instanceId, RESUME_MIN_MS), meta);
+        return { ok: true };
+      }
+      case 'END_PRELIMINARY': {
+        const r = apply(s.endPreliminary(judgeId));
+        if (r.ok) this.scheduleConsensus('decision');
+        return r;
       }
       case 'NEXT_IDEA': {
         // 手動の「次のアイデア」：見られている案は残し、最も注目されていない案を入れ替える
@@ -825,7 +844,7 @@ export class SessionActor {
   private prepareProposalDrafts() {
     const s = this.session;
     if (s.status !== 'audition_active' && s.status !== 'champion_selection') return;
-    const worth = s.status === 'champion_selection' || s.upper.length >= UPPER_CAPACITY || s.mode === 'solo';
+    const worth = s.status === 'champion_selection' || s.finalsReady || s.mode === 'solo';
     if (!worth) return;
     for (const f of s.upper) {
       if (f.status !== 'ready') continue;
@@ -1061,12 +1080,21 @@ export class SessionActor {
    */
   private rotationTick(rotation: RotationConfig) {
     const s = this.session;
-    if (s.status !== 'audition_active' || s.upper.length >= UPPER_CAPACITY) return;
+    if (s.status !== 'audition_active' || s.finalsReady) return;
     const id = s.lowerSlots[0];
     if (!id) return;
     const c = s.characters.get(id);
     if (!c) return;
     const now = this.deps.clock.now();
+    // 一時停止ボタン：押した人がいなくなったら解除する。止めているあいだは何もしない
+    if (c.holdBy != null) {
+      if (s.judges.some((j) => j.judgeId === c.holdBy && j.connected)) {
+        if (c.leavingAt !== null) this.emit(s.pauseChallenge(id), { actorJudgeId: null });
+        return;
+      }
+      const released = s.holdChallenge(c.holdBy, id, false);
+      if (released.ok) this.emit(released.events, { actorJudgeId: null });
+    }
     // 深掘りタイム：質問・議論・じっくり見ている間はカウントを止め、終わったら再開する
     if (this.isEngaged(id, now)) {
       if (c.leavingAt !== null) this.emit(s.pauseChallenge(id), { actorJudgeId: null });
@@ -1078,7 +1106,7 @@ export class SessionActor {
     }
     // 登場したら持ち時間を決める（1人ずつの審査、#5）
     if (c.leavingAt === null) {
-      this.emit(s.beginLeaving(id, rotation.warningMs), { actorJudgeId: null });
+      this.emit(s.beginLeaving(id, s.challengeMs ?? rotation.warningMs), { actorJudgeId: null });
       return;
     }
     if (now < c.leavingAt || s.stock.length === 0) return; // 次の案が届くまで待つ

@@ -511,3 +511,47 @@
   font-size: 11px;
   color: #a893bf;
 }
+
+/* ロビーの設定：持ち時間と合格者の人数 */
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 14px;
+  border: 1px solid #6a4392;
+  border-radius: 999px;
+  background: #120a26cc;
+}
+.choice .themeLabel {
+  margin-right: 6px;
+}
+.choice button {
+  min-width: 44px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: none;
+  color: #cdb8ea;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.choice button[data-on] {
+  color: #1a0b2b;
+  background: #ff9bf0;
+  box-shadow: 0 0 12px #ff72ed88;
+}
+.choice button:disabled {
+  cursor: default;
+}
+.choice button:disabled:not([data-on]) {
+  opacity: 0.55;
+}
