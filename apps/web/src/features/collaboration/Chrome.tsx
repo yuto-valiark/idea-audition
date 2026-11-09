@@ -5,7 +5,8 @@ import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
-import { MicButton, UtteranceInput } from '../voice/VoiceControls.tsx';
+import { MicButton } from '../voice/VoiceControls.tsx';
+import { Captions, UtteranceInput } from '../chat/Chat.tsx';
 import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
 import { TastePanel } from '../taste/TasteRadar.tsx';
 import styles from './Chrome.module.css';
@@ -69,6 +70,7 @@ export function Footer() {
   if (!snapshot) return null;
   return (
     <footer className={styles.footer}>
+      <Captions />
       <div className={styles.judges}>
         {snapshot.judges.map((j) => (
           <div

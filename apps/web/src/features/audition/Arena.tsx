@@ -6,6 +6,7 @@ import { FinalStage } from '../../scene/FinalStage.tsx';
 import { PASS_CEREMONY_MS, PreliminaryStage } from '../../scene/PreliminaryStage.tsx';
 import { UPPER_CAPACITY } from '@idea-audition/protocol';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
+import { ChatPanel } from '../chat/Chat.tsx';
 import styles from './Arena.module.css';
 
 const CURSOR_SEND_INTERVAL_MS = 66; // 約15Hz（仮説値。実測で調整する、ADR-0004）
@@ -66,6 +67,8 @@ export function Arena() {
       <div className={styles.arena} ref={ref}>
         {prelim ? <PreliminaryStage /> : <FinalStage />}
         <JudgeCursors />
+        {/* ヘッダーとフッターの間（この領域）に収まるように、ここに置く */}
+        <ChatPanel />
       </div>
     </>
   );

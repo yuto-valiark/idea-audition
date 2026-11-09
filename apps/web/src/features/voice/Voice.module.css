@@ -47,43 +47,6 @@
   animation-delay: -0.6s;
 }
 
-.input {
-  flex: 1;
-  min-width: 220px;
-  max-width: 520px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid #6b477f;
-  border-radius: 8px;
-  background: #0b0719;
-  padding: 0 6px 0 12px;
-  height: 40px;
-}
-
-.input[data-listening] {
-  border-color: var(--ok);
-  box-shadow: 0 0 12px #74efbd33;
-}
-
-.input input {
-  flex: 1;
-  background: none;
-  border: 0;
-  outline: none;
-  color: white;
-  font-size: 12px;
-  min-width: 0;
-}
-
-.input button {
-  color: #c6a4db;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-}
-
 @keyframes ping {
   to {
     box-shadow: 0 0 0 10px #74efbd00;

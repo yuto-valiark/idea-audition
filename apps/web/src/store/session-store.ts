@@ -247,8 +247,18 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
         }, wait);
       }
       break;
-    // JUDGE_UTTERANCE_RECEIVED：発言そのものは画面に出さない（issue #2）。
-    // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
+    case 'JUDGE_UTTERANCE_RECEIVED':
+      // 声の発言は画面に出さない（issue #2）。テキストで打った発言だけ字幕に出す
+      if (d.source === 'text' && typeof d.judgeId === 'string' && typeof d.text === 'string') {
+        display.addCaption({
+          judgeId: d.judgeId,
+          text: d.text,
+          intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
+          targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
+        });
+      }
+      // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
+      break;
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
       for (const c of changes) {
@@ -274,6 +284,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'SESSION_STARTED':
     case 'SESSION_RESET':
       display.clearBubbles();
+      if (e.type === 'SESSION_RESET') display.clearChatLog();
       display.select(null);
       break;
   }
