@@ -74,6 +74,8 @@ const IdeaItem = z.object({
   title: z.string().min(1),
   /** 企画名の読み（全角カタカナ） */
   reading: z.string(),
+  /** 審査員が企画名のかわりに口にしそうな短い呼び名 */
+  aliases: z.array(z.string()),
   summary: z.string().min(1),
   /** 詳細画面の3行：誰の・何の困りごとを・どう解くか */
   who: z.string(),
@@ -92,6 +94,7 @@ const IdeasSchema = z.object({ ideas: z.array(IdeaItem).min(1) });
 const VarySchema = z.object({
   title: z.string().min(1),
   reading: z.string(),
+  aliases: z.array(z.string()),
   summary: z.string().min(1),
   icon: z.enum(ICONS),
   keepStrength: z.string(),
@@ -190,6 +193,17 @@ export function renderContext(theme: string, ctx: ConsensusContext | undefined):
 function renderRemarks(ctx: ConsensusContext | undefined) {
   if (!ctx?.recentRemarks.length) return '';
   return `\n# 直近の発言\n${ctx.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n')}\n`;
+}
+
+/**
+ * 呼び名を整える。企画名と同じもの・短すぎる／長すぎるもの・重複は除き、最大3個。
+ * 企画名に含まれない語は、音声認識の語彙を汚すので除く（企画名の一部を取り出したものだけ）。
+ */
+function toAliases(list: string[], title: string): string[] | undefined {
+  const norm = (x: string) => x.replace(/\s+/g, '');
+  const t = norm(title);
+  const out = [...new Set(list.map((a) => norm(a)).filter((a) => a.length >= 2 && a.length <= 12 && a !== t && t.includes(a)))].slice(0, 3);
+  return out.length ? out : undefined;
 }
 
 /** 読みはカタカナだけ残す（ひらがなはカタカナに直す）。使えなければ undefined */
@@ -308,6 +322,7 @@ ${
 }
 - title：企画名。12文字以内
 - reading：企画名の読みを全角カタカナで（英字も読みで。例「学食SNS」→「ガクショクエスエヌエス」）
+- aliases：審査員が会話で企画名のかわりに口にしそうな短い呼び名を1〜3個（各2〜10文字）。企画名の一部分をそのまま切り出したものだけ（例「ひとり飯ラウンジ」→「ひとり飯」「ラウンジ」、「学食スタンプラリー」→「スタンプラリー」）。企画名と同じもの、どの企画にもある一語（「学食」「アプリ」など）は入れない。無ければ空配列
 - summary：説明。20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は具体的な中身
 - who：誰のための案か。20文字以内（例「一人暮らしの大学生」）
 - pain：その人のどんな困りごと・不満を扱うか。24文字以内
@@ -328,6 +343,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
         profile: toProfile(i.profile),
         persona: slot?.persona.name,
         reading: toReading(i.reading),
+        aliases: toAliases(i.aliases, clean(i.title, 16)),
         ...(i.who.trim() && i.how.trim() ? { outline: { who: clean(i.who, 24), pain: clean(i.pain, 30), how: clean(i.how, 30) } } : {}),
       };
     });
@@ -343,6 +359,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
 - 元の案の一番の良さは残し、迷われていそうな点（大がかりすぎる・ピンと来ない・誰向けか分からない、など）を1つ選んで変える
 - title：企画名。12文字以内。元の企画名と分かる程度に似せてよい
 - reading：企画名の読みを全角カタカナで
+- aliases：審査員が会話で企画名のかわりに口にしそうな短い呼び名を1〜3個（各2〜10文字）。企画名の一部分をそのまま切り出したものだけ。企画名と同じもの、どの企画にもある一語は入れない。無ければ空配列
 - summary：20文字以内の文を2行（改行で区切る）。1行目はキャッチコピー、2行目は何を変えたか
 - icon：${ICONS.join(' ')} から1つ
 - keepStrength：元の案から残した一番の良さ。20文字以内
@@ -358,6 +375,7 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
       icon: out.icon,
       profile: toProfile(out.profile),
       reading: toReading(out.reading),
+      aliases: toAliases(out.aliases, clean(out.title, 16)),
       ...(keep ? { keepStrengths: [keep] } : {}),
       ...(improve ? { improvementPoints: [improve] } : {}),
       ...(clean(out.changeNote, 28) ? { changeNote: clean(out.changeNote, 28) } : {}),

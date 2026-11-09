@@ -25,7 +25,7 @@ import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
 import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
 import { localEmbedding } from '../infrastructure/local-taste.ts';
-import { speechVocabulary } from './speech-vocabulary.ts';
+import { speechStageKey, speechVocabulary } from './speech-vocabulary.ts';
 import { speechLexicon } from './speech-lexicon.ts';
 import { repairTranscript, type Correction } from '../domain/transcript-repair.ts';
 import { toSnapshot } from './projection.ts';
@@ -234,6 +234,11 @@ export class SessionActor {
   /** 音声認識に渡す語彙（キャラ名・テーマ・企画名など） */
   speechVocabulary(): string[] {
     return speechVocabulary(this.session);
+  }
+
+  /** 語彙が古くなったかの目印。舞台の企画やテーマが変わると値が変わる */
+  speechStageKey(): string {
+    return speechStageKey(this.session);
   }
 
   private get embedder(): EmbeddingPort | null {

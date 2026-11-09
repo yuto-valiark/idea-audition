@@ -5,7 +5,7 @@ import type { LexiconEntry } from '../domain/transcript-repair.ts';
 /**
  * 文字起こしの補正に使う、その会議の辞書。会議が進むほど育つ。
  *  - キャラ名（カタカナの読み）
- *  - 企画名（Gemini が返した読みつき）と、その中のカタカナ語（例：「学食スタンプラリー」の「スタンプラリー」）
+ *  - 企画名（Gemini が返した読みつき）と、その中のカタカナ語（例：「学食スタンプラリー」の「スタンプラリー」）、呼び名
  *  - テーマ・合意メモの論点の中のカタカナ語（論点の文章そのものは使わない：「高め→低め」のように意味を変えないため）
  *  - 最近の発言で2回以上出たカタカナ語
  * いまステージにいる案・その審査員が見ている案ほど寄せやすくする（boost）。
@@ -40,6 +40,8 @@ export function speechLexicon(s: AuditionSession, focused: ReadonlySet<string> =
     const boost = ON_STAGE + (focused.has(id) ? FOCUSED : 0);
     add(rev.title, rev.reading ?? (/^[ァ-ヶー]+$/.test(rev.title) ? rev.title : null), boost);
     for (const w of katakanaWords(rev.title)) add(w, w, boost);
+    // 呼び名（「ひとり飯ラウンジ」を「ひとり飯」と言う）。読みが分かる（カタカナだけ）ものは聞き間違いの補正にも使う
+    for (const a of rev.aliases ?? []) add(a, /^[ァ-ヶー]+$/.test(a) ? a : null, boost);
   }
   for (const w of katakanaWords(s.theme)) add(w, w, CONTEXT);
   for (const c of s.ledger.claims) {
