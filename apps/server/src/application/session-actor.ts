@@ -20,7 +20,7 @@ import { DEFAULT_ROTATION_POLICY, detectMention, type RotationPolicy } from '../
 import { findProposalLetter } from '../domain/proposal-letter.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
 type GeneratedDraft = Awaited<ReturnType<IdeaGenerationPort['generateIdeas']>>[number];
-import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent, UtteranceTriage } from './ports.ts';
+import type { EmbeddingPort, IdeaGenerationPort, ProposalImageInput, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent, UtteranceTriage } from './ports.ts';
 import { chooseFromStock, filterContextForGeneration, newPlannerState, planSlots, tasteHint, type ContextFilterStrategy, type PlannerState } from './generation-planner.ts';
 import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
@@ -1028,8 +1028,7 @@ export class SessionActor {
     const r = s.currentRevision(ideaId);
     const epoch = this.epoch;
     const entry: { promise: Promise<IdeaImage | null>; image: IdeaImage | null } = { promise: Promise.resolve(null), image: null };
-    entry.promise = this.ai
-      .generateProposalImage({
+    entry.promise = this.requestImage({
         theme: s.theme,
         title: r.title,
         catchphrase: r.summary,
@@ -1048,10 +1047,36 @@ export class SessionActor {
       })
       .catch((e) => {
         this.deps.log?.('generateIdeaImage failed', e);
+        // 次のきっかけ（決勝がそろった・改良された）でもう一度頼めるように外す
+        if (this.ideaImages.get(ideaId) === entry) this.ideaImages.delete(ideaId);
         return null;
       });
     this.ideaImages.set(ideaId, entry);
     return entry.promise;
+  }
+
+  /**
+   * 画像を1枚ずつ順に頼む。一度に頼むと Gemini の画像モデルが 429（混雑）で断る。
+   * 429 のときは少し待って頼み直す（3秒・8秒・15秒）
+   */
+  private imageChain: Promise<unknown> = Promise.resolve();
+  private requestImage(input: ProposalImageInput): Promise<string | null> {
+    const generate = this.ai.generateProposalImage?.bind(this.ai);
+    if (!generate) return Promise.resolve(null);
+    const run = async (): Promise<string | null> => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await generate(input);
+        } catch (e) {
+          if (attempt >= IMAGE_RETRY_MS.length || !/429|RESOURCE_EXHAUSTED/.test(String(e))) throw e;
+          this.deps.log?.(`[image] busy, retry in ${IMAGE_RETRY_MS[attempt]}ms`);
+          await new Promise<void>((resolve) => this.later(resolve, IMAGE_RETRY_MS[attempt]!));
+        }
+      }
+    };
+    const p = this.imageChain.then(run, run);
+    this.imageChain = p.catch(() => {});
+    return p;
   }
 
   /** /api/images/<部屋>/<案> で返す画像（まだ無ければ null） */
@@ -1219,6 +1244,8 @@ export class SessionActor {
     this.scheduleConsensus('decision');
     this.held.forEach((id, j) => id === instanceId && this.held.delete(j));
     this.enqueueRefinement({ kind: 'promotion', instanceId });
+    // 合格した時点で画像を作り始める（決勝がそろうのを待たない。1枚ずつ順に作るので、合格が続いても間に合う）
+    void this.ensureIdeaImage(instanceId);
     this.ensureStock();
     return { ok: true as const };
   }
@@ -1645,6 +1672,9 @@ export class SessionActor {
     }
   }
 }
+
+/** 画像モデルが混雑（429）で断ったときに待つ時間 */
+const IMAGE_RETRY_MS = [3_000, 8_000, 15_000];
 
 /** 案のイメージ画像（バイト列のまま持ち、HTTP で返す） */
 export interface IdeaImage {

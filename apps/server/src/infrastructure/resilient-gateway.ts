@@ -39,12 +39,12 @@ export class ResilientGateway implements IdeaGenerationPort {
     return this.withFallback('generateProposal', () => this.primary.generateProposal(input), () => this.fallback.generateProposal(input));
   }
 
+  /**
+   * 画像は固定データに切り替えない（仮の絵が本物の案の絵として並んでしまう）。
+   * 失敗はそのまま返し、呼び出し側が待って頼み直すか、画像なしにする
+   */
   generateProposalImage(input: ProposalImageInput): Promise<string | null> {
-    const main = () =>
-      this.primary.generateProposalImage ? this.primary.generateProposalImage(input) : Promise.resolve(null);
-    const alt = () =>
-      this.fallback.generateProposalImage ? this.fallback.generateProposalImage(input) : Promise.resolve(null);
-    return this.withFallback('generateProposalImage', main, alt);
+    return this.primary.generateProposalImage ? this.primary.generateProposalImage(input) : Promise.resolve(null);
   }
 
   updateConsensus(input: ConsensusUpdateInput) {

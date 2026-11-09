@@ -95,6 +95,51 @@ describe('企画書', () => {
     expect(actor.session.proposal?.content?.imageUrl).toContain('data:image/svg+xml');
   });
 
+  it('画像は合格した時点で作り始め、1枚ずつ順に頼み、混雑（429）なら待って頼み直す', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const ai = new StubAi();
+    let busy = 1;
+    let running = 0;
+    let maxRunning = 0;
+    const original = ai.generateProposalImage.bind(ai);
+    ai.generateProposalImage = async (input) => {
+      running++;
+      maxRunning = Math.max(maxRunning, running);
+      try {
+        await Promise.resolve();
+        if (busy-- > 0) throw new Error('ApiError: {"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}');
+        return await original(input);
+      } finally {
+        running--;
+      }
+    };
+    const actor = await SessionActor.open('q', {
+      ai,
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: fakeClock(),
+      ids: seqIds(),
+      config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'q' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '大学の学食をもっと楽しくする企画', mode: 'solo', finalists: 3 }));
+    await advance(0);
+    const first = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: first }));
+    await advance(0);
+    const second = actor.session.lowerSlots.find((x) => x && x !== first)!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: second }));
+    await advance(0);
+    // 1枚目は混雑で断られ、3秒待ってから頼み直す。2枚目はその後
+    const ideaOf = (id: string) => actor.session.characters.get(id)!.ideaId;
+    expect(actor.ideaImage(ideaOf(first))).toBeNull();
+    await advance(3_000);
+    expect(actor.ideaImage(ideaOf(first))).not.toBeNull();
+    expect(actor.ideaImage(ideaOf(second))).not.toBeNull();
+    expect(maxRunning).toBe(1);
+  });
+
   it('優勝が決まると自動で作り始め、できたら全員に配られる', async () => {
     const { ai, advance, events } = await crowned();
     const selected = events().find((e) => e.type === 'CHAMPION_SELECTED')!;
