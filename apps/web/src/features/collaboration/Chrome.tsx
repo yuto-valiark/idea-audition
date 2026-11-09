@@ -1,4 +1,4 @@
-import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut, FileDown } from 'lucide-react';
+import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut, FileDown, Headphones, HeadphoneOff } from 'lucide-react';
 import { downloadMinutes } from '../../shared/minutes.ts';
 import { useCall } from '../call/call-store.ts';
 import { setMuted, useMuted } from '../../shared/sfx.ts';
@@ -55,7 +55,10 @@ export function Header() {
         {isSpectator && <span className={styles.spectator}>{pick(formality, '観覧モード', '観覧')}</span>}
         {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
-        {lobby && !isSpectator && <CallMicButton />}
+        {/* 音の切り替えは、どの場面でもここにまとめる：自分のマイク・相手の声・効果音（#40）。
+            オフィシャルの会議中は、自分のマイクを下のバー（ミュート）に置くので、ここはロビーだけ。効果音は鳴らさないので出さない */}
+        {!isSpectator && (formality === 0 || lobby) && <CallMicButton />}
+        <OthersVoiceToggle />
         {formality === 0 && <SoundToggle />}
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
@@ -113,6 +116,24 @@ function LeaveButton() {
   );
 }
 
+/** 相手の声のオン・オフ（通話はつないだまま、自分のスピーカーから出さないだけ） */
+function OthersVoiceToggle() {
+  const off = useCall((s) => s.othersMuted);
+  const toggle = useCall((s) => s.toggleOthers);
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={toggle}
+      aria-pressed={!off}
+      aria-label="相手の声"
+      title={off ? '相手の声をオンにする' : '相手の声をオフにする'}
+    >
+      {off ? <HeadphoneOff size={14} /> : <Headphones size={14} />} 声
+    </button>
+  );
+}
+
 /** 効果音のオン・オフ（この端末に覚える） */
 function SoundToggle() {
   const muted = useMuted();
@@ -125,7 +146,7 @@ function SoundToggle() {
       aria-label="効果音"
       title={muted ? '効果音をオンにする' : '効果音をオフにする'}
     >
-      {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} {muted ? '音オフ' : '音オン'}
+      {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} 効果音
     </button>
   );
 }
@@ -155,7 +176,6 @@ export function Footer() {
         {!prelimStage && <JudgeWipeBand />}
         {judgeId && (
           <div className={styles.myControls}>
-            <MicButton />
             <CameraButton />
           </div>
         )}

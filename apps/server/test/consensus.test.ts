@@ -149,6 +149,44 @@ describe('合意台帳とアクター', () => {
     expect(actor.session.stock.filter((d) => (d.basedOnConsensus ?? 0) < 1).length).toBeLessThanOrEqual(1);
   });
 
+  it('合意が動く前に頼んだ案が、動いたあとに届いたら捨てる（M2）', async () => {
+    const { actor, ai, advance, judgeId } = await setup();
+    // 合意 v0 のまま頼んだ生成を、合意が動くまで止めておく
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const held: string[] = [];
+    const original = ai.generateIdeas.bind(ai);
+    ai.generateIdeas = async (input) => {
+      const out = await original(input);
+      if ((input.context?.version ?? 0) === 0) {
+        held.push(...out.map((d) => d.title));
+        await gate;
+      }
+      return out;
+    };
+    actor.session.stock.splice(1); // 作り置きを減らして、v0 のまま補充を頼ませる
+    (actor as unknown as { ensureStock(): void }).ensureStock();
+    await advance(0);
+    expect(held.length).toBeGreaterThan(0);
+    // 生成を待っている間に合意が動く
+    ai.nextConsensusOps = [{ op: 'add_claim', text: '実現コストは低く', judge: '審査員 A', stance: 'support', seq: null }];
+    actor.receiveUtterance(judgeId, '安くしたい', 'text', null);
+    await advance(1000);
+    expect(actor.session.ledger.version).toBe(1);
+    // 古い前提の案が遅れて届く → 作り置きにも舞台にも入らない
+    release();
+    await advance(0);
+    const onStage = [...actor.session.ideas.values()].map((i) => i.revisions[0]!.title);
+    const inStock = actor.session.stock.map((d) => d.title);
+    for (const title of held) {
+      expect(inStock).not.toContain(title);
+      expect(onStage).not.toContain(title);
+    }
+    // 捨てたあとは、新しい合意で作り直す
+    await advance(1500);
+    expect(ai.generateCalls.at(-1)!.context?.version).toBe(1);
+  });
+
   it('論点のピン留め・取り消しができる', async () => {
     const { actor, ai, a, advance, judgeId } = await setup();
     ai.nextConsensusOps = [{ op: 'add_claim', text: '夜営業', judge: null, stance: null, seq: null }];

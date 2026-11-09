@@ -83,6 +83,8 @@ export class CallClient {
   private localAnalyser: AnalyserNode | null = null;
   private meter: ReturnType<typeof setInterval> | null = null;
   private muted = false;
+  /** 相手の声を消しているか（通話はつないだまま、自分のスピーカーから出さないだけ） */
+  private othersMuted = false;
   /** ワイプ用のカメラ（映していないときは null） */
   private camera: MediaStream | null = null;
   /** マイクが使えず、聞くだけで参加している */
@@ -251,6 +253,11 @@ export class CallClient {
     for (const p of this.peers.values()) void p.audio.play().catch(() => {});
   }
 
+  setOthersMuted(muted: boolean) {
+    this.othersMuted = muted;
+    for (const p of this.peers.values()) p.audio.muted = muted;
+  }
+
   setMuted(muted: boolean) {
     this.muted = muted;
     for (const t of this.local?.getAudioTracks() ?? []) t.enabled = !muted;
@@ -319,6 +326,7 @@ export class CallClient {
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
     const audio = new Audio();
     audio.autoplay = true;
+    audio.muted = this.othersMuted;
     const peer: Peer = { pc, audio, pendingIce: [], analyser: null, video: null };
     this.peers.set(id, peer);
     this.events.onPeers([...this.peers.keys()]);
