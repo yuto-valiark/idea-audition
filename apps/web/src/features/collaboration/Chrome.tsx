@@ -1,4 +1,5 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX } from 'lucide-react';
+import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { useCall } from '../call/call-store.ts';
 import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
@@ -53,9 +54,25 @@ export function Header() {
           </button>
         )}
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
+        <LeaveButton />
       </div>
       )}
     </header>
+  );
+}
+
+/** オーディションを抜けてトップに戻る（D2）。通話も切る。審査の途中なので一度だけ確かめる */
+function LeaveButton() {
+  const leaveRoom = useSession((s) => s.leaveRoom);
+  const onLeave = () => {
+    if (!window.confirm('オーディションから退出しますか？（同じリンクを開けば、また参加できます）')) return;
+    useCall.getState().leave();
+    leaveRoom();
+  };
+  return (
+    <button type="button" className={styles.copy} onClick={onLeave} title="オーディションから退出する">
+      <LogOut size={14} /> 退出
+    </button>
   );
 }
 
