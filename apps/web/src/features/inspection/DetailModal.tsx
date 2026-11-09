@@ -64,6 +64,9 @@ export function DetailModal() {
     }
   }
 
+  // その版の「誰の・困りごと・どう解く」だけを出す（古い版のものに戻さない。無い版は出さない）
+  const shownOutline = shown.outline ?? (shown.version === 1 ? original.outline : null) ?? null;
+
   return (
     <div className={styles.backdrop} onClick={() => select(null)}>
       <section
@@ -92,19 +95,19 @@ export function DetailModal() {
           </div>
         </div>
         <p className={styles.desc}>{shown.summary}</p>
-        {(shown.outline ?? original.outline) && (
+        {shownOutline && (
           <dl className={styles.outline}>
             <div>
               <dt>誰の</dt>
-              <dd>{(shown.outline ?? original.outline)!.who}</dd>
+              <dd>{shownOutline.who}</dd>
             </div>
             <div>
               <dt>困りごと</dt>
-              <dd>{(shown.outline ?? original.outline)!.pain}</dd>
+              <dd>{shownOutline.pain}</dd>
             </div>
             <div>
               <dt>どう解く</dt>
-              <dd>{(shown.outline ?? original.outline)!.how}</dd>
+              <dd>{shownOutline.how}</dd>
             </div>
           </dl>
         )}

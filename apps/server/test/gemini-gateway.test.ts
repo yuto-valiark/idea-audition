@@ -105,9 +105,9 @@ describe('GeminiGateway', () => {
           { round: 2, text: '対象を絞ったら？' },
         ],
         revisions: [
-          { participant: 'P2', title: '案B+', summary: 'x\ny', keepStrengths: ['強み'], improvementPoints: ['改善1', '改善2'], reason: '指摘を反映', inspiredBy: [] },
-          { participant: 'P9', title: '不明', summary: 'z', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] },
-          { participant: 'P1', title: '案A+', summary: 'p\nq', keepStrengths: ['強み'], improvementPoints: ['改善'], reason: '反映', inspiredBy: [] },
+          { participant: 'P2', title: '案B+', summary: 'x\ny', keepStrengths: ['強み'], improvementPoints: ['改善1', '改善2'], reason: '指摘を反映', inspiredBy: [] , who: '学生', pain: '混む', how: '予約で解く' },
+          { participant: 'P9', title: '不明', summary: 'z', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] , who: '学生', pain: '混む', how: '予約で解く' },
+          { participant: 'P1', title: '案A+', summary: 'p\nq', keepStrengths: ['強み'], improvementPoints: ['改善'], reason: '反映', inspiredBy: [] , who: '学生', pain: '混む', how: '予約で解く' },
         ],
       }),
     ]);
@@ -121,6 +121,8 @@ describe('GeminiGateway', () => {
     ]);
     expect(Object.keys(out.revisions).sort()).toEqual(['ch_a', 'ch_b']);
     expect(out.revisions.ch_b!.title).toBe('案B+');
+    // 改良した版の「誰の・困りごと・どう解く」は新しく書き直したものを持つ（旧版のものを残さない）
+    expect(out.revisions.ch_b!.outline).toEqual({ who: '学生', pain: '混む', how: '予約で解く' });
     expect(calls[0]!.model).toBe('fast-model'); // 相互批評（arrival）は速いモデル
     expect(calls[0]!.contents).not.toContain('ch_a'); // モデルには内部IDを渡さない
   });
@@ -145,7 +147,7 @@ describe('GeminiGateway', () => {
 
   it('使える改良版が1つもなければ例外（固定データに切り替えさせる）', async () => {
     const { client } = fakeClient([
-      JSON.stringify({ critiques: [], revisions: [{ participant: 'P7', title: 'x', summary: 'y', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] }] }),
+      JSON.stringify({ critiques: [], revisions: [{ participant: 'P7', title: 'x', summary: 'y', keepStrengths: ['a'], improvementPoints: ['b'], reason: 'c', inspiredBy: [] , who: '学生', pain: '混む', how: '予約で解く' }] }),
     ]);
     const g = new GeminiGateway(client, config);
     await expect(

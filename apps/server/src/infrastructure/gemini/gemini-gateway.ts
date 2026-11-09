@@ -110,6 +110,9 @@ const RefineSchema = z.object({
         improvementPoints: z.array(z.string().min(1)).min(1),
         reason: z.string().min(1),
         inspiredBy: z.array(z.string()),
+        who: z.string(),
+        pain: z.string(),
+        how: z.string(),
       }),
     )
     .min(1),
@@ -220,15 +223,15 @@ export class GeminiGateway implements IdeaGenerationPort {
     const revs = input.champion.revisions;
     const prompt = `${renderContext(input.theme, input.context)}
 
-# 優勝した企画（キャラ：${input.champion.characterName}）の改良の経緯
+# 優勝した企画（キャラ：${input.champion.characterName}）の今の仕様（最新版 Ver.${revs.at(-1)!.version}）。これが正
+- 企画名：${revs.at(-1)!.title}
+- 説明：${revs.at(-1)!.summary.replace(/\n/g, ' ')}
+${input.champion.outline ? `- 誰の：${input.champion.outline.who}\n- 困りごと：${input.champion.outline.pain}\n- どう解く：${input.champion.outline.how}\n` : ''}${revs.at(-1)!.improvementPoints.length ? `- この版で決めたこと：${revs.at(-1)!.improvementPoints.join('・')}\n` : ''}
+# 参考：これまでの版（古い版の条件は、最新版で変わっていれば使わない）
 ${revs
-  .map(
-    (r) =>
-      `- Ver.${r.version}「${r.title}」${r.summary.replace(/\n/g, ' ')}${r.reason ? `／変えた理由：${r.reason}` : ''}${
-        r.improvementPoints.length ? `／改善：${r.improvementPoints.join('・')}` : ''
-      }${r.keepStrengths.length ? `／残した強み：${r.keepStrengths.join('・')}` : ''}`,
-  )
-  .join('\n')}
+  .slice(0, -1)
+  .map((r) => `- Ver.${r.version}「${r.title}」${r.summary.replace(/\n/g, ' ')}${r.reason ? `／変えた理由：${r.reason}` : ''}`)
+  .join('\n') || '（なし）'}
 # 最終オーディションでの批評
 ${input.critiques.map((c) => `- ${c}`).join('\n') || '（なし）'}
 # 審査員からの質問と回答
@@ -238,7 +241,7 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
 
 # 今回の依頼
 この優勝案を、チームがそのまま動き出せる「企画書」にしてください。
-- 審査で合意した論点には必ず沿う。改良の経緯で決まった内容（最終版）を正とする
+- 審査で合意した論点には必ず沿う。「今の仕様（最新版）」を正とし、古い版の条件（やめた手段など）は書かない。今の仕様と矛盾する内容を features や plan に入れない
 - 審査の記録に無い数字・事実（予算額、期間、協力先など）は断定せず、目安として書き、assumptions に「要検証」として挙げる
 - 実在の企業名・人名・商標は使わない
 - title：最終版の企画名（そのまま使う）
@@ -369,7 +372,11 @@ ${avoid.length ? `- 次の企画名と同じ・似たものは出さない：${a
 ${renderRemarks(ctx)}
 # 最終オーディションに残った企画
 ${input.participants
-  .map((p) => `- ${label.get(p.instanceId)}（キャラ名 ${p.characterName}）：「${p.title}」${p.summary.replace(/\n/g, ' ')}`)
+  .map(
+    (p) =>
+      `- ${label.get(p.instanceId)}（キャラ名 ${p.characterName}）：「${p.title}」${p.summary.replace(/\n/g, ' ')}` +
+      (p.outline ? `（誰の：${p.outline.who}／困りごと：${p.outline.pain}／どう解く：${p.outline.how}）` : ''),
+  )
   .join('\n')}
 
 # 今回の依頼
@@ -391,7 +398,9 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
 - keepStrengths：元の案から残す強み。1〜2個、各20文字以内
 - improvementPoints：今回の改善ポイント。2個、各24文字以内
 - reason：何を受けてどう変えたか。40文字以内
-- inspiredBy：反映した論点のラベル（例 C1）。無ければ空`;
+- inspiredBy：反映した論点のラベル（例 C1）。無ければ空
+- who / pain / how：新しい版の「誰の（24文字以内）」「どんな困りごとを（30文字以内）」「どう解くか（30文字以内）」。新しい版の中身だけで書き直す。前の版のやり方（やめた条件・手段）を残さない
+- 新しい版の title・summary・improvementPoints・how は互いに矛盾しないこと。前の版で決めた条件を今回の指示で変えたなら、古い条件はどこにも書かない`;
 
     // 決勝に人が加わったときの相互批評は、短い掛け合いと小さな改良なので速いモデルで回す（待ち時間を短く）。
     // 審査員の頼み・昇格したときの改良は、質を優先して改良用のモデルを使う
@@ -419,6 +428,7 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
         improvementPoints: r.improvementPoints.slice(0, 3).map((s) => clean(s, 32)),
         reason: clean(r.reason, 56),
         inspiredBy: toInspiration(r.inspiredBy, '', ctx),
+        ...(r.who.trim() && r.how.trim() ? { outline: { who: clean(r.who, 24), pain: clean(r.pain, 30), how: clean(r.how, 30) } } : {}),
       };
     }
     if (Object.keys(revisions).length === 0) throw new Error('refine: no usable revisions');

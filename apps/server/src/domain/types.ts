@@ -86,6 +86,8 @@ export interface RevisionDraft {
   improvementPoints: string[];
   reason: string;
   inspiredBy?: Inspiration | null;
+  /** 新しい版の「誰の・困りごと・どう解く」。改良で中身が変わったら必ず書き直す（旧版のものを残さない） */
+  outline?: Outline | null;
 }
 
 /** 審査員の発言の記録（合意台帳の材料、時系列） */

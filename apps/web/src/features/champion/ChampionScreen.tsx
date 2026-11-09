@@ -21,7 +21,9 @@ export function ChampionScreen() {
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
   if (!character || !idea || !rev) return null;
-  const allPoints = idea.revisions.flatMap((r) => r.improvementPoints);
+  // 今の案（優勝した版）の内容だけを出す。過去の版の改善点を足し合わせると、やめた条件が混ざって矛盾する
+  const outline = rev.outline ?? null;
+  const allPoints = outline ? [`誰の：${outline.who}`, `困りごと：${outline.pain}`, `どう解く：${outline.how}`] : rev.improvementPoints;
   const tally = snapshot.vote?.tally;
   // 企画書ができていれば中身を、まだなら案の説明と改善点を、チャットに貼れる文章にする
   const shareText = () =>
@@ -58,7 +60,7 @@ export function ChampionScreen() {
       <p className={styles.summary}>{rev.summary}</p>
       {allPoints.length > 0 && (
         <div className={styles.notes}>
-          {allPoints.slice(-4).map((t, i) => (
+          {allPoints.map((t, i) => (
             <p key={`${t}${i}`}>
               <Check size={15} /> {t}
             </p>

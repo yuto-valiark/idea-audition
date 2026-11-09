@@ -189,3 +189,28 @@ describe('投票と優勝（Q4）', () => {
     expect(s.status).toBe('completed');
   });
 });
+
+describe('版の一貫性（実機レビュー P1-1）', () => {
+  it('改良で「どう解く」が変わったら最新版が新しいものを持ち、旧版のものは旧版にだけ残る', () => {
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
+    s.join();
+    s.start('学食', 'solo');
+    s.addToStock([{ title: 'スマホ封印食卓', summary: 'a\nb', icon: '📵', outline: { who: '学生', pain: 'スマホばかり', how: 'ロッカーに預ける' } }]);
+    s.fillEmptySlots();
+    const id = s.lowerSlots.find((x) => x !== null)!;
+    expect(s.promote(id).ok).toBe(true);
+    const idea = s.ideaOf(id)!;
+    const base = idea.revisions.at(-1)!.revisionId;
+    const r = s.publishRevision(id, base, {
+      title: 'スマホ封印食卓',
+      summary: 'c\nd',
+      keepStrengths: ['集中'],
+      improvementPoints: ['ロッカー預け不要'],
+      reason: '預けずに参加したい',
+      outline: { who: '学生', pain: 'スマホばかり', how: '手元の封印袋に入れる' },
+    });
+    expect(r.ok).toBe(true);
+    expect(idea.revisions.at(-1)!.outline!.how).toBe('手元の封印袋に入れる');
+    expect(idea.revisions[0]!.outline!.how).toBe('ロッカーに預ける');
+  });
+});

@@ -789,6 +789,7 @@ export class SessionActor {
           improvementPoints: r.improvementPoints,
           reason: r.reason,
         })),
+        outline: idea.revisions.at(-1)?.outline ?? null,
       },
       critiques: s.critiques
         .filter((c) => c.fromInstanceId === instanceId || c.toInstanceId === instanceId)
@@ -1135,6 +1136,7 @@ export class SessionActor {
           title: base.get(id)!.title,
           summary: base.get(id)!.summary,
           version: base.get(id)!.version,
+          outline: base.get(id)!.outline ?? null,
         })),
         targets: participantIds,
         rounds,

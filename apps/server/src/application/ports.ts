@@ -36,6 +36,8 @@ export interface ProposalInput {
   champion: {
     characterName: string;
     revisions: { version: number; title: string; summary: string; keepStrengths: string[]; improvementPoints: string[]; reason: string | null }[];
+    /** 最新版の「誰の・困りごと・どう解く」（今の仕様。旧版の内容と混ぜない） */
+    outline?: { who: string; pain: string; how: string } | null;
   };
   critiques: string[];
   qa: { question: string; answer: string }[];
@@ -119,6 +121,8 @@ export interface RefineParticipant {
   title: string;
   summary: string;
   version: number;
+  /** 今の版の「誰の・困りごと・どう解く」 */
+  outline?: { who: string; pain: string; how: string } | null;
 }
 
 export interface RefineInput {

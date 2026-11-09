@@ -758,6 +758,8 @@ export class AuditionSession {
       basedOnConsensus: this.ledger.version,
       inspiredBy: draft.inspiredBy ?? null,
       profile: current.profile ?? null,
+      // 中身が変わったら新しい「誰の・困りごと・どう解く」。無ければ今の版のもの（旧版より前のものは使わない）
+      outline: draft.outline ?? current.outline ?? null,
     };
     idea.revisions.push(revision);
     return ok([
