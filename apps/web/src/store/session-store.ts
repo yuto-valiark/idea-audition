@@ -178,7 +178,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
       const full = e.snapshot.upper.length >= 3;
-      display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} が合格！3人そろったので最終オーディションへ` : `全員一致で合格：${nameOf(e.snapshot, d.instanceId)} が合格者待機室へ`, 'gold');
+      display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
       break;
     }
     case 'FINALIST_CRITIQUE_POSTED':

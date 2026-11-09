@@ -28,11 +28,9 @@ export function FinalStage() {
 
   const full = upper.length >= UPPER_CAPACITY;
   const spotlight = useSession((s) => s.snapshot?.spotlight ?? null);
-  const judges = useSession((s) => s.snapshot?.judges ?? EMPTY);
   const characters = useSession((s) => s.snapshot?.characters);
   const send = useSession((s) => s.send);
   const spotName = spotlight ? characters?.[spotlight.instanceId]?.name : null;
-  const spotBy = spotlight?.byJudgeId ? judges.find((j) => j.judgeId === spotlight.byJudgeId) : null;
 
   return (
     <section
@@ -66,8 +64,6 @@ export function FinalStage() {
             role="status"
           >
             🔦 <b>{spotName}</b> に注目中
-            {spotBy && <small>（{spotBy.name ?? spotBy.label} さんが選択）</small>}
-            <span>名前を呼ばなくても、質問は {spotName} に届きます</span>
             <button onClick={() => void send('SET_SPOTLIGHT', { instanceId: null })} aria-label="注目をやめる">
               ✕
             </button>
@@ -161,7 +157,6 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         className={styles.character}
         data-anchor={`upper:${instanceId}`}
         aria-label={spotlight === 'on' ? `${character.name}への注目をやめる` : `${character.name}にスポットライトを当てる（みんなで注目して質問できる）`}
-        title={spotlight === 'on' ? 'もう一度タップで注目をやめる' : 'タップでスポットライト：みんなでこのキャラに注目して質問・議論できます'}
         disabled={isSpectator}
         onClick={() => void send('SET_SPOTLIGHT', { instanceId: spotlight === 'on' ? null : instanceId })}
       >

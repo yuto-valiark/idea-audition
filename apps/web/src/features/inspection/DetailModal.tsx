@@ -219,7 +219,7 @@ export function DetailModal() {
             disabled={busy || isSpectator || !active || upperFull}
             onClick={() => void run(() => send('PRESS_BUZZER', { instanceId: selected, on: !myBuzz }))}
           >
-            <Crown size={18} /> {myBuzz ? 'ゴールデンブザーを取り消す' : 'ゴールデンブザーを押す（全員で合格）'}
+            <Crown size={18} /> {myBuzz ? 'ブザーを取り消す' : 'ゴールデンブザー'}
           </button>
         )}
         {finalist && (

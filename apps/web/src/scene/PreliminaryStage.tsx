@@ -186,8 +186,6 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   const { judgeId, isSpectator } = useMe();
   const judges = snapshot.judges.filter((j) => j.connected);
   const pressed = (snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]);
-  const leavingAt = instanceId ? snapshot.characters[instanceId]?.leavingAt ?? null : null;
-  const left = useSecondsLeft(leavingAt);
   return (
     <div className="buzzer-zone">
       <div className="vote-status">
@@ -214,16 +212,10 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
         ))}
       </div>
       <div className="stage-bottom">
-        <span>
-          {instanceId && snapshot.characters[instanceId]?.paused
-            ? '深掘り中 · 話し終わるとカウントが再開します'
-            : instanceId && leavingAt
-              ? `あと ${left} 秒で次のアイデアへ · 気になったら質問すると時間が止まります`
-              : '押せるのは自分のブザーだけ'}
-        </span>
+        <span />
         {!isSpectator && instanceId && (
           <button onClick={() => void send('REJECT_CANDIDATE', { instanceId })}>
-            この案を見送る · 次のアイデア <ArrowRight size={13} />
+            見送る <ArrowRight size={13} />
           </button>
         )}
       </div>
@@ -306,9 +298,9 @@ function Countdown({ leavingAt, pausedLeftMs }: { leavingAt: string | null; paus
   if (pausedLeftMs != null) {
     return (
       <div className="ia-corner ia-deepdive" role="status">
-        <strong>🔍 深掘りタイム！</strong>
+        <strong>🔍 深掘りタイム</strong>
         <span>
-          残り <b>{Math.ceil(pausedLeftMs / 1000)}</b> 秒で止めています
+          残り <b>{Math.ceil(pausedLeftMs / 1000)}</b> 秒
         </span>
       </div>
     );
