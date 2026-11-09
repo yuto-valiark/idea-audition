@@ -23,6 +23,8 @@ import type {
  *  - result が来ていない Command は、同じ commandId で送り直す（サーバーが重複を排除する）
  *  - 古い・重複した Event は捨てる（SeqGate）
  *  - バージョン違い・部屋が見つからないときは再接続しない
+ *  - Command は1秒に maxCommandsPerSec 件までに抑えて送る（サーバーの送りすぎ防止に自分で当たって切られ、
+ *    つなぎ直して全部を一度に送り直し、また切られる…を繰り返さないため。bench/ の S1 で見つけた）
  */
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -56,6 +58,8 @@ export interface CampClientOptions {
   commandTimeoutMs?: number;
   /** 再接続の待ち時間の上限 */
   maxBackoffMs?: number;
+  /** 1秒に送る Command の上限（既定 100。サーバーの既定の上限 120件/秒より少なくしておく） */
+  maxCommandsPerSec?: number;
 }
 
 export interface CampClientHandlers<V extends AnyVocabulary> {
@@ -84,6 +88,10 @@ export class CampClient<V extends AnyVocabulary> {
   private token: string | undefined;
   private seq = new SeqGate();
   private handlers: CampClientHandlers<V> = {};
+  /** まだ送っていない Command（1秒あたりの上限を超えた分。送る順は送った順のまま） */
+  private outbox: string[] = [];
+  private sentTimes: number[] = [];
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private pending = new Map<
     string,
     { message: unknown; resolve: (o: CommandOutcome<RejectReasonOf<V>>) => void; timer: ReturnType<typeof setTimeout> }
@@ -139,6 +147,9 @@ export class CampClient<V extends AnyVocabulary> {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
+      if (this.flushTimer) clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+      this.outbox = [];
       if (e.code === CAMP_CLOSE.UNSUPPORTED_VERSION || e.code === CAMP_CLOSE.ROOM_NOT_FOUND) this.closed = true;
       if (this.closed) {
         this.handlers.onState?.('closed');
@@ -173,7 +184,7 @@ export class CampClient<V extends AnyVocabulary> {
         resolve({ ok: false, reason: 'TIMEOUT' });
       }, this.opts.commandTimeoutMs ?? 8000);
       this.pending.set(message.commandId, { message, resolve, timer });
-      this.raw(message);
+      this.queueCommand(message.commandId);
     });
   }
 
@@ -189,6 +200,33 @@ export class CampClient<V extends AnyVocabulary> {
 
   private raw(message: unknown) {
     if (this.ws?.readyState === OPEN) this.ws.send(JSON.stringify(message));
+  }
+
+  /** Command を送る列に入れる。つながっていなければ何もしない（welcome のあとに返事待ちを全部送り直す） */
+  private queueCommand(commandId: string) {
+    if (this.ws?.readyState !== OPEN) return;
+    if (!this.outbox.includes(commandId)) this.outbox.push(commandId);
+    this.flush();
+  }
+
+  /** 直近1秒に送った数が上限に届くまで送り、残りは空きができる時刻に送る */
+  private flush() {
+    if (this.flushTimer) return;
+    const max = this.opts.maxCommandsPerSec ?? 100;
+    const now = Date.now();
+    this.sentTimes = this.sentTimes.filter((t) => now - t < 1000);
+    while (this.outbox.length && this.sentTimes.length < max && this.ws?.readyState === OPEN) {
+      const p = this.pending.get(this.outbox.shift()!);
+      if (!p) continue;
+      this.sentTimes.push(now);
+      this.raw(p.message);
+    }
+    if (this.outbox.length && this.ws?.readyState === OPEN) {
+      this.flushTimer = setTimeout(() => {
+        this.flushTimer = null;
+        this.flush();
+      }, Math.max(1, 1000 - (now - this.sentTimes[0]!)));
+    }
   }
 
   private receive(data: unknown) {
@@ -213,7 +251,9 @@ export class CampClient<V extends AnyVocabulary> {
         this.handlers.onWelcome?.(w);
         this.handlers.onSnapshot?.(w.snapshot as SnapshotOf<V>);
         this.handlers.onState?.('open');
-        for (const p of this.pending.values()) this.raw(p.message);
+        // 返事の来ていない Command を、送った順に送り直す（1秒あたりの上限は守る）
+        this.outbox = [];
+        for (const id of this.pending.keys()) this.queueCommand(id);
         break;
       }
       case 'event': {
