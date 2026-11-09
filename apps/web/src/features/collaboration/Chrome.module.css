@@ -431,8 +431,10 @@
   color: #fff;
 }
 
-.wordmark svg {
-  color: #fbbc04;
+.wordmark img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
 }
 
 /* 会議モードの切り替え（小さなスイッチ） */
@@ -455,7 +457,7 @@
   position: relative;
   width: 30px;
   height: 18px;
-  background: #34a853;
+  background: var(--blue);
   border-radius: 999px;
 }
 
@@ -490,7 +492,7 @@
   gap: 8px;
 }
 
-.officialControls > button[class] {
+:global(:root[data-formality='official']) .officialControls > button[class] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -508,17 +510,19 @@
   animation: none;
 }
 
-.officialControls > button[data-state='off'] {
+:global(:root[data-formality='official']) .officialControls > button[data-state='off'] {
   color: #c5221f;
   background: #fce8e6;
   border-color: #f6c7c3;
 }
 
-.officialControls > button[data-state='listening'],
-.officialControls > button[data-state='speaking'] {
-  color: var(--ok);
-  border-color: #a8dab5;
-  background: #e6f4ea;
+:global(:root[data-formality='official']) .officialControls > button[data-state='listening'],
+:global(:root[data-formality='official']) .officialControls > button[data-state='speaking'],
+:global(:root[data-formality='official']) .officialControls > button[data-state='starting'],
+:global(:root[data-formality='official']) .officialControls > button[data-on] {
+  color: var(--blue);
+  border-color: #aecbfa;
+  background: #e8f0fe;
 }
 
 .officialInput {

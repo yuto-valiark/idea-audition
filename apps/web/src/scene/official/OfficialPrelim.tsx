@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertCircle, Check, ChevronRight, Compass, Heart, Lightbulb, Loader2, MessageSquare, Pause, Play, Shuffle, Sparkles, Users, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Compass, Heart, Lightbulb, Loader2, MessageSquare, Pause, Play, Shuffle, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { PitchRole, SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
@@ -64,14 +64,11 @@ function Proposal({ snapshot, instanceId }: { snapshot: SessionSnapshot; instanc
   const pitch = snapshot.ideas[character.ideaId]?.pitch;
   const Icon = pitch ? ROLE_ICON[pitch.role] : Lightbulb;
   return (
-    <article className={styles.proposal} onPointerEnter={() => setHoverFocus(instanceId)} onPointerLeave={() => setHoverFocus(null)}>
-      <div className={styles.visualTile} data-role={pitch?.role ?? 'explore'} aria-hidden>
-        <Icon size={56} strokeWidth={1.4} />
-      </div>
+    <article className={styles.proposal} data-noimage onPointerEnter={() => setHoverFocus(instanceId)} onPointerLeave={() => setHoverFocus(null)}>
       <div className={styles.proposalBody}>
         <div className={styles.badges}>
           <span className={styles.aiBadge}>
-            <Sparkles size={13} /> AI 提案
+            <Icon size={13} /> AI 提案
           </span>
           {pitch?.reason && <span className={styles.tag}>{pitch.reason}</span>}
         </div>

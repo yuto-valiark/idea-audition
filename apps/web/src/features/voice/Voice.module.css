@@ -71,7 +71,7 @@
 }
 :global(:root[data-formality='official']) .mic[data-state='listening'] {
   color: #fff;
-  background: #188038;
-  border-color: #188038;
+  background: var(--blue);
+  border-color: var(--blue);
   animation: none;
 }

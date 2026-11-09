@@ -202,22 +202,23 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
 
   if (e.type === 'CANDIDATE_ARCHIVED' && d.reason === 'rejected') {
     const by = typeof d.byJudgeId === 'string' ? e.snapshot.judges.find((j) => j.judgeId === d.byJudgeId)?.label : null;
-    display.toast(
-      display.formality === 1
-        ? `「${titleOf(e.snapshot, d.instanceId)}」を見送りました${by ? `（${by}）` : ''}`
-        : `${nameOf(e.snapshot, d.instanceId)} の案を見送りました${by ? `（${by}）` : ''}。次の人と交代します`,
-    );
+    display.toast({
+      casual: `${nameOf(e.snapshot, d.instanceId)} の案を見送りました${by ? `（${by}）` : ''}。次の人と交代します`,
+      official: `「${titleOf(e.snapshot, d.instanceId)}」を見送りました${by ? `（${by}）` : ''}`,
+    });
   }
 
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
       const full = e.snapshot.upper.length >= (e.snapshot.finalists ?? 3);
-      if (display.formality === 1) {
-        display.toast(`「${titleOf(e.snapshot, d.instanceId)}」を採択候補に追加しました${full ? '。最終審議に進みます' : ''}`, 'gold');
-        break;
-      }
-      display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
+      display.toast(
+        {
+          casual: `${nameOf(e.snapshot, d.instanceId)} 合格！${full ? '最終オーディションへ' : ''}`,
+          official: `「${titleOf(e.snapshot, d.instanceId)}」を採択候補に追加しました${full ? '。最終審議に進みます' : ''}`,
+        },
+        'gold',
+      );
       break;
     }
     case 'FINALIST_CRITIQUE_POSTED':
@@ -315,7 +316,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       display.setMyVote(null);
       break;
     case 'TIE_DETECTED':
-      display.toast('同票です。ホストが優勝を決めます', 'gold');
+      display.toast({ casual: '同票です。ホストが優勝を決めます', official: '同票です。ホストが採択する案を決めます' }, 'gold');
       break;
     case 'HOST_CHANGED':
       if (d.judgeId === myJudgeId) display.toast('あなたがホストになりました');

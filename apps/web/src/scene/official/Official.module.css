@@ -933,6 +933,11 @@
   align-items: start;
 }
 
+.proposal[data-noimage] {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 880px;
+}
+
 .visualTile {
   display: grid;
   place-items: center;

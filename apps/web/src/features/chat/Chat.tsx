@@ -57,7 +57,7 @@ export function UtteranceInput() {
         placeholder={
           listening
             ? formality === 1
-              ? '話してください…（「A案の費用は？」のように呼べます）'
+              ? '話してください…'
               : '話してください…（キャラの名前を呼ぶと宛先になります）'
             : formality === 1
               ? `${targetName ? `${targetName}について` : 'この案について'}質問・意見を伝える…`

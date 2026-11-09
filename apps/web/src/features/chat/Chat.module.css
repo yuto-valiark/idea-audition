@@ -236,7 +236,8 @@
   color: var(--ink-soft);
 }
 :global(:root[data-formality='official']) .input[data-listening] {
-  border-color: var(--ok);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px #e8f0fe;
 }
 :global(:root[data-formality='official']) .input {
   height: 44px;

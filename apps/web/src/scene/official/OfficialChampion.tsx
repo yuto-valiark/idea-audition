@@ -58,14 +58,8 @@ export function OfficialChampion() {
           </span>
           <span className={styles.tag}>{decidedBy}</span>
         </div>
-        <article className={styles.proposal}>
-          {imageUrl ? (
-            <img className={styles.decisionImage} src={imageUrl} alt="" />
-          ) : (
-            <div className={styles.visualTile} data-role="fit" aria-hidden>
-              <Lightbulb size={56} strokeWidth={1.4} />
-            </div>
-          )}
+        <article className={styles.proposal} data-noimage={!imageUrl || undefined}>
+          {imageUrl && <img className={styles.decisionImage} src={imageUrl} alt="" />}
           <div className={styles.proposalBody}>
             <div className={styles.badges}>
               <span className={styles.decidedBadge}>企画の決定</span>

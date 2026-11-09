@@ -1,4 +1,4 @@
-import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut, Star, FileDown } from 'lucide-react';
+import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut, FileDown } from 'lucide-react';
 import { downloadMinutes } from '../../shared/minutes.ts';
 import { useCall } from '../call/call-store.ts';
 import { setMuted, useMuted } from '../../shared/sfx.ts';
@@ -29,7 +29,7 @@ export function Header() {
       <div className={styles.brand}>
         {formality === 1 ? (
           <span className={styles.wordmark}>
-            <Star size={18} fill="currentColor" aria-hidden /> IDEA AUDITION
+            <img src="/icons/icon-192.png" alt="" /> IDEA AUDITION
           </span>
         ) : (
           <img className={styles.logo} src="/brand/logo-neon-sm.webp" alt="IDEA AUDITION" />
@@ -246,10 +246,11 @@ function OfficialFooter() {
 export function Toasts() {
   const toasts = useDisplay((s) => s.toasts);
   const dismiss = useDisplay((s) => s.dismissToast);
+  const formality = useFormality();
   return (
     <div className={styles.toasts} role="status" aria-live="polite">
       {toasts.map((t) => (
-        <ToastItem key={t.id} id={t.id} text={t.text} tone={t.tone} onDone={dismiss} />
+        <ToastItem key={t.id} id={t.id} text={typeof t.text === 'string' ? t.text : pick(formality, t.text.casual, t.text.official)} tone={t.tone} onDone={dismiss} />
       ))}
     </div>
   );
