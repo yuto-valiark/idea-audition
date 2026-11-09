@@ -1,11 +1,10 @@
 # IDEA AUDITION — 設計ドキュメント
 
-- Status: Proposed
-- Owner: TBD
-- Updated: 2026-11-07
+- Owner: チーム VICTORY
+- Updated: 2026-11-09
 
-> 現在は**設計協議フェーズ**。本ディレクトリ以外のコード・設定・依存関係は作成しない。
-> ここに書かれた技術案は「提案（Proposed）」であり、採用・実装・検証済みを意味しない。
+> 実装は本番で動いている（README の本番 URL）。**いまの機能と完成形は [00-product/feature-status.md](00-product/feature-status.md) を正とする**。
+> ADR・受け入れ条件・元資料は、設計を決めたときの記録（下段に5体並ぶ・ドラッグで昇格など、いまの作りと違う部分がある）。
 
 ## 元資料
 
@@ -19,9 +18,11 @@
 
 | 文書 | 内容 | Status |
 |---|---|---|
+| [00-product/feature-status.md](00-product/feature-status.md) | **機能の一覧（完成形と、済み／予定）**。資料はこれに合わせる | 最新 |
+| [02-architecture/system-map.html](02-architecture/system-map.html) | 構成図（完成形） | 最新 |
 | [00-product/acceptance-criteria.md](00-product/acceptance-criteria.md) | 確定仕様から抽出した受け入れ条件・ドメイン不変条件 | Accepted（第22章由来）|
 | [05-platform/gemini-credits.md](05-platform/gemini-credits.md) | **チーム向け**：Gemini（クレジット）の使い方、AIモードの切り替え、手元で Gemini を使う手順、節約のルール | — |
-| [05-platform/deployment.md](05-platform/deployment.md) | デプロイ手順（Cloud Run・合言葉・台数の切り替え・ログ） | Accepted |
+| [05-platform/deployment.md](05-platform/deployment.md) | デプロイ手順（Cloud Run・TURN のキー・台数の切り替え・ログ） | Accepted |
 | [02-architecture/diagram-checklist.md](02-architecture/diagram-checklist.md) | アーキテクチャ図のチェックリスト（アイコン・サービス名・作図・Google Cloud の境界） | — |
 | [02-architecture/overview.md](02-architecture/overview.md) | 全体図・技術スタック・キャッシュ・データの流れ | Accepted |
 | [open-questions.md](open-questions.md) | 未決事項と暫定推奨 | — |
