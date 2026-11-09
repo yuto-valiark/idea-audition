@@ -29,6 +29,9 @@ interface CallStore {
 
 let client: CallClient | null = null;
 
+/** 通話で使っているマイク（文字起こしで使い回す。2回目にマイクを開くと、iPhone などで通話の声が止まるため） */
+export const callMicrophone = () => client?.microphone ?? null;
+
 /** 観覧者の通話用の ID（このタブのあいだ同じ） */
 const spectatorCallId = `spec_${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => (b % 36).toString(36)).join('')}`;
 const callId = () => useSession.getState().judgeId ?? spectatorCallId;

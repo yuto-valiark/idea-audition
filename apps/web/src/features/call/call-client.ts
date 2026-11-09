@@ -101,6 +101,11 @@ export class CallClient {
     return this.local !== null;
   }
 
+  /** 通話で使っているマイク（聞くだけのとき・通話していないときは null）。文字起こしも同じマイクを使う */
+  get microphone(): MediaStream | null {
+    return this.local && this.local.getAudioTracks().some((t) => t.readyState === 'live') ? this.local : null;
+  }
+
   /** listenOnly：最初からマイクを使わず聞くだけで入る（観覧者） */
   async join(opts: { listenOnly?: boolean } = {}) {
     if (this.local) return;

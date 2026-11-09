@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { VoiceClient, type VoiceState } from './voice-client.ts';
+import { callMicrophone } from '../call/call-store.ts';
 
 interface VoiceStore {
   state: VoiceState;
@@ -58,7 +59,8 @@ export const useVoice = create<VoiceStore>((set, get) => {
       const { sessionId, judgeId } = useSession.getState();
       if (!judgeId) return;
       c.setTarget(useDisplay.getState().selected);
-      void c.start(sessionId, judgeId);
+      // 通話中なら、通話のマイクを使い回す（もう一度マイクを開くと、iPhone などで通話の声が止まる）
+      void c.start(sessionId, judgeId, callMicrophone());
     },
   };
 });

@@ -31,14 +31,19 @@ export class VoiceClient {
 
   constructor(private readonly handlers: Handlers) {}
 
-  async start(sessionId: string, judgeId: string) {
+  /** shared：通話で開いているマイク。あれば同じマイクを複製して使い、もう一度マイクを開かない */
+  async start(sessionId: string, judgeId: string, shared: MediaStream | null = null) {
     if (this.active) return;
     this.active = true;
     this.handlers.onState('starting');
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      // 同じマイクを2回開くと、iPhone の Safari などでは先に開いた方（通話）の音が止まる。通話のマイクがあればそれを複製する
+      const track = shared?.getAudioTracks().find((t) => t.readyState === 'live');
+      this.stream = track
+        ? new MediaStream([track.clone()])
+        : await navigator.mediaDevices.getUserMedia({
+            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
     } catch {
       this.stop();
       this.handlers.onState('unavailable', 'マイクを使えません（ブラウザの許可を確認してください）');
