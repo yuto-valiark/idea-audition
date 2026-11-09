@@ -5,6 +5,7 @@ import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts'
 import { CallControls, CallMicButton, CameraButton, JudgeWipeBand } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import { MicButton } from '../voice/VoiceControls.tsx';
@@ -21,12 +22,14 @@ export function Header() {
   const lobby = useSession((s) => s.snapshot?.status === 'lobby');
   const connected = judges.filter((j) => j.connected).length;
   const { isSpectator } = useMe();
+  const formality = useFormality();
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
         <img className={styles.logo} src="/brand/logo-neon-sm.webp" alt="IDEA AUDITION" />
       </div>
-      <div className={styles.tag}>AIがプレゼン。あなたが審査員。</div>
+      <div className={styles.tag}>{pick(formality, 'AIがプレゼン。あなたが審査員。', '意思決定を、審査形式で。')}</div>
+      <FormalityToggle />
       {room === 'active' && (
       <div className={styles.right}>
         {connection === 'open' ? (
@@ -35,13 +38,13 @@ export function Header() {
           </span>
         ) : (
           <span className={styles.statusWarn}>
-            <WifiOff size={14} /> 再接続中…
+            <WifiOff size={14} /> {pick(formality, '再接続中…', '再接続しています')}
           </span>
         )}
         <span className={styles.divider} />
         <Users size={15} />
-        <span>{connected}人で参加中</span>
-        {isSpectator && <span className={styles.spectator}>観覧モード</span>}
+        <span>{formality === 1 ? `参加者 ${connected} 名` : `${connected}人で参加中`}</span>
+        {isSpectator && <span className={styles.spectator}>{pick(formality, '観覧モード', '観覧')}</span>}
         {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
         {lobby && !isSpectator && <CallMicButton />}
@@ -62,17 +65,36 @@ export function Header() {
   );
 }
 
+/** オフィシャル会議モードの切り替え（#36）。表示だけを切り替え、進行には影響しない */
+function FormalityToggle() {
+  const formality = useDisplay((s) => s.formality);
+  const setFormality = useDisplay((s) => s.setFormality);
+  const official = formality === 1;
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={() => setFormality(official ? 0 : 1)}
+      aria-pressed={official}
+      title="表示モードを切り替える（カジュアル／オフィシャル会議モード）"
+    >
+      {official ? 'オフィシャル' : 'カジュアル'}
+    </button>
+  );
+}
+
 /** オーディションを抜けてトップに戻る（D2）。通話も切る。審査の途中なので一度だけ確かめる */
 function LeaveButton() {
   const leaveRoom = useSession((s) => s.leaveRoom);
+  const formality = useFormality();
   const onLeave = () => {
-    if (!window.confirm('オーディションから退出しますか？（同じリンクを開けば、また参加できます）')) return;
+    if (!window.confirm(pick(formality, 'オーディションから退出しますか？（同じリンクを開けば、また参加できます）', '会議から退出しますか？（同じリンクを開けば、また参加できます）'))) return;
     useCall.getState().leave();
     void leaveRoom();
   };
   return (
-    <button type="button" className={styles.copy} onClick={onLeave} title="オーディションから退出する">
-      <LogOut size={14} /> 退出
+    <button type="button" className={styles.copy} onClick={onLeave} title={pick(formality, 'オーディションから退出する', '会議から退出する')}>
+      <LogOut size={14} /> {pick(formality, '退出', '会議から退出')}
     </button>
   );
 }
@@ -101,6 +123,7 @@ export function Footer() {
   const consensusOpen = useDisplay((s) => s.consensusOpen);
   const setConsensusOpen = useDisplay((s) => s.setConsensusOpen);
   const tasteOpen = useDisplay((s) => s.tasteOpen);
+  const formality = useFormality();
   const setTasteOpen = useDisplay((s) => s.setTasteOpen);
   const { judgeId, isHost } = useMe();
   // 予選は審査員の顔を舞台の台に出すので、ここではワイプを出さない（決勝ではここに並べる）
@@ -128,8 +151,8 @@ export function Footer() {
       <UtteranceInput />
       <div className={styles.actions}>
         <TastePanel />
-        <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title="反応から読み取ったみんなの好み">
-          🧭 <span className={styles.btnLabel}>好み</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
+        <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title={pick(formality, '反応から読み取ったみんなの好み', '反応から読み取った参加者の評価の傾向')}>
+          {formality === 1 ? null : '🧭 '}<span className={styles.btnLabel}>{pick(formality, '好み', '評価の傾向')}</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
         </button>
         <ConsensusMemo />
         <button
@@ -139,18 +162,18 @@ export function Footer() {
           }}
           aria-expanded={consensusOpen}
         >
-          🤝 <span className={styles.btnLabel}>合意メモ</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
+          {formality === 1 ? null : '🤝 '}<span className={styles.btnLabel}>{pick(formality, '合意メモ', '合意事項メモ')}</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
         </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">
-          <Layers size={16} /> <span className={styles.btnLabel}>アイデアBOX</span> <b>{snapshot.ideaBox.length}</b>
+          <Layers size={16} /> <span className={styles.btnLabel}>{pick(formality, 'アイデアBOX', '提案一覧')}</span> <b>{snapshot.ideaBox.length}</b>
           <ChevronRight size={15} />
         </button>
         {isHost && (
           <button
-            title="最初からやり直す"
-            aria-label="最初からやり直す"
+            title={pick(formality, '最初からやり直す', 'セッションを最初から開始')}
+            aria-label={pick(formality, '最初からやり直す', 'セッションを最初から開始')}
             onClick={() => {
-              if (confirm('セッションを最初からやり直しますか？（全員の画面が開始画面に戻ります）')) {
+              if (confirm(pick(formality, 'セッションを最初からやり直しますか？（全員の画面が開始画面に戻ります）', 'セッションを最初から開始しますか？（全員の画面が開始画面に戻ります）'))) {
                 void send('RESET_SESSION', {});
               }
             }}

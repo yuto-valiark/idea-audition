@@ -561,3 +561,49 @@
 .choice button:disabled:not([data-on]) {
   opacity: 0.55;
 }
+
+/* オフィシャル会議モード（#36）：部屋を作ったあとの入力欄も白地に合わせる */
+:global(:root[data-formality='official']) .themeInput,
+:global(:root[data-formality='official']) .choice,
+:global(:root[data-formality='official']) .invite {
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elev);
+  box-shadow: none;
+}
+:global(:root[data-formality='official']) .themeLabel {
+  color: var(--purple);
+}
+:global(:root[data-formality='official']) .themeInput input,
+:global(:root[data-formality='official']) .invite code {
+  color: var(--ink);
+}
+:global(:root[data-formality='official']) .themeInput input:read-only,
+:global(:root[data-formality='official']) .inviteLabel,
+:global(:root[data-formality='official']) .waiting {
+  color: var(--ink-soft);
+}
+:global(:root[data-formality='official']) .note,
+:global(:root[data-formality='official']) .setup small {
+  color: var(--ink-muted);
+}
+:global(:root[data-formality='official']) .choice button {
+  color: var(--ink-soft);
+}
+:global(:root[data-formality='official']) .choice button[data-on] {
+  color: #fff;
+  background: var(--purple);
+  box-shadow: none;
+}
+:global(:root[data-formality='official']) .invite button {
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elev);
+  color: var(--ink);
+}
+:global(:root[data-formality='official']) .invite .share {
+  border-color: var(--purple);
+  background: var(--purple);
+  color: #fff;
+}
+:global(:root[data-formality='official']) .waiting {
+  border-color: var(--line-strong);
+}

@@ -10,6 +10,7 @@ import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import { NameGate } from './features/audition/NameGate.tsx';
 import { useCall } from './features/call/call-store.ts';
+import { useDisplay } from './store/display-store.ts';
 import { JudgeWipeBand } from './features/call/CallControls.tsx';
 import { finalistTarget, useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
@@ -26,6 +27,10 @@ export function App() {
   const leaveRoom = useSession((s) => s.leaveRoom);
   const status = useSession((s) => s.snapshot?.status);
   const hasChampion = useSession((s) => !!s.snapshot?.champion);
+    const formality = useDisplay((s) => s.formality);
+    useEffect(() => {
+          document.documentElement.dataset.formality = formality === 1 ? 'official' : 'casual';
+    }, [formality]);
 
   useEffect(() => {
     const follow = () => {
@@ -91,6 +96,9 @@ export function App() {
 function Studio() {
   // 予選のステージは囲いの中に自前の照明がある。外の照明と二重にならないよう、予選のあいだは外を消す
   const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < finalistTarget(s.snapshot));
+    const formality = useDisplay((s) => s.formality);
+    // オフィシャル会議モードでは舞台照明などの装飾を出さない（#36）
+    if (formality === 1) return <div className={styles.studio} aria-hidden />;
   return (
     <div className={styles.studio} aria-hidden>
       <div className={styles.truss} />

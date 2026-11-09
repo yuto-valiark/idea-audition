@@ -218,3 +218,21 @@
     translate: 24px 0;
   }
 }
+
+/* オフィシャル会議モード（#36）：発言欄を白地に合わせる */
+:global(:root[data-formality='official']) .input {
+  border-color: var(--line-strong);
+  background: var(--bg-elev);
+}
+:global(:root[data-formality='official']) .input input {
+  color: var(--ink);
+}
+:global(:root[data-formality='official']) .input input::placeholder {
+  color: var(--ink-muted);
+}
+:global(:root[data-formality='official']) .input button {
+  color: var(--ink-soft);
+}
+:global(:root[data-formality='official']) .input[data-listening] {
+  border-color: var(--ok);
+}

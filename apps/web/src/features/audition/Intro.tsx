@@ -6,6 +6,7 @@ import { CHALLENGE_SEC_OPTIONS, MAX_FINALISTS, UPPER_CAPACITY } from '@idea-audi
 import { roomUrl, useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import styles from './Intro.module.css';
 import './start-screen.css';
 
@@ -17,7 +18,8 @@ export function Intro() {
   const room = useSession((s) => s.room);
   const roomId = useSession((s) => s.sessionId);
   const createRoom = useSession((s) => s.createRoom);
-  const { isSpectator, isHost } = useMe();
+const { isSpectator, isHost } = useMe();
+  const formality = useFormality();
   const themeDraft = useSession((s) => s.themeDraft);
   const judgeCount = useSession((s) => s.snapshot?.judges.length ?? 0);
   const [theme, setTheme] = useState(DEMO_THEME);
@@ -99,16 +101,30 @@ export function Intro() {
           </div>
         </motion.div>
         <motion.div className="welcome-copy" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
-          <h1>
-            まだ、人間が<span>アイデア出してるの？</span>
-          </h1>
-          <p>
-            <strong>AIが次々にアイデアをプレゼン。</strong>
-            <br />
-            あなたの直感で選び、みんなで磨いて、最高の1案へ。
-          </p>
+          {formality === 1 ? (
+            <>
+              <h1>企画案の検討を、審査形式で。</h1>
+              <p>
+                <strong>AIが企画案を発表します。</strong>
+                <br />
+                参加者の審査で磨き、最も優れた1案を決定します。
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>
+                まだ、人間が<span>アイデア出してるの？</span>
+              </h1>
+              <p>
+                <strong>AIが次々にアイデアをプレゼン。</strong>
+                <br />
+                あなたの直感で選び、みんなで磨いて、最高の1案へ。
+              </p>
+            </>
+          )}
         </motion.div>
-        <div className="welcome-showcase" aria-hidden>
+        {formality === 0 && (
+          <div className="welcome-showcase" aria-hidden>
           <div className="welcome-characters">
             {(['momo', 'sprout', 'luna'] as const).map((name, n) => (
               <motion.div
@@ -135,6 +151,7 @@ export function Intro() {
           </div>
           <div className="welcome-platform-reflection" />
         </div>
+        )}
 
         <div className="welcome-action">
           {lobby ? (
@@ -153,7 +170,7 @@ export function Intro() {
                   value={shownTheme}
                   maxLength={120}
                   readOnly={guest}
-                  aria-label="今回のオーディションテーマ"
+                  aria-label={pick(formality, '今回のオーディションテーマ', '今回のテーマ')}
                   placeholder={guest ? 'ホストがテーマを入力しています…' : undefined}
                   onChange={(e) => setTheme(e.target.value)}
                 />
@@ -175,15 +192,15 @@ export function Intro() {
                 />
               </div>
               {guest ? (
-                <div className={styles.waiting}>ホストが始めるのを待っています</div>
+                <div className={styles.waiting}>{pick(formality, 'ホストが始めるのを待っています', 'ホストが開始するのを待っています')}</div>
               ) : (
                 <button className="create-audition" disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
                   <Play />
-                  <span>オーディションをはじめる</span>
+                  <span>{pick(formality, 'オーディションをはじめる', '会議をはじめる')}</span>
                 </button>
               )}
               {(connection !== 'open' || isSpectator) && (
-                <small className={styles.note}>{connection !== 'open' ? '接続しています…' : '観覧モード'}</small>
+                <small className={styles.note}>{connection !== 'open' ? '接続しています…' : pick(formality, '観覧モード', '観覧')}</small>
               )}
             </form>
           ) : (
@@ -197,23 +214,23 @@ export function Intro() {
               }}
             >
               <Plus />
-              <span>オーディションを作る</span>
+              <span>{pick(formality, 'オーディションを作る', '会議を作成')}</span>
             </button>
           )}
           <div className="welcome-steps">
             <span>
               <Zap />
-              テーマを決める
+              {pick(formality, 'テーマを決める', 'テーマを設定')}
             </span>
             <i />
             <span>
               <Users />
-              直感で選んで、育てる
+              {pick(formality, '直感で選んで、育てる', '審査して、磨く')}
             </span>
             <i />
             <span>
               <Crown />
-              最高の1案を決める
+              {pick(formality, '最高の1案を決める', '最も優れた1案を決定')}
             </span>
           </div>
         </div>

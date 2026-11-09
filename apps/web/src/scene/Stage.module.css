@@ -1490,3 +1490,15 @@
   background: linear-gradient(90deg, #ffd977, #f0a83e);
   transition: width 0.3s ease;
 }
+
+/* オフィシャル会議モード（#36）：決勝の「優勝を決める」は白地でも読めるよう紺の枠と文字にする */
+:global(:root[data-formality='official']) .finalButton {
+  border-color: var(--purple);
+  background: var(--bg-elev);
+  color: var(--purple);
+}
+
+/* オフィシャル会議モード（#36）：企画のカードは暗いままなので、文字は明るい色に固定する（ページの文字色が濃くなっても埋もれないように） */
+:global(:root[data-formality='official']) .flip {
+  color: #f6efff;
+}

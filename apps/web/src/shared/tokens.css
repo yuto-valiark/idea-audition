@@ -89,3 +89,32 @@ button:hover:not(:disabled) {
     transition-duration: 0.01ms !important;
   }
 }
+/* オフィシャル会議モード（#36）：白基調・紺アクセントのフラットな配色に切り替える */
+:root[data-formality='official'] {
+  color-scheme: light;
+  --bg: #f8f9fa;
+  --bg-elev: #ffffff;
+  --bg-panel: #ffffff;
+  --ink: #202124;
+  --ink-soft: #3c4043;
+  --ink-muted: #5f6368;
+  --ink-faint: #80868b;
+  --line: #dadce0;
+  --line-strong: #bdc1c6;
+  --purple: #0b57d0;
+  --purple-soft: #1a73e8;
+  --pink: #0b57d0;
+  --blue: #1a73e8;
+  --gold: #0b57d0;
+  --gold-soft: #1a73e8;
+  --gold-line: #bdc1c6;
+  --ok: #188038;
+  --warn: #d93025;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+}
+
+:root[data-formality='official'] :focus-visible {
+  outline-color: #1a73e8;
+}
