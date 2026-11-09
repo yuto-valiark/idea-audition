@@ -9,6 +9,12 @@ import { EMPTY, currentRevision, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
 import './prelim-gpt.css';
 
+/** 合格の演出の長さ（長いとテンポが落ちる） */
+export const PASS_CEREMONY_MS = 1300;
+/** この秒数からカウントダウンを出す。URGENT 秒からは画面を赤くして急かす */
+const COUNTDOWN_FROM = 10;
+const URGENT_FROM = 5;
+
 /**
  * 予選（#5）：新しいアイデアは1人ずつ登場する。
  * 審査員全員がゴールデンブザーを押したら合格して「合格者待機室」へ。3人そろったら最終オーディションに切り替わる。
@@ -50,6 +56,7 @@ export function PreliminaryStage() {
               </motion.div>
             )}
           </AnimatePresence>
+          {!celebrating && challenger && <Countdown leavingAt={snapshot.characters[challenger]?.leavingAt ?? null} />}
           <BuzzerZone snapshot={snapshot} instanceId={celebrating ? null : challenger} celebrating={celebrating} />
           {celebrating && <PassEffect seed={passed!.seed} />}
         </section>
@@ -59,21 +66,23 @@ export function PreliminaryStage() {
   );
 }
 
-/** 合格の演出（約2.6秒）。そのあいだは合格したキャラを舞台に残す */
+/** 合格の演出（約1.3秒）。そのあいだは合格したキャラを舞台に残す */
 function usePassCeremony(snapshot: SessionSnapshot) {
   const [passed, setPassed] = useState<{ instanceId: string; seed: number } | null>(null);
-  const prev = useRef(snapshot.upper.length);
+  const n = snapshot.upper.length;
+  const lastId = snapshot.upper[n - 1]?.instanceId ?? null;
+  const prev = useRef(n);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // snapshot は届くたびに新しくなるので、人数（n）が増えたときだけ演出を始める。タイマーは画面の更新で止めない
   useEffect(() => {
-    const n = snapshot.upper.length;
-    if (n > prev.current) {
-      const id = snapshot.upper[n - 1]!.instanceId;
-      setPassed({ instanceId: id, seed: Date.now() });
-      const t = setTimeout(() => setPassed(null), 2600);
-      prev.current = n;
-      return () => clearTimeout(t);
+    if (n > prev.current && lastId) {
+      setPassed({ instanceId: lastId, seed: Date.now() });
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setPassed(null), PASS_CEREMONY_MS);
     }
     prev.current = n;
-  }, [snapshot.upper]);
+  }, [n, lastId]);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   return passed;
 }
 
@@ -129,7 +138,7 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
       initial={{ opacity: 0, y: reduced ? 0 : 45 }}
       animate={{ opacity: promoting ? 0 : 1, y: promoting ? (reduced ? 0 : -220) : 0, scale: promoting ? 0.7 : 1 }}
       exit={{ opacity: 0, y: 20 }}
-      transition={promoting ? { duration: 2.2, ease: 'easeIn' } : { type: 'spring', stiffness: 110, damping: 17 }}
+      transition={promoting ? { duration: 1.0, ease: 'easeIn' } : { type: 'spring', stiffness: 110, damping: 17 }}
     >
       <motion.button
         className="hero-character"
@@ -273,6 +282,25 @@ function PassEffect({ seed }: { seed: number }) {
           <strong>合格！</strong>
           <span>UNANIMOUS APPROVAL</span>
         </motion.div>
+      </div>
+    </>
+  );
+}
+
+/** 残り10秒からカウントダウン。5秒からは画面のふちが赤く脈打って急かす */
+function Countdown({ leavingAt }: { leavingAt: string | null }) {
+  const left = useSecondsLeft(leavingAt);
+  if (!leavingAt || left <= 0 || left > COUNTDOWN_FROM) return null;
+  const urgent = left <= URGENT_FROM;
+  return (
+    <>
+      {urgent && <div className="ia-urgent" aria-hidden />}
+      <div className="ia-countdown" data-urgent={urgent || undefined} role="timer" aria-label={`あと${left}秒で交代`}>
+        <small>あと</small>
+        <motion.b key={left} initial={{ scale: 1.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.25 }}>
+          {left}
+        </motion.b>
+        <small>秒</small>
       </div>
     </>
   );

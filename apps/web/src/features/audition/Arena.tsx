@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { FinalStage } from '../../scene/FinalStage.tsx';
-import { PreliminaryStage } from '../../scene/PreliminaryStage.tsx';
+import { PASS_CEREMONY_MS, PreliminaryStage } from '../../scene/PreliminaryStage.tsx';
 import { UPPER_CAPACITY } from '@idea-audition/protocol';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import styles from './Arena.module.css';
@@ -17,18 +17,19 @@ export function Arena() {
   // 予選（1人ずつ）：合格者が3人そろうまで。そろったら最終オーディションに切り替わる（#5）
   const upperLen = useSession((s) => s.snapshot?.upper.length ?? 0);
   const active = useSession((s) => s.snapshot?.status === 'audition_active');
-  // 3人目の合格の演出（約2.6秒）を見せてから最終オーディションに切り替える
-  const [holdPrelim, setHoldPrelim] = useState(false);
+  // 3人目の合格の演出を見せてから最終オーディションに切り替える。
+  // 3人目がそろった描画の時点で決めないと、予選の画面が一度消えて演出が出ない
+  const fullAt = useRef<number | null>(null);
   const prevLen = useRef(upperLen);
+  if (upperLen >= UPPER_CAPACITY && prevLen.current < UPPER_CAPACITY) fullAt.current = Date.now();
+  prevLen.current = upperLen;
+  const [, rerender] = useState(0);
   useEffect(() => {
-    if (upperLen >= UPPER_CAPACITY && prevLen.current < UPPER_CAPACITY) {
-      setHoldPrelim(true);
-      const t = setTimeout(() => setHoldPrelim(false), 2700);
-      prevLen.current = upperLen;
-      return () => clearTimeout(t);
-    }
-    prevLen.current = upperLen;
+    if (fullAt.current === null) return;
+    const t = setTimeout(() => rerender((x) => x + 1), PASS_CEREMONY_MS + 100);
+    return () => clearTimeout(t);
   }, [upperLen]);
+  const holdPrelim = fullAt.current !== null && Date.now() - fullAt.current < PASS_CEREMONY_MS + 100;
   const prelim = active && (upperLen < UPPER_CAPACITY || holdPrelim);
 
   useEffect(() => {
