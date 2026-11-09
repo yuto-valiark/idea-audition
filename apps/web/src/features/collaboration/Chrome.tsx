@@ -1,4 +1,5 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
+import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX } from 'lucide-react';
+import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
@@ -42,6 +43,7 @@ export function Header() {
         {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
         {lobby && !isSpectator && <CallMicButton />}
+        <SoundToggle />
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>
@@ -54,6 +56,22 @@ export function Header() {
       </div>
       )}
     </header>
+  );
+}
+
+/** 効果音のオン・オフ（この端末に覚える） */
+function SoundToggle() {
+  const muted = useMuted();
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={() => setMuted(!muted)}
+      aria-pressed={!muted}
+      title={muted ? '効果音をオンにする' : '効果音をオフにする'}
+    >
+      {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} {muted ? '音オフ' : '音オン'}
+    </button>
   );
 }
 

@@ -7,6 +7,7 @@ import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
+import { playSfx } from '../shared/sfx.ts';
 import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
@@ -27,6 +28,7 @@ export function PreliminaryStage() {
   // 合格の演出（約2秒）のあいだは合格したキャラを舞台に残し、終わったら次の挑戦者を出す
   const shown = passed?.instanceId ?? challenger;
   const celebrating = !!passed;
+  useLeaveSound(snapshot, challenger);
   return (
     <div className="ia-prelim">
       <div className="workspace">
@@ -88,6 +90,7 @@ function usePassCeremony(snapshot: SessionSnapshot) {
   // snapshot は届くたびに新しくなるので、人数（n）が増えたときだけ演出を始める。タイマーは画面の更新で止めない
   useEffect(() => {
     if (n > prev.current && lastId) {
+      playSfx('pass');
       setPassed({ instanceId: lastId, seed: Date.now() });
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setPassed(null), PASS_CEREMONY_MS);
@@ -122,6 +125,16 @@ function useNewArrivals(ids: readonly string[]) {
   }, [key]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   return (id: string) => newcomers.includes(id) || recent.includes(id);
+}
+
+/** 挑戦者が見送り・時間切れで去ったら「ひゅるる」と鳴らす（合格で去ったときは合格の音だけ） */
+function useLeaveSound(snapshot: SessionSnapshot, challenger: string | null) {
+  const prev = useRef(challenger);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = challenger;
+    if (before && before !== challenger && snapshot.characters[before]?.location === 'archived') playSfx('leave');
+  }, [challenger, snapshot]);
 }
 
 function WaitingRoom({ snapshot }: { snapshot: SessionSnapshot }) {
@@ -350,6 +363,7 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   const judges = snapshot.judges.filter((j) => j.connected);
   const pressed = (snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]);
   const targetName = instanceId ? snapshot.characters[instanceId]?.name : null;
+  useBuzzSound(pressed.length, instanceId);
   return (
     <div className="buzzer-zone">
       {/* いまブザーで審査しているのが誰の案か（見ている間に入れ替わっても、押す相手が分かるように） */}
@@ -383,6 +397,18 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
       )}
     </div>
   );
+}
+
+/** だれかがブザーを押したら「ブッ」。全員そろったら上がる2音 */
+function useBuzzSound(count: number, instanceId: string | null) {
+  const judges = useSession((s) => s.snapshot?.judges.filter((j) => j.connected).length ?? 0);
+  const prev = useRef({ count, instanceId });
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = { count, instanceId };
+    if (before.instanceId !== instanceId || count <= before.count) return;
+    playSfx(count >= judges ? 'allPressed' : 'buzz');
+  }, [count, instanceId, judges]);
 }
 
 function Buzzer({ judge, mine, pressed, disabled, onClick }: { judge: JudgeView; mine: boolean; pressed: boolean; disabled: boolean; onClick(): void }) {
@@ -458,6 +484,7 @@ function PassEffect({ seed, name }: { seed: number; name: string }) {
  */
 function Countdown({ leavingAt, pausedLeftMs }: { leavingAt: string | null; pausedLeftMs: number | null }) {
   const left = useSecondsLeft(leavingAt);
+  useTickSound(pausedLeftMs == null && leavingAt ? left : null);
   if (pausedLeftMs != null) {
     return (
       <div className="ia-corner ia-deepdive" role="status">
@@ -482,6 +509,14 @@ function Countdown({ leavingAt, pausedLeftMs }: { leavingAt: string | null; paus
       </div>
     </>
   );
+}
+
+/** 残り3秒から、1秒ごとに小さく「コッ」 */
+const TICK_FROM = 3;
+function useTickSound(left: number | null) {
+  useEffect(() => {
+    if (left != null && left > 0 && left <= TICK_FROM) playSfx('tick');
+  }, [left]);
 }
 
 /** これまでの挑戦者：参考程度に、小さく下に並べる */

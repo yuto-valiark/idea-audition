@@ -2,7 +2,8 @@ import { Check, Copy, Crown, FileDown, Loader2, RotateCcw, Share2 } from 'lucide
 import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { playSfx } from '../../shared/sfx.ts';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { useSession } from '../../store/session-store.ts';
@@ -17,6 +18,8 @@ export function ChampionScreen() {
   const toast = useDisplay((s) => s.toast);
   const { isHost } = useMe();
   const champ = snapshot.champion!;
+  // 優勝が決まった瞬間にファンファーレ（画面を開いたときに1回）
+  useEffect(() => playSfx('champion'), []);
   const character = snapshot.characters[champ.instanceId];
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
