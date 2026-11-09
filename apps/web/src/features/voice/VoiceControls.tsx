@@ -67,7 +67,8 @@ export function UtteranceInput() {
   const voiceState = useVoice((s) => s.state);
   const { isSpectator } = useMe();
   const [text, setText] = useState('');
-  const targetName = selected && snapshot ? snapshot.characters[selected]?.name : null;
+  const spotId = snapshot?.spotlight?.instanceId ?? null;
+  const targetName = (selected ?? spotId) && snapshot ? snapshot.characters[(selected ?? spotId)!]?.name : null;
   const listening = voiceState === 'listening' || voiceState === 'starting';
 
   return (

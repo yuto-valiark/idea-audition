@@ -171,6 +171,8 @@ export const SessionSnapshot = z.object({
   upper: z.array(FinalistView),
   /** いまの挑戦者に、ゴールデンブザーを押している審査員 */
   buzzer: z.object({ instanceId: z.string().nullable(), judgeIds: z.array(z.string()) }).optional(),
+  /** 最終オーディションでみんなが注目しているキャラ（スポットライト）と、選んだ人 */
+  spotlight: z.object({ instanceId: z.string(), byJudgeId: z.string().nullable() }).nullable().optional(),
   characters: z.record(z.string(), CharacterView),
   ideas: z.record(z.string(), IdeaView),
   critiques: z.array(CritiqueView),

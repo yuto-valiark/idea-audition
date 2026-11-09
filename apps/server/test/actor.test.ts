@@ -219,3 +219,31 @@ describe('観覧者の通話（聞くだけ）', () => {
     expect(eph(a.received).at(-1)).toMatchObject({ type: 'CALL_STATE', senderId: 'spec_abc123', payload: { on: false } });
   });
 });
+
+describe('最終オーディションのスポットライト', () => {
+  it('タップしたキャラにみんなで注目し、名前を呼ばない質問はそのキャラに届く', async () => {
+    const { actor, a, b, advance } = await setup();
+    const ids = [0, 1, 2].map(() => {
+      const id = actor.session.lowerSlots.find((x) => x !== null)!;
+      actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+      return id;
+    });
+    actor.receiveCommand(a.conn, cmd('SET_SPOTLIGHT', { instanceId: ids[1]! }));
+    const ev = events(b.received).at(-1)!;
+    expect(ev.type).toBe('SPOTLIGHT_CHANGED');
+    expect(ev.snapshot.spotlight).toMatchObject({ instanceId: ids[1] });
+    const judgeB = actor.session.judges[1]!.judgeId;
+    actor.receiveUtterance(judgeB, '実際にやるとしたら、費用はどのくらいかかるの？', 'text', null);
+    await advance(0);
+    expect(actor.session.answers.at(-1)?.instanceId).toBe(ids[1]);
+    // 解除すると届かない（名前も詳細もないので質問の宛先が無い）
+    actor.receiveCommand(a.conn, cmd('SET_SPOTLIGHT', { instanceId: null }));
+    expect(events(a.received).at(-1)!.snapshot.spotlight).toBeNull();
+  });
+
+  it('決勝にいないキャラにはスポットライトを当てられない', async () => {
+    const { actor, a } = await setup();
+    actor.receiveCommand(a.conn, cmd('SET_SPOTLIGHT', { instanceId: actor.session.lowerSlots[0]! }));
+    expect(results(a.received).at(-1)).toMatchObject({ ok: false });
+  });
+});

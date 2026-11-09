@@ -25,6 +25,8 @@ export const CommandPayloads = {
   REQUEST_PROMOTION: z.object({ instanceId: id }),
   /** ゴールデンブザー（押す・取り消す）。全員が押したら合格者待機室へ（#5） */
   PRESS_BUZZER: z.object({ instanceId: id, on: z.boolean() }),
+  /** 最終オーディション：みんなで注目するキャラを選ぶ（null で解除）。名前を呼ばない質問はこのキャラに届く */
+  SET_SPOTLIGHT: z.object({ instanceId: id.nullable() }),
   NEXT_IDEA: z.object({ instanceId: id.optional() }),
   /** 審査員の「見送り」：この案はないと判断して、すぐ次のキャラと交代させる */
   REJECT_CANDIDATE: z.object({ instanceId: id }),
@@ -126,6 +128,7 @@ export const EVENT_TYPES = [
   'BUZZER_PRESSED',
   'CHALLENGE_PAUSED',
   'CHALLENGE_RESUMED',
+  'SPOTLIGHT_CHANGED',
   'CANDIDATE_STAYED',
   'CONSENSUS_UPDATED',
   'PROPOSAL_UPDATED',

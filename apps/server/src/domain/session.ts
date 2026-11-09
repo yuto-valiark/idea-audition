@@ -69,6 +69,8 @@ export class AuditionSession {
   lowerSlots: (string | null)[] = Array.from({ length: LOWER_SLOT_COUNT }, () => null);
   /** いまの挑戦者にゴールデンブザーを押している審査員（保存しない） */
   buzzers = new Set<string>();
+  /** 最終オーディションのスポットライト（保存しない） */
+  spotlight: { instanceId: string; byJudgeId: string | null } | null = null;
   upper: Finalist[] = [];
   characters = new Map<string, CharacterInstance>();
   ideas = new Map<string, Idea>();
@@ -305,6 +307,7 @@ export class AuditionSession {
   private clearBoard() {
     this.lowerSlots = Array.from({ length: this.lowerSize }, () => null);
     this.buzzers.clear();
+    this.spotlight = null;
     this.upper = [];
     this.characters.clear();
     this.ideas.clear();
@@ -547,6 +550,14 @@ export class AuditionSession {
     const voters = this.judges.filter((j) => j.connected).map((j) => j.judgeId);
     const unanimous = voters.length > 0 && voters.every((id) => this.buzzers.has(id));
     return ok([{ type: 'BUZZER_PRESSED', detail: { instanceId, judgeId, on, count: this.buzzers.size } }], { unanimous });
+  }
+
+  /** 最終オーディション：みんなで注目するキャラを選ぶ（決勝の3人のうちの1人。null で解除） */
+  setSpotlight(judgeId: string, instanceId: string | null): DomainResult {
+    if (instanceId !== null && !this.upper.some((f) => f.instanceId === instanceId)) return reject('NOT_IN_LOWER');
+    if ((this.spotlight?.instanceId ?? null) === instanceId) return ok([]);
+    this.spotlight = instanceId ? { instanceId, byJudgeId: judgeId } : null;
+    return ok([{ type: 'SPOTLIGHT_CHANGED', detail: { instanceId, byJudgeId: judgeId } }]);
   }
 
   /** 参加中の審査員が全員ブザーを押しているか（誰かが抜けたときに確かめ直す） */

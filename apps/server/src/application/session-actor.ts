@@ -518,6 +518,8 @@ export class SessionActor {
       }
       case 'REQUEST_PROMOTION':
         return this.promoteCharacter(cmd.payload.instanceId, [judgeId], meta);
+      case 'SET_SPOTLIGHT':
+        return apply(s.setSpotlight(judgeId, cmd.payload.instanceId));
       case 'PRESS_BUZZER': {
         const { instanceId, on } = cmd.payload;
         const presser = s.buzzers;
@@ -627,9 +629,10 @@ export class SessionActor {
       corrections = repaired.corrections;
       if (corrections.length) this.deps.log?.(`[voice] repaired ${corrections.map((c) => `${c.from}→${c.to}(${c.score})`).join(', ')}`);
     }
-    // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ
+    // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ → スポットライトのキャラ／予選の挑戦者
     const named = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
-    const targetInstanceId = named ?? (QUESTION_PATTERN.test(text) ? this.focusedTarget(judgeId) : null);
+    const stageTarget = this.validTarget(s.spotlight?.instanceId) ?? this.validTarget(s.lowerSlots[0]);
+    const targetInstanceId = named ?? (QUESTION_PATTERN.test(text) ? (this.focusedTarget(judgeId) ?? stageTarget) : null);
     // 会話で取り上げられた案の注目度を上げる（名前・企画名）。宛先として話しかけた案も含める
     const mentions = s.registerUtterance(text);
     const mentionEvents = [...mentions.events];

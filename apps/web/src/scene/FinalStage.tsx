@@ -27,6 +27,12 @@ export function FinalStage() {
   }, []);
 
   const full = upper.length >= UPPER_CAPACITY;
+  const spotlight = useSession((s) => s.snapshot?.spotlight ?? null);
+  const judges = useSession((s) => s.snapshot?.judges ?? EMPTY);
+  const characters = useSession((s) => s.snapshot?.characters);
+  const send = useSession((s) => s.send);
+  const spotName = spotlight ? characters?.[spotlight.instanceId]?.name : null;
+  const spotBy = spotlight?.byJudgeId ? judges.find((j) => j.judgeId === spotlight.byJudgeId) : null;
 
   return (
     <section
@@ -34,8 +40,10 @@ export function FinalStage() {
       className={styles.finalStage}
       data-drop={isDragging ? (full ? 'full' : 'active') : undefined}
       data-hover={hover || undefined}
+      data-spotlight={spotlight ? true : undefined}
       aria-label="最終オーディション"
     >
+      <div className={`${styles.floorGrid}`} aria-hidden />
       <div className={styles.heading}>
         <div>
           <Crown />
@@ -48,11 +56,33 @@ export function FinalStage() {
         </div>
         <ChampionControls />
       </div>
+      <AnimatePresence>
+        {spotName && (
+          <motion.div
+            className={styles.spotBanner}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            role="status"
+          >
+            🔦 <b>{spotName}</b> に注目中
+            {spotBy && <small>（{spotBy.name ?? spotBy.label} さんが選択）</small>}
+            <span>名前を呼ばなくても、質問は {spotName} に届きます</span>
+            <button onClick={() => void send('SET_SPOTLIGHT', { instanceId: null })} aria-label="注目をやめる">
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className={styles.finalLineup}>
         {Array.from({ length: UPPER_CAPACITY }, (_, i) => {
           const f = upper[i];
           return f ? (
-            <FinalistCard key={f.instanceId} instanceId={f.instanceId} />
+            <FinalistCard
+              key={f.instanceId}
+              instanceId={f.instanceId}
+              spotlight={spotlight ? (spotlight.instanceId === f.instanceId ? 'on' : 'off') : null}
+            />
           ) : (
             <EmptySlot key={`empty-${i}`} index={i} dragging={isDragging} full={full} />
           );
@@ -60,6 +90,7 @@ export function FinalStage() {
       </div>
       {isDragging && full && <div className={styles.fullNotice}>満席です（最大3体）。いまは昇格できません</div>}
       <div className={`${styles.ring} ${styles.upperRing}`} />
+      <div className={styles.upperDrum} aria-hidden />
     </section>
   );
 }
@@ -83,7 +114,7 @@ const STATUS_LABEL = {
   ready: '',
 } as const;
 
-function FinalistCard({ instanceId }: { instanceId: string }) {
+function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight: 'on' | 'off' | null }) {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const finalist = snapshot.upper.find((f) => f.instanceId === instanceId)!;
@@ -108,8 +139,10 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
       className={`${styles.performer} ${styles.finalPerformer}`}
       data-status={finalist.status}
       data-arriving={arriving || undefined}
+      data-spot={spotlight ?? undefined}
       style={{ '--accent': character.accent } as CSSProperties}
     >
+      {spotlight === 'on' && <div className={styles.spotBeam} aria-hidden />}
       <AnimatePresence>
         {bubble && (
           <motion.div
@@ -127,8 +160,10 @@ function FinalistCard({ instanceId }: { instanceId: string }) {
       <button
         className={styles.character}
         data-anchor={`upper:${instanceId}`}
-        aria-label={`${character.name}の詳細`}
-        onClick={() => select(instanceId)}
+        aria-label={spotlight === 'on' ? `${character.name}への注目をやめる` : `${character.name}にスポットライトを当てる（みんなで注目して質問できる）`}
+        title={spotlight === 'on' ? 'もう一度タップで注目をやめる' : 'タップでスポットライト：みんなでこのキャラに注目して質問・議論できます'}
+        disabled={isSpectator}
+        onClick={() => void send('SET_SPOTLIGHT', { instanceId: spotlight === 'on' ? null : instanceId })}
       >
         <Mascot designId={character.designId} className={styles.mascot} />
       </button>

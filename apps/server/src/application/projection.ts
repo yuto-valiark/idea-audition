@@ -21,6 +21,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
     lowerSlots: [...s.lowerSlots],
     upper: s.upper.map((f) => ({ ...f })),
     buzzer: { instanceId: s.lowerSlots[0] ?? null, judgeIds: [...s.buzzers] },
+    spotlight: s.spotlight && s.upper.some((f) => f.instanceId === s.spotlight!.instanceId) ? { ...s.spotlight } : null,
     characters: Object.fromEntries(
       [...s.characters.values()].map((c) => {
         const design = CHARACTER_DESIGNS[c.designId]!;

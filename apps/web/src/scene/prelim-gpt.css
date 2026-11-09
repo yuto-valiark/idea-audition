@@ -1445,3 +1445,49 @@
   padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; text-align: left;
   background: #1d1230f0; border: 1px solid #8a5bd0; box-shadow: 0 0 14px #b250ff55;
 }
+
+/* 立体的なステージ：円形の舞台の下に側面（高台）と影、奥に奥行きのある床 */
+.ia-prelim .ring-floor::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 92px;
+  z-index: -1;
+  border-radius: 0 0 50% 50% / 0 0 40px 40px;
+  background:
+    linear-gradient(90deg, #000a, transparent 16%, transparent 84%, #000a),
+    linear-gradient(180deg, #3b1760, #1d0a33 55%, #0c0416);
+  border: 2px solid #b366f066;
+  border-top: 0;
+  box-shadow: 0 18px 0 -6px #1a0a2b, 0 34px 40px #000d, inset 0 -8px 16px #c27bff22;
+}
+.ia-prelim .ring-floor::after {
+  content: '';
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  top: calc(50% + 100px);
+  height: 34px;
+  z-index: -2;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #000b, transparent 70%);
+  filter: blur(5px);
+}
+.ia-prelim .stage::after {
+  content: '';
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 0;
+  height: 55%;
+  z-index: 0;
+  pointer-events: none;
+  transform: perspective(520px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  background:
+    repeating-linear-gradient(90deg, #8f4cd41f 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, #8f4cd41f 0 1px, transparent 1px 48px);
+  mask-image: linear-gradient(0deg, #000 25%, transparent 100%);
+}

@@ -1010,3 +1010,141 @@
     -webkit-line-clamp: 1;
   }
 }
+
+/* ===== 最終オーディション：スポットライト（タップしたキャラにみんなで注目） ===== */
+.finalPerformer {
+  transition: opacity 0.35s, filter 0.35s, scale 0.35s;
+}
+.finalPerformer .character:not(:disabled) {
+  cursor: pointer;
+}
+.finalPerformer[data-spot='on'] {
+  scale: 1.08;
+  z-index: 3;
+}
+.finalPerformer[data-spot='on'] .mascot {
+  filter: drop-shadow(0 0 22px var(--accent)) drop-shadow(0 0 40px color-mix(in srgb, var(--accent) 60%, transparent));
+}
+.finalPerformer[data-spot='on'] .finalFlip {
+  border-width: 2px;
+  box-shadow: 0 0 10px var(--accent), 0 0 34px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.finalPerformer[data-spot='off'] {
+  opacity: 0.38;
+  filter: saturate(0.5) brightness(0.8);
+  scale: 0.94;
+}
+.spotBeam {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 170%;
+  height: 230%;
+  translate: -50% 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 62%),
+    linear-gradient(180deg, #fff3 0%, transparent 70%);
+  clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+  animation: spotIn 0.4s ease-out;
+}
+@keyframes spotIn {
+  from { opacity: 0; }
+}
+.finalStage[data-spotlight]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 60%, transparent 35%, #05020dcc 100%);
+}
+.spotBanner {
+  position: absolute;
+  left: 50%;
+  top: 46px;
+  translate: -50% 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92%;
+  padding: 8px 14px 8px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  background: #160b26ee;
+  border: 1.5px solid #ffcf6b;
+  box-shadow: 0 0 22px #ffb94a55;
+  color: #fff4dc;
+}
+.spotBanner b {
+  color: #ffd76b;
+}
+.spotBanner small {
+  font-size: 11px;
+  color: #d8c7a8;
+}
+.spotBanner span {
+  font-size: 12px;
+  color: #e9dcff;
+}
+.spotBanner button {
+  margin-left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #ffcf6b88;
+  background: transparent;
+  color: #ffd76b;
+  cursor: pointer;
+}
+
+/* ===== 立体的なステージ：奥行きのある床と、高台になった舞台 ===== */
+.floorGrid {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -6%;
+  height: 58%;
+  z-index: -3;
+  pointer-events: none;
+  transform: perspective(520px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  background:
+    repeating-linear-gradient(90deg, #8f4cd422 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, #8f4cd422 0 1px, transparent 1px 48px),
+    radial-gradient(ellipse at 50% 100%, #3a1660aa, transparent 70%);
+  mask-image: linear-gradient(0deg, #000 30%, transparent 100%);
+}
+.upperDrum {
+  position: absolute;
+  left: 11%;
+  right: 11%;
+  bottom: -40px;
+  height: 75px;
+  z-index: -2;
+  pointer-events: none;
+  border-radius: 0 0 50% 50% / 0 0 34px 34px;
+  background:
+    linear-gradient(90deg, #00000088, transparent 18%, transparent 82%, #00000088),
+    linear-gradient(180deg, #4a2a3f, #23121f 55%, #120812);
+  border: 2px solid #e5bb6355;
+  border-top: 0;
+  box-shadow:
+    0 14px 0 -4px #2a1622,
+    0 26px 34px #000c,
+    inset 0 -6px 14px #ffcb6b22;
+}
+.upperDrum::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #000a, transparent 70%);
+  filter: blur(4px);
+}
