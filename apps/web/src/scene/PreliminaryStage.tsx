@@ -10,7 +10,7 @@ import { setHoverFocus } from './focus.ts';
 import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
-export const PASS_CEREMONY_MS = 1300;
+export const PASS_CEREMONY_MS = 900;
 /** この秒数からカウントダウンを出す。URGENT 秒からは画面を赤くして急かす */
 const COUNTDOWN_FROM = 10;
 const URGENT_FROM = 5;
@@ -24,12 +24,13 @@ export function PreliminaryStage() {
   const snapshot = useSession((s) => s.snapshot)!;
   const passed = usePassCeremony(snapshot);
   const challenger = snapshot.lowerSlots[0] ?? null;
-  const shown = passed?.instanceId ?? challenger;
+  // 合格したら次の挑戦者をすぐ出す。合格の演出は上に軽く重ねるだけ
+  const shown = challenger;
   const celebrating = !!passed;
   return (
     <div className="ia-prelim">
       <div className="workspace">
-        <section className={'stage ' + (celebrating ? 'gold-stage' : '')} aria-label="オーディションステージ">
+        <section className="stage" aria-label="オーディションステージ">
           <div className="stage-topline">
             <span className="stage-kicker">
               <span />
@@ -47,18 +48,18 @@ export function PreliminaryStage() {
             <div />
             <i />
           </div>
-          <AnimatePresence mode="wait">
+          <AnimatePresence initial={false}>
             {shown ? (
-              <Performance key={shown} snapshot={snapshot} instanceId={shown} promoting={celebrating} />
+              <Performance key={shown} snapshot={snapshot} instanceId={shown} promoting={false} />
             ) : (
               <motion.div key="prep" className="solo-performance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <p className="ia-preparing">次の挑戦者が準備中…</p>
               </motion.div>
             )}
           </AnimatePresence>
-          {!celebrating && challenger && <Countdown leavingAt={snapshot.characters[challenger]?.leavingAt ?? null} />}
-          <BuzzerZone snapshot={snapshot} instanceId={celebrating ? null : challenger} celebrating={celebrating} />
-          {celebrating && <PassEffect seed={passed!.seed} />}
+          {challenger && <Countdown leavingAt={snapshot.characters[challenger]?.leavingAt ?? null} paused={!!snapshot.characters[challenger]?.paused} />}
+          <BuzzerZone snapshot={snapshot} instanceId={challenger} celebrating={false} />
+          {celebrating && <PassEffect seed={passed!.seed} name={snapshot.characters[passed!.instanceId]?.name ?? ''} />}
         </section>
         <History snapshot={snapshot} current={shown} />
       </div>
@@ -210,7 +211,13 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
         ))}
       </div>
       <div className="stage-bottom">
-        <span>{instanceId && leavingAt ? `あと ${left} 秒で次のアイデアへ · 押せるのは自分のブザーだけ` : '押せるのは自分のブザーだけ'}</span>
+        <span>
+          {instanceId && snapshot.characters[instanceId]?.paused
+            ? '深掘り中 · 話し終わるとカウントが再開します'
+            : instanceId && leavingAt
+              ? `あと ${left} 秒で次のアイデアへ · 気になったら質問すると時間が止まります`
+              : '押せるのは自分のブザーだけ'}
+        </span>
         {!isSpectator && instanceId && (
           <button onClick={() => void send('REJECT_CANDIDATE', { instanceId })}>
             この案を見送る · 次のアイデア <ArrowRight size={13} />
@@ -252,7 +259,7 @@ function Buzzer({ judge, pressed, disabled, onClick }: { judge: JudgeView; press
   );
 }
 
-function PassEffect({ seed }: { seed: number }) {
+function PassEffect({ seed, name }: { seed: number; name: string }) {
   const reduce = useReducedMotion();
   return (
     <>
@@ -273,23 +280,32 @@ function PassEffect({ seed }: { seed: number }) {
           />
         ))}
       </div>
-      <div className="pass-effect ascending" key={`p${seed}`}>
-        <div className="light-pillar" />
-        <div className="gold-orbit orbit1" />
-        <div className="gold-orbit orbit2" />
-        <motion.div className="pass-title" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-          <Crown />
-          <strong>合格！</strong>
-          <span>UNANIMOUS APPROVAL</span>
-        </motion.div>
-      </div>
+      <motion.div
+        className="ia-pass"
+        key={`p${seed}`}
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <Crown size={22} />
+        <strong>合格！</strong>
+        <span>{name} が合格者待機室へ</span>
+      </motion.div>
     </>
   );
 }
 
 /** 残り10秒からカウントダウン。5秒からは画面のふちが赤く脈打って急かす */
-function Countdown({ leavingAt }: { leavingAt: string | null }) {
+function Countdown({ leavingAt, paused }: { leavingAt: string | null; paused: boolean }) {
   const left = useSecondsLeft(leavingAt);
+  if (paused) {
+    return (
+      <div className="ia-deepdive" role="status">
+        <strong>🔍 深掘りタイム！</strong>
+        <span>質問や議論のあいだは、交代のカウントを止めています</span>
+      </div>
+    );
+  }
   if (!leavingAt || left <= 0 || left > COUNTDOWN_FROM) return null;
   const urgent = left <= URGENT_FROM;
   return (

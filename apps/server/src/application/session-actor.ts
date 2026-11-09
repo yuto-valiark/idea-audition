@@ -63,6 +63,13 @@ export interface RotationConfig {
   policy: RotationPolicy;
 }
 
+/** 深掘りタイム（#5）：カーソルをこれだけ乗せていたら止める */
+const DWELL_PAUSE_MS = 2_000;
+/** 質問・回答・話題にしたあと、議論の時間として止めておく長さ */
+const DISCUSS_GRACE_MS = 8_000;
+/** 再開したときに最低残す時間（話し終えた直後に急かさない） */
+const RESUME_MIN_MS = 10_000;
+
 export const DEFAULT_ROTATION: RotationConfig = {
   checkMs: 1_000,
   // 1人ずつの審査（#5）：1人の持ち時間。過ぎたら次の人と交代する
@@ -159,6 +166,8 @@ export class SessionActor {
   private planner: PlannerState = newPlannerState();
   private embeddings = new Map<string, number[]>(); // 企画名 → 埋め込み（メモリのみ）
   private hoverSince = new Map<string, { instanceId: string; at: number }>(); // judgeId → ホバー開始
+  /** 深掘りタイム：この時刻までは議論中として交代を止める */
+  private engagedUntil = new Map<string, number>();
   private hesitation = new HesitationGate();
   private tasteTimer: (() => void) | null = null;
 
@@ -623,6 +632,7 @@ export class SessionActor {
       mentionEvents.push(...s.touch(targetInstanceId, 'mentionName'));
     }
     for (const id of mentions.mentioned) this.tasteSignal(judgeId, id, 'mention');
+    for (const id of [...mentions.mentioned, ...(targetInstanceId ? [targetInstanceId] : [])]) this.markEngaged(id);
     // 「うーん」「いいね」：宛先（名前）か、いま見ているキャラへの反応として扱う
     const cue = detectCue(text);
     const cueTarget = targetInstanceId ?? this.focusedTarget(judgeId);
@@ -847,6 +857,7 @@ export class SessionActor {
     const r = s.ask(judgeId, instanceId, question);
     if (!r.ok) return r;
     this.tasteSignal(judgeId, instanceId, 'ask');
+    this.markEngaged(instanceId);
     this.emit([...r.events, ...s.touch(instanceId, 'question')], meta);
     const idea = s.ideaOf(instanceId)!;
     const rev = s.currentRevision(idea.ideaId);
@@ -875,6 +886,7 @@ export class SessionActor {
           return;
         }
         const answer = text ?? 'ごめんなさい、いまうまく答えられませんでした。もう一度聞いてください。';
+        this.markEngaged(instanceId);
         this.emit(s.fillAnswer(r.value.answerId, answer), { actorJudgeId: null, correlationId: meta.correlationId });
       });
     return { ok: true };
@@ -887,6 +899,7 @@ export class SessionActor {
     this.planner = newPlannerState();
     this.hesitation.reset();
     this.hoverSince.clear();
+    this.engagedUntil.clear();
     this.refineQueue = [];
     this.proposalDrafts.clear();
     this.refining = false;
@@ -969,18 +982,41 @@ export class SessionActor {
     const c = s.characters.get(id);
     if (!c) return;
     const now = this.deps.clock.now();
+    // 深掘りタイム：質問・議論・じっくり見ている間はカウントを止め、終わったら再開する
+    if (this.isEngaged(id, now)) {
+      if (c.leavingAt !== null) this.emit(s.pauseChallenge(id), { actorJudgeId: null });
+      return;
+    }
+    if (c.pausedLeftMs != null) {
+      this.emit(s.resumeChallenge(id, RESUME_MIN_MS), { actorJudgeId: null });
+      return;
+    }
     // 登場したら持ち時間を決める（1人ずつの審査、#5）
     if (c.leavingAt === null) {
       this.emit(s.beginLeaving(id, rotation.warningMs), { actorJudgeId: null });
       return;
     }
-    // 回答を待っている間は交代しない
-    if (s.answers.some((x) => x.instanceId === id && x.answer === null)) return;
     if (now < c.leavingAt || s.stock.length === 0) return; // 次の案が届くまで待つ
     s.recordDecision('timed_out', id, null);
     const r = s.rotate(id);
     if (r.ok) this.emit(r.events, { actorJudgeId: null });
     this.ensureStock();
+  }
+
+  /**
+   * 深掘り中か：回答待ち、誰かが詳細を開いている、2秒以上カーソルを乗せている、
+   * 最後に質問・話題にしてから少しの間（議論の時間）
+   */
+  private isEngaged(instanceId: string, now: number) {
+    if (this.session.answers.some((x) => x.instanceId === instanceId && x.answer === null)) return true;
+    for (const f of this.focus.values()) if (f.detail === instanceId) return true;
+    for (const h of this.hoverSince.values()) if (h.instanceId === instanceId && now - h.at >= DWELL_PAUSE_MS) return true;
+    return (this.engagedUntil.get(instanceId) ?? 0) > now;
+  }
+
+  /** 質問・回答・話題にのぼった：その後しばらくは議論の時間として止めておく */
+  private markEngaged(instanceId: string) {
+    this.engagedUntil.set(instanceId, this.deps.clock.now() + DISCUSS_GRACE_MS);
   }
 
   /** いま誰かが見ている・触っている案 */

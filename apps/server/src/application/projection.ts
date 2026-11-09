@@ -36,6 +36,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
             mentions: c.attention.mentions,
             leavingAt: c.leavingAt === null ? null : iso(c.leavingAt),
             spawnedAt: iso(c.spawnedAt),
+            paused: c.pausedLeftMs != null,
             reaction:
               c.reaction && now - c.reaction.at < REACTION_VISIBLE_MS
                 ? { kind: c.reaction.kind, judgeId: c.reaction.judgeId, text: c.reaction.text, at: iso(c.reaction.at) }

@@ -125,12 +125,14 @@ describe('アクターの入れ替え', () => {
     expect(actor.session.lowerSlots[0]).toBeTruthy();
   });
 
-  it('触れても持ち時間は延びない', async () => {
+  it('一瞬カーソルが乗っただけでは止まらない（2秒未満）', async () => {
     const { actor, a, tick } = await setup();
     const first = actor.session.lowerSlots[0]!;
     await tick(1_000);
-    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: first }));
-    await tick(2_500);
+    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: null }));
+    await tick(1_000);
+    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: null, detail: null }));
+    await tick(1_500);
     expect(actor.session.characters.get(first)!.location).toBe('archived');
   });
 
@@ -168,6 +170,37 @@ describe('アクターの入れ替え', () => {
     buzz(actor, a);
     actor.detach(b.conn);
     expect(actor.session.characters.get(first)!.location).toBe('upper');
+  });
+
+  it('深掘りタイム：質問すると交代のカウントが止まり、話し終わると最低10秒残して再開する', async () => {
+    const { actor, a, tick, events } = await setup();
+    const first = actor.session.lowerSlots[0]!;
+    await tick(1_000);
+    actor.receiveCommand(a.conn, cmd('ASK_CANDIDATE', { instanceId: first, text: '費用はどのくらい？' }));
+    await tick(1_000);
+    expect(events().some((e) => e.type === 'CHALLENGE_PAUSED')).toBe(true);
+    expect(events().at(-1)!.snapshot.characters[first]!.paused).toBe(true);
+    // 持ち時間（2秒）を大きく過ぎても、議論の間は交代しない
+    await tick(6_000);
+    expect(actor.session.lowerSlots[0]).toBe(first);
+    await tick(4_000);
+    const resumed = events().find((e) => e.type === 'CHALLENGE_RESUMED');
+    expect(resumed).toBeDefined();
+    expect(Date.parse(resumed!.detail.leavingAt as string) - Date.parse(resumed!.snapshot.characters[first]!.spawnedAt!)).toBeGreaterThan(10_000);
+    expect(actor.session.lowerSlots[0]).toBe(first);
+  });
+
+  it('深掘りタイム：2秒以上カーソルを乗せている間も止まる', async () => {
+    const { actor, a, tick } = await setup();
+    const first = actor.session.lowerSlots[0]!;
+    await tick(500);
+    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: null }));
+    await tick(8_000);
+    expect(actor.session.lowerSlots[0]).toBe(first);
+    expect(actor.session.characters.get(first)!.pausedLeftMs).not.toBeNull();
+    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: null, detail: null }));
+    await tick(1_000);
+    expect(actor.session.characters.get(first)!.pausedLeftMs ?? null).toBeNull();
   });
 
   it('3人合格したら、新しい挑戦者は出ない（最終オーディションへ）', async () => {

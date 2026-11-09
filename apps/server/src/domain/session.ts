@@ -500,6 +500,24 @@ export class AuditionSession {
     return [{ type: 'CANDIDATE_LEAVING', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
   }
 
+  /** 深掘りタイム：交代のカウントを止める（残り時間を覚えておく） */
+  pauseChallenge(instanceId: string): DomainEvent[] {
+    const c = this.characters.get(instanceId);
+    if (!c || c.location !== 'lower' || c.leavingAt === null || c.pausedLeftMs != null) return [];
+    c.pausedLeftMs = Math.max(0, c.leavingAt - this.deps.clock.now());
+    c.leavingAt = null;
+    return [{ type: 'CHALLENGE_PAUSED', detail: { instanceId } }];
+  }
+
+  /** 深掘りが終わったらカウントを再開する。話し終えた直後に急かさないよう、最低 minMs は残す */
+  resumeChallenge(instanceId: string, minMs: number): DomainEvent[] {
+    const c = this.characters.get(instanceId);
+    if (!c || c.pausedLeftMs == null) return [];
+    c.leavingAt = this.deps.clock.now() + Math.max(c.pausedLeftMs, minMs);
+    c.pausedLeftMs = null;
+    return [{ type: 'CHALLENGE_RESUMED', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
+  }
+
   /** 退場予告をすべて取り消す（誰もいなくなったとき） */
   cancelAllLeaving() {
     for (const c of this.characters.values()) c.leavingAt = null;

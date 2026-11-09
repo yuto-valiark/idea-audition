@@ -1417,6 +1417,25 @@
   .ia-prelim .ia-urgent, .ia-prelim .ia-countdown[data-urgent] { animation: none; }
 }
 
+.ia-prelim .ia-pass {
+  position: absolute; left: 50%; top: 40%; z-index: 8; transform: translateX(-50%);
+  display: grid; justify-items: center; gap: 2px; pointer-events: none;
+  padding: 12px 28px; border-radius: 18px;
+  background: #2a1806e6; border: 2px solid #ffcf6b; box-shadow: 0 0 40px #ffcf4b99;
+  color: #ffe9b0;
+}
+.ia-prelim .ia-pass strong { font-size: 40px; font-weight: 900; color: #ffd76b; text-shadow: 0 0 18px #ffb400; line-height: 1.1; }
+.ia-prelim .ia-pass span { font-size: 13px; font-weight: 700; }
+.ia-prelim .ia-deepdive {
+  position: absolute; left: 50%; top: 9%; transform: translateX(-50%); z-index: 7;
+  display: grid; justify-items: center; gap: 2px;
+  padding: 8px 20px; border-radius: 16px;
+  background: #0b2230dd; border: 1.5px solid #5be3d0; box-shadow: 0 0 22px #3fd6c866;
+  color: #d9fff9;
+}
+.ia-prelim .ia-deepdive strong { font-size: 22px; font-weight: 900; color: #7ff5e3; }
+.ia-prelim .ia-deepdive span { font-size: 11px; color: #b9ece4; }
+
 .ia-prelim .ia-preparing { margin: auto; color: #b9a8d0; font-size: 14px; }
 .ia-prelim .hero-character { position: relative; }
 .ia-prelim .ia-bubble {

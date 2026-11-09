@@ -39,6 +39,8 @@ export const CharacterView = z.object({
   leavingAt: z.string().nullable(),
   /** 審査員の反応へのキャラの反応（🤔 など）。数秒で消える */
   reaction: ReactionView.nullable(),
+  /** 深掘りタイム中（質問・議論・じっくり見ている間は交代のカウントを止める） */
+  paused: z.boolean().optional(),
   /** 登場した時刻（これまでの挑戦者の並び順） */
   spawnedAt: z.string().optional(),
 });

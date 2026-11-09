@@ -143,6 +143,8 @@ export interface CharacterInstance {
   attention: Attention;
   /** 退場予告中ならその時刻（この時刻に退場する） */
   leavingAt: number | null;
+  /** 深掘りタイムで止めているあいだの、残り時間（止めていなければ null） */
+  pausedLeftMs?: number | null;
   reaction?: Reaction | null;
 }
 
