@@ -25,7 +25,7 @@ export async function downloadProposalPdf(snapshot: SessionSnapshot) {
     const filename = `IDEA_AUDITION_企画書_${sanitize(content.title)}.pdf`;
     // pagebreak は型定義に無いが html2pdf.js の正式なオプション
     const options: Record<string, unknown> = {
-      margin: [8, 0, 10, 0],
+      margin: [10, 0, 12, 0],
       filename,
       image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },

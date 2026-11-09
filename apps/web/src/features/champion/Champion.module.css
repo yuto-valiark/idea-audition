@@ -2,115 +2,93 @@
   position: relative;
   z-index: 1;
   flex: 1;
+  text-align: center;
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
-  align-items: stretch;
-  column-gap: clamp(16px, 2.4vw, 36px);
-  padding: clamp(10px, 1.8vh, 22px) clamp(16px, 3vw, 44px);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  column-gap: 4vw;
+  padding: 2vh 6vw;
   background: radial-gradient(ellipse at 50% 35%, #c37c2826, transparent 65%);
 }
 
+/* プレビューをしまっている時は元の2カラム（左：王冠とキャラ、右：案と操作）をそのまま使う */
 .leftPane {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: clamp(6px, 1.2vh, 14px);
-  overflow-y: auto;
+  display: contents;
 }
 
-.hero {
+.hero,
+.body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+}
+
+.body {
+  align-items: stretch;
+  text-align: left;
+  gap: 1.2vh;
 }
 
 .eyebrow {
   color: #d9ae6b;
   font-size: 11px;
-  letter-spacing: 2.2px;
+  letter-spacing: 2.3px;
   font-weight: 700;
 }
 
-.heroBanner {
-  display: flex;
-  align-items: center;
-  gap: clamp(12px, 1.6vw, 22px);
-  width: 100%;
-}
-
-.heroTitles {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
 .crown {
-  width: clamp(28px, 4.2vh, 44px);
-  height: clamp(28px, 4.2vh, 44px);
+  width: clamp(40px, 6vh, 60px);
+  height: clamp(40px, 6vh, 60px);
   color: #ffcd60;
-  filter: drop-shadow(0 0 15px #ffbd48);
+  filter: drop-shadow(0 0 17px #ffbd48);
+  margin: 12px auto 0;
   display: block;
   animation: crown 1s var(--ease-pop) both;
 }
 
 .champion h1 {
   white-space: nowrap;
-  font-size: clamp(22px, min(2.8vw, 5.2vh), 46px);
-  letter-spacing: 3px;
+  font-size: clamp(22px, min(3.4vw, 6.5vh), 60px);
+  letter-spacing: 5px;
   background: linear-gradient(#fff2bb, #e4a444);
   background-clip: text;
   color: transparent;
-  margin: 0;
+  margin: 4px 0 0;
 }
 
 .spot {
   position: relative;
   width: fit-content;
-  flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .spot::before {
   content: '';
   position: absolute;
-  inset: -18% -32% 0;
+  inset: -20% -40% 0;
   background: radial-gradient(ellipse at 50% 80%, #ffd06e44, transparent 65%);
   z-index: -1;
 }
 
 .mascot {
-  width: clamp(84px, min(11vw, 17vh), 148px);
+  width: clamp(120px, min(22vw, 36vh), 320px);
   animation: bounce 1.4s ease-in-out infinite;
 }
 
-.body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  text-align: left;
-  gap: clamp(6px, 1.1vh, 12px);
-}
-
 .champion h2 {
-  font-size: clamp(18px, min(2vw, 3.6vh), 30px);
+  font-size: clamp(22px, min(2.4vw, 4.4vh), 40px);
   color: #fff1c7;
   margin: 0;
-  line-height: 1.3;
 }
 
 .summary {
-  font-size: clamp(12.5px, 1.75vh, 15px);
+  font-size: clamp(13px, 1.9vh, 16px);
   color: #d7c0ad;
   white-space: pre-line;
-  line-height: 1.65;
+  line-height: 1.8;
   margin: 0;
 }
 
@@ -118,7 +96,7 @@
   margin: 0;
   background: #6e482322;
   border: 1px solid #b2853c55;
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-radius: 8px;
   text-align: left;
 }
@@ -128,8 +106,8 @@
   align-items: center;
   gap: 8px;
   color: #e9cf9e;
-  font-size: clamp(11.5px, 1.65vh, 13.5px);
-  margin: 4px 0;
+  font-size: clamp(12px, 1.8vh, 14px);
+  margin: 6px 0;
 }
 
 .meta {
@@ -142,8 +120,8 @@
   flex-wrap: wrap;
   justify-content: flex-start;
   align-items: center;
-  gap: 10px;
-  margin-top: 2px;
+  gap: 15px;
+  margin-top: 0;
 }
 
 .actions button {
@@ -153,13 +131,13 @@
 .primary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: linear-gradient(105deg, #9a45e8, #7736db);
   border: 1px solid #c785ff;
   border-radius: 7px;
   font-weight: 700;
-  padding: 10px 15px;
-  font-size: 12.5px;
+  padding: 13px 18px;
+  font-size: 13px;
 }
 
 .secondary {
@@ -169,7 +147,7 @@
   font-size: 12px;
   color: #e5cba1;
   border: 1px solid #977645;
-  padding: 9px 13px;
+  padding: 12px 14px;
   border-radius: 7px;
 }
 
@@ -222,10 +200,18 @@
   color: #fde7bd;
 }
 
+.proposalRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .proposal[data-state='generating'] {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: #e8d6b8;
 }
 
@@ -246,18 +232,32 @@
 .download {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: 14px;
+  gap: 10px;
+  font-size: 15px;
   font-weight: 800;
   color: #2a1606;
   background: linear-gradient(105deg, #ffe08a, #f0a83c);
   border: 1px solid #fff0c2;
-  border-radius: 9px;
-  padding: 11px 20px;
+  border-radius: 10px;
+  padding: 14px 26px;
   box-shadow:
-    0 0 24px #ffbd4688,
+    0 0 26px #ffbd4688,
     inset 0 1px 0 #fff6d8;
   animation: glowPulse 1.8s ease-in-out infinite alternate;
+}
+
+.toggleViewerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3e8ff;
+  background: #2b1846cc;
+  border: 1px solid #a26ee5;
+  border-radius: 9px;
+  padding: 12px 16px;
+  white-space: nowrap;
 }
 
 .spin {
@@ -267,7 +267,7 @@
 @keyframes glowPulse {
   to {
     box-shadow:
-      0 0 38px #ffbd46cc,
+      0 0 40px #ffbd46cc,
       inset 0 1px 0 #fff6d8;
   }
 }
@@ -276,6 +276,77 @@
   to {
     rotate: 360deg;
   }
+}
+
+/* ==================== 企画書プレビュー展開時の2ペインレイアウト ==================== */
+.champion[data-viewer-open='true'] {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: stretch;
+  column-gap: clamp(16px, 2.4vw, 36px);
+  padding: clamp(10px, 1.8vh, 22px) clamp(16px, 3vw, 44px);
+}
+
+.champion[data-viewer-open='true'] .leftPane {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(6px, 1.1vh, 12px);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.champion[data-viewer-open='true'] .crown {
+  width: clamp(28px, 4vh, 42px);
+  height: clamp(28px, 4vh, 42px);
+  margin: 4px auto 0;
+}
+
+.champion[data-viewer-open='true'] h1 {
+  font-size: clamp(20px, min(2.6vw, 4.8vh), 42px);
+  letter-spacing: 3px;
+}
+
+.champion[data-viewer-open='true'] .mascot {
+  width: clamp(80px, min(11vw, 15vh), 136px);
+}
+
+.champion[data-viewer-open='true'] h2 {
+  font-size: clamp(18px, min(2vw, 3.4vh), 28px);
+}
+
+.champion[data-viewer-open='true'] .summary {
+  font-size: clamp(12.5px, 1.7vh, 14.5px);
+  line-height: 1.65;
+}
+
+.champion[data-viewer-open='true'] .notes {
+  padding: 5px 14px;
+}
+
+.champion[data-viewer-open='true'] .notes p {
+  font-size: clamp(11.5px, 1.6vh, 13px);
+  margin: 4px 0;
+}
+
+.champion[data-viewer-open='true'] .download {
+  font-size: 13.5px;
+  padding: 11px 18px;
+}
+
+.champion[data-viewer-open='true'] .toggleViewerBtn {
+  font-size: 12.5px;
+  padding: 10px 14px;
+}
+
+.champion[data-viewer-open='true'] .primary {
+  padding: 10px 15px;
+  font-size: 12.5px;
+}
+
+.champion[data-viewer-open='true'] .secondary {
+  padding: 9px 13px;
+  font-size: 12px;
 }
 
 /* ==================== 企画書ページめくりビューア ==================== */
@@ -385,7 +456,8 @@
   white-space: nowrap;
 }
 
-.expandBtn {
+.expandBtn,
+.closeViewerBtn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -399,23 +471,29 @@
   white-space: nowrap;
 }
 
+.closeViewerBtn {
+  color: #ffe2b8;
+  border-color: #a87b45;
+  background: #332018;
+}
+
 .pageTabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   padding: 6px 10px;
   background: #180d29;
   border-bottom: 1px solid #5c398655;
 }
 
 .pageTab {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: #b79fd1;
   background: #23143a;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 5px 6px;
+  padding: 5px 8px;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -468,30 +546,18 @@
   display: none;
 }
 
-/* 狭い画面幅・縦長画面でもはみ出さずに最後までめくって読めるレイアウト */
-@media (max-width: 960px), (max-aspect-ratio: 1/1) {
-  .champion {
+@media (max-width: 900px), (max-aspect-ratio: 1/1) {
+  .champion,
+  .champion[data-viewer-open='true'] {
     grid-template-columns: 1fr;
     align-content: start;
-    row-gap: 14px;
-    padding: 12px 14px 20px;
+    row-gap: 1.2vh;
+    padding: 1.5vh 20px 20px;
     overflow-y: auto;
     overflow-x: hidden;
   }
-  .leftPane {
+  .champion[data-viewer-open='true'] .leftPane {
     overflow: visible;
-  }
-  .hero {
-    align-items: center;
-    text-align: center;
-  }
-  .heroBanner {
-    flex-direction: column;
-    justify-content: center;
-    gap: 6px;
-  }
-  .heroTitles {
-    align-items: center;
   }
   .body {
     text-align: center;
@@ -500,16 +566,22 @@
   .body .proposal {
     justify-items: center;
   }
+  .proposalRow {
+    justify-content: center;
+  }
   .body .actions {
     justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
   }
   .mascot {
-    width: clamp(78px, 14vh, 128px);
+    width: clamp(90px, 16vh, 180px);
   }
   .champion h1 {
-    font-size: clamp(20px, 6vw, 36px);
+    font-size: clamp(20px, 7vw, 40px);
+  }
+  .crown {
+    margin-top: 4px;
   }
   .viewerPane {
     height: auto;
@@ -518,8 +590,5 @@
   .viewerViewport {
     max-height: 62svh;
     padding: 8px;
-  }
-  .pageTabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

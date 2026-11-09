@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, Copy, Crown, Expand, FileDown, Loader2, Minimize2, RotateCcw, Share2, X } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, Crown, Expand, EyeOff, FileDown, Loader2, Minimize2, RotateCcw, Share2, X } from 'lucide-react';
 import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion } from 'motion/react';
@@ -17,10 +17,16 @@ export function ChampionScreen() {
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
   const { isHost } = useMe();
+  const [viewerOpen, setViewerOpen] = useState(true);
   const champ = snapshot.champion!;
   const character = snapshot.characters[champ.instanceId];
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
+
+  useEffect(() => {
+    setViewerOpen(true);
+  }, [snapshot.sessionId, snapshot.champion?.instanceId]);
+
   if (!character || !idea || !rev) return null;
   // 今の案（優勝した版）の内容だけを出す。過去の版の改善点を足し合わせると、やめた条件が混ざって矛盾する
   const outline = rev.outline ?? null;
@@ -36,9 +42,10 @@ export function ChampionScreen() {
       proposal: snapshot.proposal?.status === 'ready' ? snapshot.proposal.content : null,
     });
   const canShare = typeof navigator !== 'undefined' && typeof (navigator as { share?: unknown }).share === 'function';
+  const showViewer = viewerOpen && !!snapshot.proposal;
 
   return (
-    <section className={styles.champion}>
+    <section className={styles.champion} data-viewer-open={showViewer || undefined}>
       <div className={styles.confetti} aria-hidden>
         {Array.from({ length: 48 }, (_, n) => (
           <i
@@ -54,18 +61,10 @@ export function ChampionScreen() {
       <div className={styles.leftPane}>
         <div className={styles.hero}>
           <div className={styles.eyebrow}>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</div>
-          <div className={styles.heroBanner}>
-            <div className={styles.spot}>
-              <Mascot designId={character.designId} className={styles.mascot} />
-            </div>
-            <div className={styles.heroTitles}>
-              <Crown className={styles.crown} />
-              <h1>IDEA CHAMPION</h1>
-              <span className={styles.meta}>
-                {character.name} · Ver.{rev.version}（全{idea.revisions.length}版）
-                {tally ? ` · 得票 ${tally[champ.instanceId] ?? 0}` : ''}
-              </span>
-            </div>
+          <Crown className={styles.crown} />
+          <h1>IDEA CHAMPION</h1>
+          <div className={styles.spot}>
+            <Mascot designId={character.designId} className={styles.mascot} />
           </div>
         </div>
         <div className={styles.body}>
@@ -80,7 +79,11 @@ export function ChampionScreen() {
               ))}
             </div>
           )}
-          <ProposalDownloadBar />
+          <span className={styles.meta}>
+            {character.name} · Ver.{rev.version}（全{idea.revisions.length}版）
+            {tally ? ` · 得票 ${tally[champ.instanceId] ?? 0}` : ''}
+          </span>
+          <ProposalDownloadBar viewerOpen={viewerOpen} onToggleViewer={() => setViewerOpen((v) => !v)} />
           <div className={styles.actions}>
             {isHost || snapshot.mode === 'solo' ? (
               <button className={styles.primary} onClick={() => void send('RESET_SESSION', {})}>
@@ -116,13 +119,19 @@ export function ChampionScreen() {
           </div>
         </div>
       </div>
-      <ProposalViewerPane />
+      {showViewer && <ProposalViewerPane onClose={() => setViewerOpen(false)} />}
     </section>
   );
 }
 
-/** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする */
-function ProposalDownloadBar() {
+/** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロード・プレビュー開閉できるようにする */
+function ProposalDownloadBar({
+  viewerOpen,
+  onToggleViewer,
+}: {
+  viewerOpen: boolean;
+  onToggleViewer: () => void;
+}) {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
@@ -134,6 +143,17 @@ function ProposalDownloadBar() {
     return (
       <div className={styles.proposal} data-state="generating" role="status">
         <Loader2 size={18} className={styles.spin} /> 企画書と審査レポートを作成中…
+        <button type="button" className={styles.toggleViewerBtn} onClick={onToggleViewer}>
+          {viewerOpen ? (
+            <>
+              <EyeOff size={15} /> プレビューをしまう
+            </>
+          ) : (
+            <>
+              <BookOpen size={15} /> プレビューを表示
+            </>
+          )}
+        </button>
       </div>
     );
   }
@@ -153,31 +173,49 @@ function ProposalDownloadBar() {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 18 }}
     >
-      <button
-        className={styles.download}
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await downloadProposalPdf(snapshot);
-            toast('企画書をダウンロードしました', 'gold');
-          } catch (e) {
-            console.error(e);
-            toast('PDFを作れませんでした。もう一度お試しください', 'warn');
-          } finally {
-            setSaving(false);
-          }
-        }}
-      >
-        {saving ? <Loader2 size={18} className={styles.spin} /> : <FileDown size={18} />}
-        {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
-      </button>
+      <div className={styles.proposalRow}>
+        <button
+          className={styles.download}
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await downloadProposalPdf(snapshot);
+              toast('企画書をダウンロードしました', 'gold');
+            } catch (e) {
+              console.error(e);
+              toast('PDFを作れませんでした。もう一度お試しください', 'warn');
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          {saving ? <Loader2 size={18} className={styles.spin} /> : <FileDown size={18} />}
+          {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
+        </button>
+        <button
+          type="button"
+          className={styles.toggleViewerBtn}
+          aria-expanded={viewerOpen}
+          onClick={onToggleViewer}
+        >
+          {viewerOpen ? (
+            <>
+              <EyeOff size={16} /> 企画書をしまう
+            </>
+          ) : (
+            <>
+              <BookOpen size={16} /> 企画書を見る
+            </>
+          )}
+        </button>
+      </div>
     </motion.div>
   );
 }
 
-/** ダウンロードしなくても、優勝画面のその場で企画書PDFの中身をページごとにめくって読めるビューア */
-function ProposalViewerPane() {
+/** ダウンロードしなくても、優勝画面のその場で企画書PDFの中身をめくって読めるビューア */
+function ProposalViewerPane({ onClose }: { onClose: () => void }) {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const proposal = snapshot.proposal;
@@ -219,10 +257,26 @@ function ProposalViewerPane() {
   if (proposal.status === 'generating') {
     return (
       <aside className={styles.viewerPane} aria-label="企画書プレビュー">
+        <div className={styles.viewerHeader}>
+          <div className={styles.viewerTitleGroup}>
+            <span className={styles.viewerBadge}>企画書プレビュー</span>
+          </div>
+          <div className={styles.viewerNav}>
+            <button
+              type="button"
+              className={styles.closeViewerBtn}
+              aria-label="企画書プレビューをしまう"
+              onClick={onClose}
+            >
+              <X size={15} />
+              <span>しまう</span>
+            </button>
+          </div>
+        </div>
         <div className={styles.viewerPlaceholder} role="status">
           <Loader2 size={28} className={styles.spin} />
           <strong>企画書と審査レポートを作成しています…</strong>
-          <p>できあがると、この場所で1ページずつめくって読めます。</p>
+          <p>できあがると、この場所で企画書と審査レポートを読めます。</p>
         </div>
       </aside>
     );
@@ -231,6 +285,22 @@ function ProposalViewerPane() {
   if (proposal.status === 'failed' || !proposal.content) {
     return (
       <aside className={styles.viewerPane} aria-label="企画書プレビュー">
+        <div className={styles.viewerHeader}>
+          <div className={styles.viewerTitleGroup}>
+            <span className={styles.viewerBadge}>企画書プレビュー</span>
+          </div>
+          <div className={styles.viewerNav}>
+            <button
+              type="button"
+              className={styles.closeViewerBtn}
+              aria-label="企画書プレビューをしまう"
+              onClick={onClose}
+            >
+              <X size={15} />
+              <span>しまう</span>
+            </button>
+          </div>
+        </div>
         <div className={styles.viewerPlaceholder}>
           <strong>企画書を作れませんでした</strong>
           <button className={styles.retryBtn} onClick={() => void send('REGENERATE_PROPOSAL', {})}>
@@ -248,11 +318,6 @@ function ProposalViewerPane() {
       <div className={styles.viewerTitleGroup}>
         <span className={styles.viewerBadge}>{currentMeta.part}</span>
         <strong className={styles.viewerSectionTitle}>{currentMeta.label}</strong>
-        {proposal.content?.imageUrl && (
-          <span className={styles.viewerBadge} data-visual-badge="true">
-            AIイメージ図つき
-          </span>
-        )}
       </div>
       <div className={styles.viewerNav}>
         <button
@@ -286,12 +351,24 @@ function ProposalViewerPane() {
           {isModal ? <Minimize2 size={15} /> : <Expand size={15} />}
           <span>{isModal ? '閉じる' : '拡大'}</span>
         </button>
+        {!isModal && (
+          <button
+            type="button"
+            className={styles.closeViewerBtn}
+            aria-label="企画書プレビューをしまう"
+            title="プレビューをしまう"
+            onClick={onClose}
+          >
+            <X size={15} />
+            <span>しまう</span>
+          </button>
+        )}
       </div>
     </div>
   );
 
   const renderTabs = () => (
-    <div className={styles.pageTabs} role="tablist" aria-label="企画書のページ一覧">
+    <div className={styles.pageTabs} role="tablist" aria-label="企画書のパート一覧">
       {PROPOSAL_PAGES.map((p) => (
         <button
           key={p.index}

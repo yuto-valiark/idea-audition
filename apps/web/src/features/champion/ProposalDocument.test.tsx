@@ -142,23 +142,21 @@ function makeSampleSnapshot(): { snapshot: SessionSnapshot; content: ProposalCon
 }
 
 describe('ProposalDocument', () => {
-  it('renders all 4 pages with mascot images and selection reasons when page is omitted', () => {
+  it('renders original 2-part proposal layout with embedded concept image when page is omitted', () => {
     const { snapshot, content } = makeSampleSnapshot();
     const html = renderToStaticMarkup(<ProposalDocument snapshot={snapshot} content={content} />);
-    expect(PROPOSAL_PAGES).toHaveLength(4);
+    expect(PROPOSAL_PAGES).toHaveLength(2);
     expect(html).toContain('data-page="1"');
     expect(html).toContain('data-page="2"');
-    expect(html).toContain('data-page="3"');
-    expect(html).toContain('data-page="4"');
     expect(html).toContain('data-mascot-design="0"');
     expect(html).toContain('data-proposal-visual="true"');
-    expect(html).toContain('AI CONCEPT VISUAL');
-    expect(html).toContain('なぜこの案が選ばれたか');
-    expect(html).toContain('01 · 誰のための企画か');
+    expect(html).toContain('IDEA AUDITION · 企画書');
+    expect(html).toContain('IDEA AUDITION · 審査レポート');
+    expect(html).toContain('この企画に決まるまで');
     expect(html).not.toContain('color-mix');
   });
 
-  it('renders only the requested page when page index is passed for the in-screen viewer', () => {
+  it('renders only the requested part when page index is passed for the in-screen viewer', () => {
     const { snapshot, content } = makeSampleSnapshot();
     for (const p of PROPOSAL_PAGES) {
       const html = renderToStaticMarkup(<ProposalDocument snapshot={snapshot} content={content} page={p.index} preview />);
