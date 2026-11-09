@@ -11,9 +11,8 @@ import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
 export const PASS_CEREMONY_MS = 900;
-/** この秒数からカウントダウンを出す。URGENT 秒からは画面を赤くして急かす */
+/** この秒数から、右上に「あと n 秒で交代」を出す */
 const COUNTDOWN_FROM = 10;
-const URGENT_FROM = 5;
 
 /**
  * 予選（#5）：新しいアイデアは1人ずつ登場する。
@@ -134,8 +133,6 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
   return (
     <motion.div
       className="solo-performance"
-      onPointerEnter={() => setHoverFocus(instanceId)}
-      onPointerLeave={() => setHoverFocus(null)}
       initial={{ opacity: 0, y: reduced ? 0 : 45 }}
       animate={{ opacity: promoting ? 0 : 1, y: promoting ? (reduced ? 0 : -220) : 0, scale: promoting ? 0.7 : 1 }}
       exit={{ opacity: 0, y: 20 }}
@@ -143,6 +140,9 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
     >
       <motion.button
         className="hero-character"
+        // キャラの体にカーソルを乗せると深掘りタイム（交代のカウントが止まる）
+        onPointerEnter={() => setHoverFocus(instanceId)}
+        onPointerLeave={() => setHoverFocus(null)}
         onClick={() => select(instanceId)}
         aria-label={`${character.name}の企画詳細`}
         animate={reduced || promoting ? {} : { y: [0, -7, 0] }}
@@ -295,30 +295,25 @@ function PassEffect({ seed, name }: { seed: number; name: string }) {
   );
 }
 
-/** 残り10秒からカウントダウン。5秒からは画面のふちが赤く脈打って急かす */
+/** 右上の表示：深掘りタイム中はそれを、残り10秒からは「あと n 秒で交代」を出す（急かす演出はしない） */
 function Countdown({ leavingAt, paused }: { leavingAt: string | null; paused: boolean }) {
   const left = useSecondsLeft(leavingAt);
   if (paused) {
     return (
-      <div className="ia-deepdive" role="status">
+      <div className="ia-corner ia-deepdive" role="status">
         <strong>🔍 深掘りタイム！</strong>
-        <span>質問や議論のあいだは、交代のカウントを止めています</span>
+        <span>質問や議論のあいだは、交代を止めています</span>
       </div>
     );
   }
   if (!leavingAt || left <= 0 || left > COUNTDOWN_FROM) return null;
-  const urgent = left <= URGENT_FROM;
   return (
-    <>
-      {urgent && <div className="ia-urgent" aria-hidden />}
-      <div className="ia-countdown" data-urgent={urgent || undefined} role="timer" aria-label={`あと${left}秒で交代`}>
-        <small>あと</small>
-        <motion.b key={left} initial={{ scale: 1.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.25 }}>
-          {left}
-        </motion.b>
-        <small>秒</small>
-      </div>
-    </>
+    <div className="ia-corner ia-countdown" role="timer" aria-label={`あと${left}秒で交代`}>
+      <span>
+        あと <b>{left}</b> 秒で交代
+      </span>
+      <small>キャラにカーソルを乗せると止まります</small>
+    </div>
   );
 }
 

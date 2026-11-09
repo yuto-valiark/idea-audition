@@ -63,8 +63,8 @@ export interface RotationConfig {
   policy: RotationPolicy;
 }
 
-/** 深掘りタイム（#5）：カーソルをこれだけ乗せていたら止める */
-const DWELL_PAUSE_MS = 2_000;
+/** 深掘りタイム（#5）：キャラの体にカーソルを乗せたらすぐ止める（残り3秒でも止められる） */
+const DWELL_PAUSE_MS = 0;
 /** 質問・回答・話題にしたあと、議論の時間として止めておく長さ */
 const DISCUSS_GRACE_MS = 8_000;
 /** 再開したときに最低残す時間（話し終えた直後に急かさない） */
@@ -322,6 +322,11 @@ export class SessionActor {
       const prev = this.focus.get(entry.judgeId);
       const { hover, detail } = msg.payload;
       this.focus.set(entry.judgeId, { hover, detail });
+      // いまの挑戦者に乗せた・開いたら、次の見回りを待たずにその場でカウントを止める
+      const challenger = this.session.lowerSlots[0];
+      if (challenger && (hover === challenger || detail === challenger)) {
+        this.emit(this.session.pauseChallenge(challenger), { actorJudgeId: entry.judgeId });
+      }
       this.trackDwell(entry.judgeId, hover);
       if (detail && detail !== prev?.detail) this.tasteSignal(entry.judgeId, detail, 'detail');
       const events = [];
@@ -1004,7 +1009,7 @@ export class SessionActor {
   }
 
   /**
-   * 深掘り中か：回答待ち、誰かが詳細を開いている、2秒以上カーソルを乗せている、
+   * 深掘り中か：回答待ち、誰かが詳細を開いている、キャラの体にカーソルを乗せている、
    * 最後に質問・話題にしてから少しの間（議論の時間）
    */
   private isEngaged(instanceId: string, now: number) {

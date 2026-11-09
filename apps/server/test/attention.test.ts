@@ -125,14 +125,16 @@ describe('アクターの入れ替え', () => {
     expect(actor.session.lowerSlots[0]).toBeTruthy();
   });
 
-  it('一瞬カーソルが乗っただけでは止まらない（2秒未満）', async () => {
+  it('キャラから外れれば、また交代のカウントが進む（再開時は最低10秒）', async () => {
     const { actor, a, tick } = await setup();
     const first = actor.session.lowerSlots[0]!;
-    await tick(1_000);
+    await tick(1_500); // 残り約0.5秒
     actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: null }));
-    await tick(1_000);
+    expect(actor.session.characters.get(first)!.pausedLeftMs).not.toBeNull();
     actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: null, detail: null }));
-    await tick(1_500);
+    await tick(9_000);
+    expect(actor.session.characters.get(first)!.location).toBe('lower');
+    await tick(2_500);
     expect(actor.session.characters.get(first)!.location).toBe('archived');
   });
 
@@ -190,7 +192,7 @@ describe('アクターの入れ替え', () => {
     expect(actor.session.lowerSlots[0]).toBe(first);
   });
 
-  it('深掘りタイム：2秒以上カーソルを乗せている間も止まる', async () => {
+  it('深掘りタイム：キャラにカーソルを乗せるとすぐ止まる（残りわずかでも）', async () => {
     const { actor, a, tick } = await setup();
     const first = actor.session.lowerSlots[0]!;
     await tick(500);
