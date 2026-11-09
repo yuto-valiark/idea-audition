@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react';
  * 消音の設定はこの端末に覚える（localStorage）。
  */
 
-export type SfxName = 'buzz' | 'allPressed' | 'pass' | 'leave' | 'tick' | 'champion';
+export type SfxName = 'buzz' | 'allPressed' | 'pass' | 'leave' | 'champion';
 
 type Tone = { freq: number; at: number; dur: number; type?: OscillatorType; gain?: number; slideTo?: number };
 
@@ -28,8 +28,6 @@ export const SFX_TONES: Record<SfxName, readonly Tone[]> = {
   ],
   // 見送り・時間切れ：下がる「ひゅるる」
   leave: [{ freq: 520, at: 0, dur: 0.45, type: 'sine', slideTo: 180, gain: 0.07 }],
-  // 残り数秒：小さな「コッ」
-  tick: [{ freq: 1200, at: 0, dur: 0.04, type: 'square', gain: 0.025 }],
   // 優勝：ファンファーレ
   champion: [
     { freq: 523, at: 0, dur: 0.12, type: 'sawtooth', gain: 0.05 },

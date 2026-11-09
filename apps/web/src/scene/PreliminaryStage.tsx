@@ -503,7 +503,6 @@ function PassEffect({ seed, name }: { seed: number; name: string }) {
  */
 function Countdown({ leavingAt, pausedLeftMs, held }: { leavingAt: string | null; pausedLeftMs: number | null; held: boolean }) {
   const left = useSecondsLeft(leavingAt);
-  useTickSound(pausedLeftMs == null && leavingAt ? left : null);
   if (pausedLeftMs != null || held) {
     return (
       <div className={'ia-corner ' + (held ? 'ia-held' : 'ia-deepdive')} role="status">
@@ -530,14 +529,6 @@ function Countdown({ leavingAt, pausedLeftMs, held }: { leavingAt: string | null
       </div>
     </>
   );
-}
-
-/** 残り3秒から、1秒ごとに小さく「コッ」 */
-const TICK_FROM = 3;
-function useTickSound(left: number | null) {
-  useEffect(() => {
-    if (left != null && left > 0 && left <= TICK_FROM) playSfx('tick');
-  }, [left]);
 }
 
 /** これまでの挑戦者：参考程度に、小さく下に並べる */
