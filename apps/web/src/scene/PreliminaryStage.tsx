@@ -121,7 +121,11 @@ function useNewArrivals(ids: readonly string[]) {
     added.forEach((id) => known.current!.add(id));
     setRecent((r) => [...r, ...added]);
     // 枠が光り終わるまで（約2.6秒）は「着いたばかり」として扱う
-    timers.current.push(setTimeout(() => setRecent((r) => r.filter((id) => !added.includes(id))), 2_600));
+    const timer = setTimeout(() => {
+      setRecent((r) => r.filter((id) => !added.includes(id)));
+      timers.current = timers.current.filter((t) => t !== timer);
+    }, 2_600);
+    timers.current.push(timer);
   }, [key]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   return (id: string) => newcomers.includes(id) || recent.includes(id);
@@ -296,7 +300,9 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
   }, [presses, controls, reduced, promoting]);
 
   const ref = useRef<HTMLSpanElement>(null);
-  const slot = snapshot.upper.findIndex((f) => f.instanceId === instanceId);
+  // 行き先の枠は飛ぶ瞬間に読む（演出の途中で snapshot が届いても、飛ぶのをやり直さない）
+  const slotRef = useRef(-1);
+  slotRef.current = snapshot.upper.findIndex((f) => f.instanceId === instanceId);
   useEffect(() => {
     if (!promoting) return;
     if (reduced) {
@@ -312,8 +318,13 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
         scale: [1, 1.12, 1],
         transition: { duration: 0.55, ease: 'easeOut' },
       });
-      const target = document.querySelector(`.ia-prelim [data-waiting-slot="${slot}"]`);
-      if (cancelled || !ref.current || !target) return;
+      if (cancelled) return;
+      const target = document.querySelector(`.ia-prelim [data-waiting-slot="${slotRef.current}"]`);
+      if (!ref.current || !target) {
+        // 行き先が分からないときは、その場で消える（舞台に残ったままにしない）
+        void controls.start({ opacity: 0, transition: { duration: 0.3 } });
+        return;
+      }
       const from = ref.current.getBoundingClientRect();
       const to = target.getBoundingClientRect();
       // originY: 1（足元）を基準に縮むので、行き先も枠の下寄せで合わせる
@@ -332,7 +343,7 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
     return () => {
       cancelled = true;
     };
-  }, [promoting, controls, reduced, slot]);
+  }, [promoting, controls, reduced]);
 
   return (
     <motion.span ref={ref} className="ia-mascot-react" animate={controls} style={{ originY: 1 }}>

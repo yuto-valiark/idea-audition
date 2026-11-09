@@ -85,6 +85,7 @@ function SoundToggle() {
       className={styles.copy}
       onClick={() => setMuted(!muted)}
       aria-pressed={!muted}
+      aria-label="効果音"
       title={muted ? '効果音をオンにする' : '効果音をオフにする'}
     >
       {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} {muted ? '音オフ' : '音オン'}

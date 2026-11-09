@@ -94,10 +94,15 @@ function audio(): AudioContext | null {
 /** 最初のクリックで音を出せるようにする（main.tsx から一度だけ呼ぶ） */
 export function unlockSfxOnFirstGesture() {
   if (typeof window === 'undefined') return;
+  // Tab キーなど「操作」に数えられない入力では起きないことがあるので、実際に動き出すまで待ち続ける
   const unlock = () => {
-    void audio()?.resume();
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
+    const ac = audio();
+    if (!ac) return;
+    void ac.resume().then(() => {
+      if (ac.state !== 'running') return;
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    });
   };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
@@ -106,7 +111,19 @@ export function unlockSfxOnFirstGesture() {
 export function playSfx(name: SfxName) {
   if (muted) return;
   const ac = audio();
-  if (!ac || ac.state !== 'running') return;
+  if (!ac) return;
+  if (ac.state === 'running') {
+    schedule(ac, name);
+    return;
+  }
+  // タブの切り替えなどで止まっていたら起こし直してから鳴らす（起きなければ鳴らさない）
+  void ac
+    .resume()
+    .then(() => ac.state === 'running' && schedule(ac, name))
+    .catch(() => undefined);
+}
+
+function schedule(ac: AudioContext, name: SfxName) {
   const start = ac.currentTime + 0.01;
   for (const t of SFX_TONES[name]) {
     const osc = ac.createOscillator();

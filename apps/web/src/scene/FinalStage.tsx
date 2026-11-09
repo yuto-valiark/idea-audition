@@ -176,8 +176,8 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
           {thinking && (
             <motion.span
               className={styles.thought}
-              role="status"
-              aria-label={`${character.name}が${thinking}`}
+              // ボタンの中なので読み上げは期待できない。札の「分析中」の表示が同じ状態を文字で伝える
+              aria-hidden
               initial={{ opacity: 0, scale: 0.6, y: 6 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.6 }}

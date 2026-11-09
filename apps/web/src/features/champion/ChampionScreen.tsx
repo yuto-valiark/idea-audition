@@ -12,14 +12,21 @@ import { Mascot } from '../../shared/Mascot.tsx';
 import { useMe } from '../../shared/selectors.ts';
 import styles from './Champion.module.css';
 
+/** 最後にファンファーレを鳴らした優勝（版の ID） */
+let lastFanfare: string | null = null;
+
 export function ChampionScreen() {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
   const { isHost } = useMe();
   const champ = snapshot.champion!;
-  // 優勝が決まった瞬間にファンファーレ（画面を開いたときに1回）
-  useEffect(() => playSfx('champion'), []);
+  // 優勝が決まった瞬間にファンファーレ。同じ優勝では1回だけ（再接続や開発時の二重実行で重ねて鳴らさない）
+  useEffect(() => {
+    if (lastFanfare === champ.revisionId) return;
+    lastFanfare = champ.revisionId;
+    playSfx('champion');
+  }, [champ.revisionId]);
   const character = snapshot.characters[champ.instanceId];
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
