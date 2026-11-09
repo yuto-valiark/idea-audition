@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Check, ChevronRight, Crown, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Crown, SkipForward, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { PITCH_ROLE_ICON, UPPER_CAPACITY, type JudgeView, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../store/display-store.ts';
@@ -36,7 +36,6 @@ export function PreliminaryStage() {
               <span />
               PRELIMINARY AUDITION
             </span>
-            <span className="phase-label">予選 · 全員一致で合格</span>
           </div>
           <div className="stage-light light-one" />
           <div className="stage-light light-two" />
@@ -156,7 +155,6 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
         <span className="character-label">
           <span />
           {character.name}
-          <small>AI CREATOR</small>
         </span>
       </motion.button>
       <motion.button
@@ -188,18 +186,6 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   const pressed = (snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]);
   return (
     <div className="buzzer-zone">
-      <div className="vote-status">
-        <span className="status-dot" />
-        {celebrating
-          ? '全員の「いいね」が、ひとつに。'
-          : !instanceId
-            ? '次のアイデアが登壇中…'
-            : 'おもろいかも、と思ったら自分のブザーを。'}
-        <b>
-          {celebrating ? judges.length : pressed.length}
-          <small> / {judges.length} APPROVED</small>
-        </b>
-      </div>
       <div className="buzzers" style={{ '--count': judges.length } as CSSProperties}>
         {judges.map((j) => (
           <Buzzer
@@ -211,14 +197,12 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
           />
         ))}
       </div>
-      <div className="stage-bottom">
-        <span />
-        {!isSpectator && instanceId && (
-          <button onClick={() => void send('REJECT_CANDIDATE', { instanceId })}>
-            見送る <ArrowRight size={13} />
-          </button>
-        )}
-      </div>
+      {!isSpectator && instanceId && (
+        <button className="ia-skip" onClick={() => void send('REJECT_CANDIDATE', { instanceId })} aria-label="見送って次のアイデアへ" title="見送る">
+          <SkipForward size={22} />
+          <span>交代</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -346,7 +330,7 @@ function History({ snapshot, current }: { snapshot: SessionSnapshot; current: st
             );
           })
         ) : (
-          <span className="empty-history">最初の挑戦者を、あなたのセンスで審査しよう。</span>
+          <span className="empty-history" />
         )}
       </div>
       <span className="history-count">{past.length} IDEAS</span>
