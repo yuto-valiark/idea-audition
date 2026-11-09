@@ -1558,6 +1558,137 @@
   filter: drop-shadow(0 0 18px #b250ffaa) drop-shadow(0 0 40px #8a2be255);
 }
 
+/* キャラの反応（C1）：動きの入れ物。大きさは今の .mascot のまま */
+.ia-prelim .ia-mascot-react,
+.ia-prelim .ia-blink {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+/* ときどき、まばたきのように縦に縮む（4.6秒ごと、一瞬だけ） */
+.ia-prelim .ia-blink {
+  transform-origin: 50% 100%;
+  animation: ia-blink 4.6s ease-in-out infinite;
+}
+@keyframes ia-blink {
+  0%, 92%, 100% { transform: scale(1, 1); }
+  95% { transform: scale(1.03, 0.95); }
+}
+/* 登場したときに頭の上に出る 💡 */
+.ia-prelim .ia-spark {
+  position: absolute;
+  top: 2%;
+  right: 14%;
+  z-index: 4;
+  font-size: 40px;
+  filter: drop-shadow(0 0 12px #ffe36e);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ia-prelim .ia-blink { animation: none; }
+}
+
+/* 次の挑戦者の準備中（C2）：影だけのキャラが、ゆらゆら考えている */
+.ia-prelim .ia-preparing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ia-prelim .ia-preparing p { margin: 0; color: #b9a8d0; font-size: 14px; }
+.ia-prelim .ia-silhouette .mascot {
+  display: block;
+  width: 170px;
+  filter: brightness(0) drop-shadow(0 0 14px #b250ff99);
+  opacity: 0.55;
+  transform-origin: 50% 100%;
+  animation: ia-ponder 1.8s ease-in-out infinite;
+}
+@keyframes ia-ponder {
+  0%, 100% { rotate: 0deg; }
+  25% { rotate: -6deg; }
+  60% { rotate: 4deg; }
+}
+.ia-prelim .ia-prep-dots { display: flex; gap: 6px; }
+.ia-prelim .ia-prep-dots i {
+  width: 9px; height: 9px; border-radius: 50%; background: #d7b6ff;
+  animation: ia-dot 1s ease-in-out infinite;
+}
+.ia-prelim .ia-prep-dots i:nth-child(2) { animation-delay: 0.15s; }
+.ia-prelim .ia-prep-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ia-dot {
+  0%, 100% { opacity: 0.3; translate: 0 0; }
+  40% { opacity: 1; translate: 0 -4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ia-prelim .ia-silhouette .mascot, .ia-prelim .ia-prep-dots i { animation: none; }
+}
+
+/* 合格したキャラが着いた枠が光る（P2-2）。着くタイミング（約1.35秒後）に合わせる */
+.ia-prelim .waiting-slot.arriving {
+  animation: ia-slot-glow 1.1s ease-out 1.3s both;
+}
+@keyframes ia-slot-glow {
+  0% { box-shadow: 0 0 0 0 #ffd36b00, 0 0 0 #ffd36b00; }
+  30% { box-shadow: 0 0 0 3px #ffd36b, 0 0 32px #ffd36bcc; }
+  100% { box-shadow: 0 0 0 0 #ffd36b00, 0 0 0 #ffd36b00; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ia-prelim .waiting-slot.arriving { animation: none; }
+}
+
+/* カウントダウンはキャラの頭に重ならないよう、舞台の右上（深掘りタイムと同じ場所）に出す */
+.ia-prelim .ia-countdown {
+  left: auto;
+  right: 3%;
+  top: 1.5%;
+  transform: none;
+  padding: 4px 14px;
+}
+.ia-prelim .ia-countdown b { font-size: 40px; }
+.ia-prelim .ia-corner { top: 1.5%; }
+
+/* 自分のブザー（P2-3）：「あなた」の札と、自分の色の輪郭 */
+.ia-prelim .buzzer.mine .buzzer-base {
+  outline: 2px solid var(--person, #f2e6ff);
+  outline-offset: 2px;
+  box-shadow: 0 0 16px var(--person, #b250ff);
+}
+.ia-prelim .buzzer:not(.mine) {
+  filter: saturate(0.6) brightness(0.85);
+}
+.ia-prelim .ia-you {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 3;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #1a0b2b;
+  background: var(--person, #f2e6ff);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ブザーの対象：いま誰の案に合格を出すのか */
+.ia-prelim .ia-buzz-target {
+  align-self: center;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  max-width: 180px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #cdb8ea;
+  text-align: right;
+  pointer-events: none;
+}
+.ia-prelim .ia-buzz-target b { color: #fff; }
+.ia-prelim .ia-buzz-target small { color: #ffd36b; font-weight: 800; font-size: 13px; }
 /* 囲いを広げ、テーマもこの中に入れる */
 .ia-prelim { padding-top: 10px; }
 .ia-prelim .workspace { border-top: 1px solid #7d3ab4; border-radius: 12px; }
@@ -1577,3 +1708,29 @@
 /* 吹き出しは合格者待機室より手前に */
 .ia-prelim .solo-performance { z-index: 6; }
 .ia-prelim .ia-bubble { z-index: 20; }
+
+/* 一時停止ボタン（ブザーの左）と、一時停止中の表示 */
+.ia-prelim .ia-hold[data-on] {
+  border-color: #ffd36b !important;
+  color: #ffe9b0 !important;
+  box-shadow: 0 0 16px #ffcf4b77;
+}
+.ia-prelim .ia-held {
+  background: #2a1d06dd; border: 1.5px solid #ffd36b; box-shadow: 0 0 22px #ffcf4b55;
+  color: #fff3d6;
+}
+.ia-prelim .ia-held strong { font-size: 22px; font-weight: 900; color: #ffd76b; }
+.ia-prelim .ia-held span { font-size: 14px; font-weight: 700; color: #f3e2bd; }
+.ia-prelim .ia-held b { color: #fff; }
+
+/* ホストだけ：いまの合格者で決勝へ */
+.ia-prelim .ia-end-prelim {
+  margin-left: 6px;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; white-space: nowrap;
+  color: #1a0b2b; background: #ffd36b; border: none; cursor: pointer;
+}
+.ia-prelim .ia-end-prelim:hover { filter: brightness(1.08); }
+/* 合格者の人数（1〜4人）に合わせて、待機室の枠を等分する */
+.ia-prelim .waiting-slots .waiting-slot { width: auto; flex: 1 1 0; min-width: 0; }
