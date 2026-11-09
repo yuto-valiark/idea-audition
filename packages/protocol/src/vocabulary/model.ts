@@ -5,9 +5,14 @@ import { MetricsView, PitchView, Profile, ReactionView, TasteView } from './tast
 /** ステージ定員（acceptance-criteria AC-01, AC-04） */
 /** 新しいアイデアは1人ずつ登場する（#5）。合格した3人が最終オーディションへ */
 export const LOWER_SLOT_COUNT = 1;
-/** 1人の持ち時間。過ぎたら次の人と交代する */
-export const CHALLENGE_MS = 15_000;
+/** 1人の持ち時間（既定）。過ぎたら次の人と交代する。ロビーで変えられる */
+export const CHALLENGE_MS = 60_000;
+/** ロビーで選べる持ち時間（秒） */
+export const CHALLENGE_SEC_OPTIONS = [15, 30, 60, 90] as const;
+/** 決勝に進む人数（既定）。ロビーで変えられる */
 export const UPPER_CAPACITY = 3;
+/** 決勝に進む人数の上限 */
+export const MAX_FINALISTS = 4;
 export const MAX_JUDGES = 4;
 
 export const CharacterLocation = z.enum(['lower', 'promoting', 'upper', 'exiting', 'archived']);
@@ -45,6 +50,8 @@ export const CharacterView = z.object({
   pausedLeftMs: z.number().nullable().optional(),
   /** 登場した時刻（これまでの挑戦者の並び順） */
   spawnedAt: z.string().optional(),
+  /** 一時停止ボタンで止めた審査員（止めていなければ null） */
+  holdBy: z.string().nullable().optional(),
 });
 export type CharacterView = z.infer<typeof CharacterView>;
 
@@ -167,8 +174,12 @@ export const SessionSnapshot = z.object({
   theme: z.string(),
   /** 長さ5。準備中の枠は null */
   lowerSlots: z.array(z.string().nullable()),
-  /** 0〜3体。並びは昇格順。3体そろうまでは「合格者待機室」 */
+  /** 並びは昇格順。finalists 人そろうまでは「合格者待機室」 */
   upper: z.array(FinalistView),
+  /** 決勝に進む人数（ロビーで選ぶ。ホストが途中で決勝に進めたら、その時点の人数） */
+  finalists: z.number().int().optional(),
+  /** 1人の持ち時間（ミリ秒） */
+  challengeMs: z.number().int().optional(),
   /** いまの挑戦者に、ゴールデンブザーを押している審査員 */
   buzzer: z.object({ instanceId: z.string().nullable(), judgeIds: z.array(z.string()) }).optional(),
   /** 最終オーディションでみんなが注目しているキャラ（スポットライト）と、選んだ人 */

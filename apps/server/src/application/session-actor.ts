@@ -4,7 +4,6 @@ import {
   LOWER_SLOT_COUNT,
   CHALLENGE_MS,
   ResultCache,
-  UPPER_CAPACITY,
   type ProposalContent,
   type AiMode,
   type CommandMessage,
@@ -19,6 +18,7 @@ import {
 import { AuditionSession } from '../domain/session.ts';
 import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
+type GeneratedDraft = Awaited<ReturnType<IdeaGenerationPort['generateIdeas']>>[number];
 import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
 import { chooseFromStock, filterContextForGeneration, newPlannerState, planSlots, tasteHint, type ContextFilterStrategy, type PlannerState } from './generation-planner.ts';
 import { HesitationGate, detectCue } from './hesitation.ts';
@@ -51,6 +51,11 @@ export interface ActorConfig {
   lowerSlotCount?: number;
   /** 合格者が出たあとの文脈フィルタ戦略（B2）。未指定時は 'reset_with_summary' */
   contextFilterStrategy?: ContextFilterStrategy;
+  /**
+   * 声の発言を AI で仕分け・言い直しする（issue #3）。審査の話題だけ残し、雑談・アプリの話・聞き間違いは捨てる。
+   * 省略・false なら、声の発言もそのまま扱う（テスト用）
+   */
+  triage?: boolean;
 }
 
 export interface RotationConfig {
@@ -109,6 +114,22 @@ interface Deps {
   log?: (msg: string, extra?: unknown) => void;
 }
 
+/** 受け取った発言（補正まで済んだもの）。仕分けの前後で受け渡す */
+interface UtteranceContext {
+  judgeId: string;
+  /** 聞こえたまま（補正は済み）の文。宛先・意図の判定に使う */
+  text: string;
+  /** 補正の前の文字起こし */
+  rawText: string;
+  corrections: Correction[];
+  source: 'live' | 'text';
+  fallbackTargetId: string | null;
+  replyToClaim: string | null;
+  meta: { actorJudgeId: string; correlationId: string };
+  /** AI が言い直した文。仕分けをしなかった・言い直さなかったときは null */
+  summary: string | null;
+}
+
 type RefineTrigger =
   | { kind: 'promotion'; instanceId: string }
   | { kind: 'instruction'; instanceId: string; text: string };
@@ -125,9 +146,13 @@ const STOCK_LIMIT = 12;
 /** 決勝の案が落ち着いてから企画書を作り始めるまでの待ち時間 */
 const PROPOSAL_DRAFT_DELAY_MS = 3_000;
 /** 企画書の作り置きを見直すきっかけ */
-const DRAFT_TRIGGERS = new Set<string>(['PROMOTION_CONFIRMED', 'FINALIST_VERSION_PUBLISHED', 'CHAMPION_VOTE_STARTED']);
+const DRAFT_TRIGGERS = new Set<string>(['PRELIMINARY_ENDED', 'PROMOTION_CONFIRMED', 'FINALIST_VERSION_PUBLISHED', 'CHAMPION_VOTE_STARTED']);
 /** 案の生成を1回で頼む件数の上限（多いと返事が遅く、時間切れになる） */
 const GENERATION_CHUNK = 3;
+/** ロビーでテーマの入力が止まってから、最初の案を作り始めるまでの待ち時間 */
+const PREFETCH_DEBOUNCE_MS = 800;
+/** ロビーで作り置きする案の数（最初の挑戦者＋次の1人） */
+const PREFETCH_COUNT = 2;
 /** 好みの更新をまとめて知らせるまでの待ち時間 */
 const TASTE_EMIT_DELAY_MS = 1_200;
 /** Signal は1人あたり毎秒この件数まで（§3.7） */
@@ -155,6 +180,9 @@ export class SessionActor {
   private refining = false;
   private stopRotation: (() => void) | null = null;
   private pendingTimers = new Set<() => void>();
+  /** ロビーで、入力中のテーマで作り置きしている最初の案（開始したら舞台に出す） */
+  private prefetch: { theme: string; aiMode: AuditionSession['aiMode']; drafts: GeneratedDraft[] | null; done: Promise<void> } | null = null;
+  private prefetchTimer: (() => void) | null = null;
   /** start / reset のたびに増やし、古い非同期結果を捨てる */
   private epoch = 0;
   private unsaved: StoredEvent[] = [];
@@ -174,6 +202,8 @@ export class SessionActor {
   private engagedUntil = new Map<string, number>();
   /** 同じ発言の二重送信を防ぐ（judgeId → 直前の発言） */
   private lastUtterance = new Map<string, { text: string; at: number }>();
+  /** 仕分け待ちの声の発言を、審査員ごとに言った順で処理するための列（AI の返りが前後しても順番を守る） */
+  private utteranceChain = new Map<string, Promise<void>>();
   private hesitation = new HesitationGate();
   private tasteTimer: (() => void) | null = null;
 
@@ -324,6 +354,7 @@ export class SessionActor {
         this.emit(this.session.touch(msg.payload.instanceId, 'hold'), { actorJudgeId: entry.judgeId });
       } else this.held.delete(entry.judgeId);
     }
+    if (msg.type === 'THEME_DRAFT') this.schedulePrefetch(entry.judgeId, msg.payload.theme, msg.payload.aiMode);
     if (msg.type === 'FOCUS_CHANGED') {
       const prev = this.focus.get(entry.judgeId);
       const { hover, detail } = msg.payload;
@@ -502,7 +533,13 @@ export class SessionActor {
       case 'START_AUDITION': {
         // テーマを決めて始めるのはホストだけ（ロビーでほかの人はホストの入力を見ている）
         if (!s.judges.some((j) => j.judgeId === judgeId && j.isHost)) return { ok: false, reason: 'NOT_HOST' };
-        const r = apply(s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode));
+        const { finalists, challengeSec } = cmd.payload;
+        const r = apply(
+          s.start(cmd.payload.theme, cmd.payload.mode, cmd.payload.aiMode, {
+            finalists,
+            challengeMs: challengeSec ? challengeSec * 1000 : (this.deps.config.rotation?.warningMs ?? CHALLENGE_MS),
+          }),
+        );
         if (r.ok) this.onStarted();
         return r;
       }
@@ -535,6 +572,20 @@ export class SessionActor {
         this.emit(r.events, meta);
         if (r.value.unanimous) return this.promoteCharacter(instanceId, pressers, meta);
         return { ok: true };
+      }
+      case 'HOLD_CHALLENGE': {
+        const { instanceId, on } = cmd.payload;
+        const r = s.holdChallenge(judgeId, instanceId, on);
+        if (!r.ok) return r;
+        this.emit(r.events, meta);
+        // 再開：深掘り中でなければ、止めたときの残りからすぐ数え直す
+        if (!on && !this.isEngaged(instanceId, this.deps.clock.now())) this.emit(s.resumeChallenge(instanceId, RESUME_MIN_MS), meta);
+        return { ok: true };
+      }
+      case 'END_PRELIMINARY': {
+        const r = apply(s.endPreliminary(judgeId));
+        if (r.ok) this.scheduleConsensus('decision');
+        return r;
       }
       case 'NEXT_IDEA': {
         // 手動の「次のアイデア」：見られている案は残し、最も注目されていない案を入れ替える
@@ -643,6 +694,64 @@ export class SessionActor {
       corrections = repaired.corrections;
       if (corrections.length) this.deps.log?.(`[voice] repaired ${corrections.map((c) => `${c.from}→${c.to}(${c.score})`).join(', ')}`);
     }
+    const ctx: UtteranceContext = { judgeId, text, rawText, corrections, source, fallbackTargetId, replyToClaim, meta, summary: null };
+    // 声の発言は、審査の話題かを AI に仕分けてもらってから扱う（雑談・アプリの話・聞き間違いは捨てる、issue #3）。
+    // キャラの名前を呼んでいる発言は、話しかけだと明らかなので待たずに扱う
+    if (this.deps.config.triage && source === 'live' && !this.findAddressee(text)) {
+      this.triageThenProcess(ctx);
+      return { ok: true };
+    }
+    return this.processUtterance(ctx);
+  }
+
+  /**
+   * 声の発言を AI で仕分け、残すものだけ本処理へ渡す。審査員ごとに言った順で処理する。
+   * AI が失敗したときは、本物の発言を落とさないよう、そのまま本処理へ渡す。
+   */
+  private triageThenProcess(ctx: UtteranceContext) {
+    const epoch = this.epoch;
+    const previous = this.utteranceChain.get(ctx.judgeId) ?? Promise.resolve();
+    const next = previous
+      .then(async () => {
+        const started = this.deps.clock.now();
+        const verdict = await this.triage(ctx.text).catch((e): null => {
+          this.deps.log?.('triageUtterance failed', e);
+          return null;
+        });
+        if (epoch !== this.epoch) return;
+        if (verdict && !verdict.keep) {
+          // 審査の話題ではない・聞き取れない発言は、記録せず、好みにも合意台帳にも入れない
+          this.deps.log?.(`[triage] dropped (${verdict.reason}) ${this.deps.clock.now() - started}ms`);
+          return;
+        }
+        this.deps.log?.(`[triage] kept ${this.deps.clock.now() - started}ms${verdict?.summary ? ' (summarized)' : ''}`);
+        this.processUtterance({ ...ctx, summary: verdict?.summary ?? null });
+      })
+      .catch((e) => this.deps.log?.('utterance failed', e));
+    this.utteranceChain.set(ctx.judgeId, next);
+  }
+
+  private triage(text: string) {
+    const s = this.session;
+    const onStage = [...s.lowerSlots.filter((x): x is string => x !== null), ...s.upper.map((f) => f.instanceId)];
+    const spotlight = this.validTarget(s.spotlight?.instanceId);
+    if (spotlight && !onStage.includes(spotlight)) onStage.push(spotlight);
+    return this.ai.triageUtterance({
+      theme: s.theme,
+      stage: onStage.map((id) => ({ characterName: this.characterName(id), title: s.currentRevision(s.characters.get(id)!.ideaId).title })),
+      recentRemarks: buildConsensusContext(s).recentRemarks.slice(-3),
+      text,
+    });
+  }
+
+  /**
+   * 仕分けを通った発言を扱う。宛先・意図の判定は聞こえたままの文（text）で行い、
+   * 記録・AI・キャラに渡す文は、言い直した文（summary があればそれ）にする。声の発言は画面には出さない。
+   */
+  private processUtterance(u: UtteranceContext): { ok: true } | { ok: false; reason: RejectReason } {
+    const s = this.session;
+    const { judgeId, text, rawText, corrections, source, fallbackTargetId, replyToClaim, meta, summary } = u;
+    const shown = summary ?? text;
     // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ → スポットライトのキャラ／予選の挑戦者
     const named = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
     const stageTarget = this.validTarget(s.spotlight?.instanceId) ?? this.validTarget(s.lowerSlots[0]);
@@ -694,12 +803,12 @@ export class SessionActor {
           type: 'JUDGE_UTTERANCE_RECEIVED',
           detail: {
             judgeId,
-            text,
+            text: shown,
             source,
             targetInstanceId,
             intent,
             mentioned: mentions.mentioned,
-            ...(corrections.length ? { rawText, corrections } : {}),
+            ...(corrections.length || summary ? { rawText, ...(corrections.length ? { corrections } : {}) } : {}),
           },
         },
         ...mentionEvents,
@@ -710,7 +819,7 @@ export class SessionActor {
     s.recordUtterance({
       seq: utteranceSeq,
       judgeId,
-      text,
+      text: shown,
       source,
       targetInstanceId,
       intent,
@@ -735,13 +844,13 @@ export class SessionActor {
       return r.ok ? { ok: true } : r;
     }
     if (willRefine) {
-      this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text });
-      if (alsoAnswer) return this.ask(judgeId, targetInstanceId, text, meta);
+      this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text: shown });
+      if (alsoAnswer) return this.ask(judgeId, targetInstanceId, shown, meta);
       return { ok: true };
     }
     const target = s.characters.get(targetInstanceId);
     if (target?.location === 'archived') return { ok: true };
-    return this.ask(judgeId, targetInstanceId, text, meta, source === 'live');
+    return this.ask(judgeId, targetInstanceId, shown, meta, source === 'live');
   }
 
   /** 発言の中にステージ上のキャラ名（英字名か読み）があれば、そのキャラを宛先にする */
@@ -820,7 +929,7 @@ export class SessionActor {
   private prepareProposalDrafts() {
     const s = this.session;
     if (s.status !== 'audition_active' && s.status !== 'champion_selection') return;
-    const worth = s.status === 'champion_selection' || s.upper.length >= UPPER_CAPACITY || s.mode === 'solo';
+    const worth = s.status === 'champion_selection' || s.finalsReady || s.mode === 'solo';
     if (!worth) return;
     for (const f of s.upper) {
       if (f.status !== 'ready') continue;
@@ -926,8 +1035,65 @@ export class SessionActor {
     this.refineQueue = [];
     this.proposalDrafts.clear();
     this.refining = false;
+    this.usePrefetch();
     this.ensureStock();
     this.startRotation();
+  }
+
+  /**
+   * ロビーでホストがテーマを入力しているあいだに、そのテーマで最初の案を作っておく。
+   * 開始の直後に「準備中」で待たせないため。入力が止まってから頼み、同じテーマでは頼み直さない。
+   */
+  private schedulePrefetch(judgeId: string, rawTheme: string, aiMode: AuditionSession['aiMode'] | null) {
+    const s = this.session;
+    if (s.status !== 'lobby' && s.status !== 'completed') return;
+    if (!s.judges.some((j) => j.judgeId === judgeId && j.isHost)) return;
+    const theme = rawTheme.trim();
+    const mode = aiMode && s.aiAvailable.includes(aiMode) ? aiMode : s.aiMode;
+    this.prefetchTimer?.();
+    this.prefetchTimer = null;
+    if (theme.length < 2) return;
+    if (this.prefetch && this.prefetch.theme === theme && this.prefetch.aiMode === mode) return;
+    this.prefetchTimer = this.later(() => {
+      this.prefetchTimer = null;
+      if (s.status !== 'lobby' && s.status !== 'completed') return;
+      const ai = this.deps.aiModes?.[mode] ?? this.deps.ai;
+      const entry: NonNullable<typeof this.prefetch> = { theme, aiMode: mode, drafts: null, done: Promise.resolve() };
+      entry.done = ai
+        .generateIdeas({ theme, count: PREFETCH_COUNT, avoidTitles: [] })
+        .then((drafts) => {
+          entry.drafts = drafts;
+        })
+        .catch((e) => {
+          this.deps.log?.('prefetch generateIdeas failed', e);
+          if (this.prefetch === entry) this.prefetch = null;
+        });
+      this.prefetch = entry;
+    }, PREFETCH_DEBOUNCE_MS);
+  }
+
+  /** 開始したテーマとモードがロビーの作り置きと同じなら、その案を最初に舞台へ出す（まだ届いていなければ、届いたときに出す） */
+  private usePrefetch() {
+    const s = this.session;
+    const entry = this.prefetch;
+    this.prefetch = null;
+    this.prefetchTimer?.();
+    this.prefetchTimer = null;
+    if (!entry || entry.theme !== s.theme.trim() || entry.aiMode !== s.aiMode) return;
+    const epoch = this.epoch;
+    const add = () => {
+      if (epoch !== this.epoch || s.status !== 'audition_active' || !entry.drafts) return;
+      const taken = new Set([...s.ideas.values()].map((i) => i.revisions[0]!.title).concat(s.stock.map((d) => d.title)));
+      const fresh = entry.drafts.filter((d) => !taken.has(d.title));
+      if (fresh.length === 0) return;
+      // 届いた作り置きは、先に頼んだ開始時の生成よりも前に並べる（最初の挑戦者にする）
+      s.stock.unshift(...fresh.map((d) => ({ ...d, basedOnConsensus: 0 })));
+      if (s.stock.length > STOCK_LIMIT) s.stock.splice(STOCK_LIMIT);
+      this.embedTexts(fresh);
+      this.emit(s.fillEmptySlots(), { actorJudgeId: null });
+    };
+    if (entry.drafts) add();
+    else void entry.done.then(add);
   }
 
   /** 合格（全員のゴールデンブザー、または昇格の操作）：合格者待機室へ上げ、改良を始める */
@@ -999,12 +1165,21 @@ export class SessionActor {
    */
   private rotationTick(rotation: RotationConfig) {
     const s = this.session;
-    if (s.status !== 'audition_active' || s.upper.length >= UPPER_CAPACITY) return;
+    if (s.status !== 'audition_active' || s.finalsReady) return;
     const id = s.lowerSlots[0];
     if (!id) return;
     const c = s.characters.get(id);
     if (!c) return;
     const now = this.deps.clock.now();
+    // 一時停止ボタン：押した人がいなくなったら解除する。止めているあいだは何もしない
+    if (c.holdBy != null) {
+      if (s.judges.some((j) => j.judgeId === c.holdBy && j.connected)) {
+        if (c.leavingAt !== null) this.emit(s.pauseChallenge(id), { actorJudgeId: null });
+        return;
+      }
+      const released = s.holdChallenge(c.holdBy, id, false);
+      if (released.ok) this.emit(released.events, { actorJudgeId: null });
+    }
     // 深掘りタイム：質問・議論・じっくり見ている間はカウントを止め、終わったら再開する
     if (this.isEngaged(id, now)) {
       if (c.leavingAt !== null) this.emit(s.pauseChallenge(id), { actorJudgeId: null });
@@ -1016,7 +1191,7 @@ export class SessionActor {
     }
     // 登場したら持ち時間を決める（1人ずつの審査、#5）
     if (c.leavingAt === null) {
-      this.emit(s.beginLeaving(id, rotation.warningMs), { actorJudgeId: null });
+      this.emit(s.beginLeaving(id, s.challengeMs ?? rotation.warningMs), { actorJudgeId: null });
       return;
     }
     if (now < c.leavingAt || s.stock.length === 0) return; // 次の案が届くまで待つ

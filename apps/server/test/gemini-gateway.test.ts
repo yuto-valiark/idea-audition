@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GeminiGateway, type GenerateContentClient } from '../src/infrastructure/gemini/gemini-gateway.ts';
 import { ResilientGateway } from '../src/infrastructure/resilient-gateway.ts';
+import { FixtureGateway } from '../src/infrastructure/fixture/fixture-gateway.ts';
 import { StubAi } from './helpers.ts';
 
 const config = {
@@ -165,5 +166,39 @@ describe('GeminiGateway', () => {
     await expect(g.answer({ ...input, question: '学食一粒競りバトル分だけの' })).resolves.toBeNull();
     await expect(g.answer({ ...input, question: 'いくら？' })).resolves.toBe('月500円です');
     expect(calls[0]!.contents).toContain('声の文字起こしなので');
+  });
+
+  it('発言の仕分け：話題なら言い直した文、雑談・聞き間違いは残さない', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？' }),
+      JSON.stringify({ verdict: 'off_topic', summary: '' }),
+      JSON.stringify({ verdict: 'garbled', summary: '' }),
+      JSON.stringify({ verdict: 'on_topic', summary: '   ' }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const input = {
+      theme: '学食',
+      stage: [{ characterName: 'MOMO', title: '混雑予測ナビ' }],
+      recentRemarks: [{ judge: '審査員 A', text: 'コストは低めがいい' }],
+      text: 'えーと費用ってどれくらい？',
+    };
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: '費用はいくらかかりますか？' });
+    await expect(g.triageUtterance({ ...input, text: 'マイク聞こえてる？' })).resolves.toEqual({ keep: false, reason: 'off_topic' });
+    await expect(g.triageUtterance({ ...input, text: 'ミストにぶとう' })).resolves.toEqual({ keep: false, reason: 'garbled' });
+    // 話題だが言い直しが空なら、聞こえたままの文を使う（落とさない）
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: null });
+    // 速いモデルで、テーマ・舞台の企画・直前の発言・判定する発言をプロンプトに入れる
+    expect(calls[0]!.model).toBe('fast-model');
+    expect(calls[0]!.contents).toContain('MOMO：混雑予測ナビ');
+    expect(calls[0]!.contents).toContain('審査員 A：「コストは低めがいい」');
+    expect(calls[0]!.contents).toContain('発言：「えーと費用ってどれくらい？」');
+  });
+
+  it('発言の仕分け：呼び出しに失敗したら固定データの簡易な仕分けに切り替わる', async () => {
+    const { client } = fakeClient([new Error('503')]);
+    const fixture = new FixtureGateway(0);
+    const resilient = new ResilientGateway(new GeminiGateway(client, config), fixture);
+    const input = { theme: 't', stage: [], recentRemarks: [], text: '画面が重いんだけど' };
+    await expect(resilient.triageUtterance(input)).resolves.toEqual({ keep: false, reason: 'off_topic' });
   });
 });

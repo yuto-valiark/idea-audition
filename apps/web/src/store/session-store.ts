@@ -22,7 +22,7 @@ interface SessionState {
   /** none：部屋に入っていない（トップ）、active：部屋に入っている、not_found：リンクの部屋が見つからない */
   room: 'none' | 'active' | 'not_found';
   /** ロビーでホストが入力中のテーマ（ホスト以外の画面に見せる） */
-  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null } | null;
+  themeDraft: { theme: string; mode: 'team' | 'solo'; aiMode: 'gemini' | 'fixture' | null; finalists?: number; challengeSec?: number } | null;
   connect(sessionId: string): void;
   /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
   createRoom(): Promise<boolean>;
@@ -177,7 +177,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
-      const full = e.snapshot.upper.length >= 3;
+      const full = e.snapshot.upper.length >= (e.snapshot.finalists ?? 3);
       display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
       break;
     }
@@ -248,17 +248,16 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       }
       break;
     case 'JUDGE_UTTERANCE_RECEIVED':
-      if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
+      // 声の発言は、聞こえたままも AI が言い直したものも画面に出さない（issue #2・#3）。テキストで打った発言だけ字幕に出す
+      if (d.source === 'text' && typeof d.judgeId === 'string' && typeof d.text === 'string') {
         display.addCaption({
           judgeId: d.judgeId,
           text: d.text,
-          source: d.source === 'live' ? 'live' : 'text',
           intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
-          corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
-        // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       }
+      // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       break;
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
@@ -285,6 +284,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'SESSION_STARTED':
     case 'SESSION_RESET':
       display.clearBubbles();
+      if (e.type === 'SESSION_RESET') display.clearChatLog();
       display.select(null);
       break;
   }

@@ -6,25 +6,22 @@ import { VoiceClient, type VoiceState } from './voice-client.ts';
 
 interface VoiceStore {
   state: VoiceState;
-  interim: string;
   toggle(): void;
   /** 文字起こしを始める・止める（通話のミュートと連動させる） */
   setActive(on: boolean): void;
 }
 
 let client: VoiceClient | null = null;
-let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useVoice = create<VoiceStore>((set, get) => {
   const getClient = () =>
     (client ??= new VoiceClient({
       onState: (state, reason) => {
-        set({ state, ...(state !== 'listening' && state !== 'starting' ? { interim: '' } : {}) });
+        set({ state });
         const on = state === 'listening' || state === 'starting';
         useSession.getState().client?.sendEphemeral('MIC_STATE_CHANGED', { on });
         if (state === 'unavailable' && reason) useDisplay.getState().toast(reason, 'warn');
       },
-      onInterim: (text) => set({ interim: text }),
       // 「うーん」の声：見ているキャラへの迷いとしてサーバーに知らせる（返事なし、ADR-0010 の Signal）
       onHum: (e) => {
         const { hover, detail } = currentFocus();
@@ -37,11 +34,6 @@ export const useVoice = create<VoiceStore>((set, get) => {
           features: { silenceMs: Math.round(e.silenceMs), rms: Math.round(e.rms * 1000) / 1000 },
         });
       },
-      onFinal: (text) => {
-        set({ interim: text });
-        if (clearTimer) clearTimeout(clearTimer);
-        clearTimer = setTimeout(() => set({ interim: '' }), 1500);
-      },
     }));
 
   // 詳細を開いているキャラを、名前を言わなかったときの宛先にする
@@ -51,7 +43,6 @@ export const useVoice = create<VoiceStore>((set, get) => {
 
   return {
     state: 'off',
-    interim: '',
     setActive(on) {
       const { state } = get();
       const active = state === 'listening' || state === 'starting';

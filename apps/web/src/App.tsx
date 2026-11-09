@@ -9,7 +9,7 @@ import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import { NameGate } from './features/audition/NameGate.tsx';
 import { useCall } from './features/call/call-store.ts';
-import { useMe } from './shared/selectors.ts';
+import { finalistTarget, useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
 
 /** URL の /a/<部屋 ID> から部屋を読む（Google Meet と同じく、リンクを開いた人がその部屋に入る） */
@@ -80,7 +80,7 @@ export function App() {
 
 function Studio() {
   // 予選のステージは囲いの中に自前の照明がある。外の照明と二重にならないよう、予選のあいだは外を消す
-  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < 3);
+  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < finalistTarget(s.snapshot));
   return (
     <div className={styles.studio} aria-hidden>
       <div className={styles.truss} />

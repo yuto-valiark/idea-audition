@@ -3,6 +3,7 @@ import {
   type AiMode,
   CHARACTER_DESIGNS,
   LOWER_SLOT_COUNT,
+  MAX_FINALISTS,
   MAX_JUDGES,
   UPPER_CAPACITY,
   type SessionMode,
@@ -98,6 +99,10 @@ export class AuditionSession {
   aiMode: AiMode = 'fixture';
   /** このサーバーで選べるモード（アクターが設定する。保存しない） */
   aiAvailable: AiMode[] = ['fixture'];
+  /** 決勝に進む人数。ホストが途中で決勝に進めたら、その時点の人数になる */
+  finalistTarget = UPPER_CAPACITY;
+  /** 1人の持ち時間（ミリ秒）。null ならアクターの既定 */
+  challengeMs: number | null = null;
 
   /** 審査員ごとの好み（ADR-0009） */
   taste: TasteState = emptyTaste();
@@ -152,6 +157,8 @@ export class AuditionSession {
       startedAt: this.startedAt,
       aiMode: this.aiMode,
       taste: structuredClone(this.taste),
+      finalistTarget: this.finalistTarget,
+      challengeMs: this.challengeMs,
     };
   }
 
@@ -198,6 +205,8 @@ export class AuditionSession {
     s.startedAt = state.startedAt ?? null;
     if (state.aiMode) s.aiMode = state.aiMode;
     s.taste = state.taste ? structuredClone(state.taste) : emptyTaste();
+    s.finalistTarget = state.finalistTarget ?? UPPER_CAPACITY;
+    s.challengeMs = state.challengeMs ?? null;
     return s;
   }
 
@@ -285,12 +294,14 @@ export class AuditionSession {
 
   /* ---------------------------- セッション ---------------------------- */
 
-  start(theme: string, mode: SessionMode, aiMode?: AiMode): DomainResult {
+  start(theme: string, mode: SessionMode, aiMode?: AiMode, opts: { finalists?: number; challengeMs?: number } = {}): DomainResult {
     if (this.status !== 'lobby' && this.status !== 'completed') return reject('SESSION_NOT_ACTIVE');
     this.clearBoard();
     this.theme = theme;
     this.mode = mode;
     if (aiMode && this.aiAvailable.includes(aiMode)) this.aiMode = aiMode;
+    this.finalistTarget = Math.max(1, Math.min(MAX_FINALISTS, opts.finalists ?? UPPER_CAPACITY));
+    this.challengeMs = opts.challengeMs ?? null;
     this.status = 'audition_active';
     this.startedAt = this.deps.clock.now();
     return ok([{ type: 'SESSION_STARTED', detail: { theme, mode } }]);
@@ -343,7 +354,7 @@ export class AuditionSession {
   fillEmptySlots(choose?: (stock: readonly IdeaDraft[]) => { index: number; pitch: Pitch | null } | null): DomainEvent[] {
     if (this.status !== 'audition_active') return [];
     // 合格者が3人そろったら最終オーディション。新しい挑戦者はもう出さない
-    if (this.upper.length >= UPPER_CAPACITY) return [];
+    if (this.finalsReady) return [];
     const events: DomainEvent[] = [];
     for (let slot = 0; slot < this.lowerSlots.length; slot++) {
       if (this.lowerSlots[slot] !== null) continue;
@@ -521,6 +532,44 @@ export class AuditionSession {
     return [{ type: 'CHALLENGE_RESUMED', detail: { instanceId, leavingAt: new Date(c.leavingAt).toISOString() } }];
   }
 
+  /** 合格者が決勝の人数に達した（予選は終わり） */
+  get finalsReady() {
+    return this.upper.length >= this.finalistTarget;
+  }
+
+  /**
+   * 一時停止ボタン。いまの挑戦者の交代のカウントを止める・再開する。
+   * 止めているあいだは、深掘りタイムが終わっても再開しない（再開はアクターが resumeChallenge で行う）。
+   */
+  holdChallenge(judgeId: string, instanceId: string, on: boolean): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const c = this.characters.get(instanceId);
+    if (!c) return reject('UNKNOWN_CHARACTER');
+    if (c.location !== 'lower' || this.lowerSlots[0] !== instanceId) return reject('NOT_IN_LOWER');
+    if ((c.holdBy != null) === on) return ok([]);
+    c.holdBy = on ? judgeId : null;
+    const events: DomainEvent[] = on ? this.pauseChallenge(instanceId) : [];
+    if (events.length === 0) events.push({ type: on ? 'CHALLENGE_PAUSED' : 'CHALLENGE_RESUMED', detail: { instanceId, holdBy: c.holdBy } });
+    else events[0]!.detail.holdBy = judgeId;
+    return ok(events);
+  }
+
+  /** 合格者が決勝の人数に満たなくても、いまの合格者で決勝に進む（ホストのみ）。いまの挑戦者は見送りにする */
+  endPreliminary(judgeId: string): DomainResult {
+    if (this.status !== 'audition_active' || this.finalsReady) return reject('SESSION_NOT_ACTIVE');
+    if (!this.isHost(judgeId)) return reject('NOT_HOST');
+    if (this.upper.length === 0) return reject('NOT_AUTHORIZED');
+    this.finalistTarget = this.upper.length;
+    this.buzzers.clear();
+    const events: DomainEvent[] = [{ type: 'PRELIMINARY_ENDED', detail: { finalists: this.finalistTarget } }];
+    const challenger = this.lowerSlots[0];
+    if (challenger) {
+      const r = this.rotate(challenger, new Set(), { allowEmpty: true });
+      if (r.ok) events.push(...r.events);
+    }
+    return ok(events);
+  }
+
   /** 退場予告をすべて取り消す（誰もいなくなったとき） */
   cancelAllLeaving() {
     for (const c of this.characters.values()) c.leavingAt = null;
@@ -543,7 +592,7 @@ export class AuditionSession {
     const c = this.characters.get(instanceId);
     if (!c) return reject('UNKNOWN_CHARACTER');
     if (c.location !== 'lower' || this.lowerSlots[0] !== instanceId) return reject('NOT_IN_LOWER');
-    if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
+    if (this.finalsReady) return reject('UPPER_FULL');
     if (on === this.buzzers.has(judgeId)) return ok([], { unanimous: false });
     if (on) this.buzzers.add(judgeId);
     else this.buzzers.delete(judgeId);
@@ -667,7 +716,7 @@ export class AuditionSession {
     if (!character) return reject('UNKNOWN_CHARACTER');
     const slot = this.lowerSlots.indexOf(instanceId);
     if (character.location !== 'lower' || slot < 0) return reject('NOT_IN_LOWER');
-    if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
+    if (this.finalsReady) return reject('UPPER_FULL');
 
     this.lowerSlots[slot] = null;
     this.buzzers.clear();

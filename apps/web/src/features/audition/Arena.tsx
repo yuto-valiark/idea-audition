@@ -4,8 +4,9 @@ import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { FinalStage } from '../../scene/FinalStage.tsx';
 import { PASS_CEREMONY_MS, PreliminaryStage } from '../../scene/PreliminaryStage.tsx';
-import { UPPER_CAPACITY } from '@idea-audition/protocol';
+import { finalistTarget } from '../../shared/selectors.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
+import { ChatPanel } from '../chat/Chat.tsx';
 import styles from './Arena.module.css';
 
 const CURSOR_SEND_INTERVAL_MS = 66; // 約15Hz（仮説値。実測で調整する、ADR-0004）
@@ -16,12 +17,13 @@ export function Arena() {
   const client = useSession((s) => s.client);
   // 予選（1人ずつ）：合格者が3人そろうまで。そろったら最終オーディションに切り替わる（#5）
   const upperLen = useSession((s) => s.snapshot?.upper.length ?? 0);
+  const target = useSession((s) => finalistTarget(s.snapshot));
   const active = useSession((s) => s.snapshot?.status === 'audition_active');
   // 3人目の合格の演出を見せてから最終オーディションに切り替える。
   // 3人目がそろった描画の時点で決めないと、予選の画面が一度消えて演出が出ない
   const fullAt = useRef<number | null>(null);
   const prevLen = useRef(upperLen);
-  if (upperLen >= UPPER_CAPACITY && prevLen.current < UPPER_CAPACITY) fullAt.current = Date.now();
+  if (upperLen >= target && prevLen.current < target && upperLen > prevLen.current) fullAt.current = Date.now();
   prevLen.current = upperLen;
   const [, rerender] = useState(0);
   useEffect(() => {
@@ -30,7 +32,7 @@ export function Arena() {
     return () => clearTimeout(t);
   }, [upperLen]);
   const holdPrelim = fullAt.current !== null && Date.now() - fullAt.current < PASS_CEREMONY_MS + 100;
-  const prelim = active && (upperLen < UPPER_CAPACITY || holdPrelim);
+  const prelim = active && (upperLen < target || holdPrelim);
 
   useEffect(() => {
     const el = ref.current;
@@ -66,6 +68,8 @@ export function Arena() {
       <div className={styles.arena} ref={ref}>
         {prelim ? <PreliminaryStage /> : <FinalStage />}
         <JudgeCursors />
+        {/* ヘッダーとフッターの間（この領域）に収まるように、ここに置く */}
+        <ChatPanel />
       </div>
     </>
   );

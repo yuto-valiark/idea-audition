@@ -1,11 +1,14 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy } from 'lucide-react';
+import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { useCall } from '../call/call-store.ts';
+import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
 import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
-import { Captions, MicButton, UtteranceInput } from '../voice/VoiceControls.tsx';
+import { MicButton } from '../voice/VoiceControls.tsx';
+import { Captions, UtteranceInput } from '../chat/Chat.tsx';
 import { ConsensusMemo } from '../consensus/ConsensusMemo.tsx';
 import { TastePanel } from '../taste/TasteRadar.tsx';
 import styles from './Chrome.module.css';
@@ -42,6 +45,7 @@ export function Header() {
         {import.meta.env.DEV && <AiModeBadge />}
         <CallControls />
         {lobby && !isSpectator && <CallMicButton />}
+        <SoundToggle />
         <button type="button" className={styles.copy} onClick={() => void copyInvite()} title="この部屋のリンクをコピー">
           <Copy size={14} /> コピー
         </button>
@@ -51,9 +55,42 @@ export function Header() {
           </button>
         )}
         {connection === 'open' && <Wifi size={14} className={styles.wifi} />}
+        <LeaveButton />
       </div>
       )}
     </header>
+  );
+}
+
+/** オーディションを抜けてトップに戻る（D2）。通話も切る。審査の途中なので一度だけ確かめる */
+function LeaveButton() {
+  const leaveRoom = useSession((s) => s.leaveRoom);
+  const onLeave = () => {
+    if (!window.confirm('オーディションから退出しますか？（同じリンクを開けば、また参加できます）')) return;
+    useCall.getState().leave();
+    leaveRoom();
+  };
+  return (
+    <button type="button" className={styles.copy} onClick={onLeave} title="オーディションから退出する">
+      <LogOut size={14} /> 退出
+    </button>
+  );
+}
+
+/** 効果音のオン・オフ（この端末に覚える） */
+function SoundToggle() {
+  const muted = useMuted();
+  return (
+    <button
+      type="button"
+      className={styles.copy}
+      onClick={() => setMuted(!muted)}
+      aria-pressed={!muted}
+      aria-label="効果音"
+      title={muted ? '効果音をオンにする' : '効果音をオフにする'}
+    >
+      {muted ? <VolumeX size={14} /> : <Volume2 size={14} />} {muted ? '音オフ' : '音オン'}
+    </button>
   );
 }
 

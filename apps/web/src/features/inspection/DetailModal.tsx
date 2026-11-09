@@ -1,10 +1,10 @@
 import { Crown, MessageCircle, RotateCcw, Send, Sparkles, Trophy, X } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { PITCH_ROLE_ICON, UPPER_CAPACITY } from '@idea-audition/protocol';
+import { PITCH_ROLE_ICON } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
-import { useMe } from '../../shared/selectors.ts';
+import { finalistTarget, useMe } from '../../shared/selectors.ts';
 import styles from './Modal.module.css';
 
 /** キャラをクリックしたときの個別深掘り（第21.2章、AC-14） */
@@ -53,7 +53,7 @@ export function DetailModal() {
   const active = snapshot.status === 'audition_active';
   const canChampion =
     !!finalist && active && (snapshot.mode === 'solo' || (snapshot.upper.length === 1 && isHost));
-  const upperFull = snapshot.upper.length >= UPPER_CAPACITY;
+  const upperFull = snapshot.upper.length >= finalistTarget(snapshot);
   const myBuzz = !!judgeId && snapshot.buzzer?.instanceId === selected && snapshot.buzzer.judgeIds.includes(judgeId);
 
   async function run<T>(fn: () => Promise<T>) {

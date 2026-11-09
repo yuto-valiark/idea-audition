@@ -6,8 +6,6 @@ export type VoiceState = 'off' | 'starting' | 'listening' | 'unavailable';
 
 interface Handlers {
   onState(state: VoiceState, reason?: string): void;
-  onInterim(text: string): void;
-  onFinal(text: string): void;
   /** 声の特徴から「うーん」を見つけたとき */
   onHum?(e: HumEvent): void;
 }
@@ -65,9 +63,8 @@ export class VoiceClient {
       const parsed = VoiceServerMessage.safeParse(json);
       if (!parsed.success) return;
       const m = parsed.data;
+      // voice_interim / voice_final（自分の文字起こし）は画面に出さないので読まない（issue #2）
       if (m.kind === 'voice_ready') this.handlers.onState('listening');
-      else if (m.kind === 'voice_interim') this.handlers.onInterim(m.text);
-      else if (m.kind === 'voice_final') this.handlers.onFinal(m.text);
       else if (m.kind === 'voice_unavailable') {
         this.stop();
         this.handlers.onState('unavailable', m.reason);

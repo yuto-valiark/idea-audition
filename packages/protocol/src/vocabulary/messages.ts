@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineVocabulary } from '@camp-protocol/kit';
-import { AiMode, SessionMode, SessionSnapshot } from './model.ts';
+import { AiMode, MAX_FINALISTS, SessionMode, SessionSnapshot } from './model.ts';
 import { RejectReason } from './reasons.ts';
 
 /**
@@ -19,7 +19,15 @@ const id = z.string().min(1).max(80);
 export const CommandPayloads = {
   /** 自分の名前（画面に出す呼び名）。参加したときに入れる。前後の空白は除く */
   SET_JUDGE_NAME: z.object({ name: z.string().trim().min(1).max(16) }),
-  START_AUDITION: z.object({ theme: text, mode: SessionMode, aiMode: AiMode.optional() }),
+  START_AUDITION: z.object({
+    theme: text,
+    mode: SessionMode,
+    aiMode: AiMode.optional(),
+    /** 決勝に進む人数 */
+    finalists: z.number().int().min(1).max(MAX_FINALISTS).optional(),
+    /** 1人の持ち時間（秒） */
+    challengeSec: z.number().int().min(10).max(300).optional(),
+  }),
   /** AI のモードを切り替える（ホストのみ。途中でも可） */
   SET_AI_MODE: z.object({ mode: AiMode }),
   REQUEST_PROMOTION: z.object({ instanceId: id }),
@@ -27,6 +35,10 @@ export const CommandPayloads = {
   PRESS_BUZZER: z.object({ instanceId: id, on: z.boolean() }),
   /** 最終オーディション：みんなで注目するキャラを選ぶ（null で解除）。名前を呼ばない質問はこのキャラに届く */
   SET_SPOTLIGHT: z.object({ instanceId: id.nullable() }),
+  /** 予選の一時停止（押した人が再開するか、だれかが再開するまで交代のカウントを止める） */
+  HOLD_CHALLENGE: z.object({ instanceId: id, on: z.boolean() }),
+  /** 合格者が決勝の人数に満たなくても、いまの合格者で決勝に進む（ホストのみ） */
+  END_PRELIMINARY: z.object({}),
   NEXT_IDEA: z.object({ instanceId: id.optional() }),
   /** 審査員の「見送り」：この案はないと判断して、すぐ次のキャラと交代させる */
   REJECT_CANDIDATE: z.object({ instanceId: id }),
@@ -84,7 +96,13 @@ export const EphemeralPayloads = {
     sdpMLineIndex: z.number().int().min(0).max(64).nullable().optional(),
   }),
   /** ロビーでホストが入力中のテーマと設定（ほかの人の画面にそのまま見せる。保存しない） */
-  THEME_DRAFT: z.object({ theme: z.string().max(120), mode: z.enum(['team', 'solo']), aiMode: z.enum(['gemini', 'fixture']).nullable() }),
+  THEME_DRAFT: z.object({
+    theme: z.string().max(120),
+    mode: z.enum(['team', 'solo']),
+    aiMode: z.enum(['gemini', 'fixture']).nullable(),
+    finalists: z.number().int().min(1).max(MAX_FINALISTS).optional(),
+    challengeSec: z.number().int().min(10).max(300).optional(),
+  }),
 } as const;
 export type EphemeralType = keyof typeof EphemeralPayloads;
 
@@ -130,6 +148,7 @@ export const EVENT_TYPES = [
   'BUZZER_PRESSED',
   'CHALLENGE_PAUSED',
   'CHALLENGE_RESUMED',
+  'PRELIMINARY_ENDED',
   'SPOTLIGHT_CHANGED',
   'CANDIDATE_STAYED',
   'CONSENSUS_UPDATED',
