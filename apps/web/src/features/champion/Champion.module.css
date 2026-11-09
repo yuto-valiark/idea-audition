@@ -319,3 +319,21 @@
     gap: 8px;
   }
 }
+
+/* ===== 表彰（ChatGPT 版の ceremony.css を使う）の入れ物 ===== */
+.stage {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.stage :global(.champion-ceremony) {
+  flex: 1;
+  min-height: 0;
+}
+.waitHost {
+  font-size: 11px;
+  color: #c9b3df;
+}

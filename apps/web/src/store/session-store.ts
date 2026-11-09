@@ -286,8 +286,8 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       display.toast(d.mode === 'gemini' ? 'AI を Gemini に切り替えました（クレジットを使います）' : 'AI を固定データに切り替えました（無料）');
       break;
     case 'CHAMPION_VOTE_STARTED':
+      // 投票の始まりは、見出しの「最終投票」の帯と各案の投票ボタンで分かる（お知らせは帯に重なるので出さない）
       display.setMyVote(null);
-      display.toast('最終投票が始まりました。推したい1案に投票してください', 'gold');
       break;
     case 'TIE_DETECTED':
       display.toast('同票です。ホストが優勝を決めます', 'gold');

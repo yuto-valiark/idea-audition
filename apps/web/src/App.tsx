@@ -3,6 +3,7 @@ import { useSession } from './store/session-store.ts';
 import { Arena } from './features/audition/Arena.tsx';
 import { Intro } from './features/audition/Intro.tsx';
 import { ChampionScreen } from './features/champion/ChampionScreen.tsx';
+import { ResultReveal, useResultReveal } from './features/champion/ResultReveal.tsx';
 import { Footer, Header, Toasts } from './features/collaboration/Chrome.tsx';
 import { DetailModal, IdeaBoxModal } from './features/inspection/DetailModal.tsx';
 import { DragLayer } from './scene/DragLayer.tsx';
@@ -49,8 +50,10 @@ export function App() {
     if (room === 'active' && connection === 'open' && (named || isSpectator)) void useCall.getState().join();
   }, [room, connection, named, isSpectator]);
 
+  // 優勝が決まった瞬間は、審査の画面のまま「結果発表」のカウントダウンを出してから、表彰へ切り替える
+  const revealing = useResultReveal(status);
   const screen =
-    status === 'audition_active' || status === 'champion_selection'
+    status === 'audition_active' || status === 'champion_selection' || revealing
       ? 'arena'
       : status === 'completed' && hasChampion
         ? 'champion'
@@ -68,6 +71,7 @@ export function App() {
         </>
       )}
       {screen === 'champion' && <ChampionScreen />}
+      <ResultReveal show={revealing} />
       {screen === 'arena' && <DetailModal />}
       <IdeaBoxModal />
       <DragLayer />

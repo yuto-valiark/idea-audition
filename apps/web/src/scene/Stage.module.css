@@ -694,21 +694,45 @@
 }
 
 .voteButton {
-  margin-top: 8px;
-  font-size: 11px;
-  font-weight: 700;
+  margin-top: 10px;
+  min-height: 40px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
   color: #2a1606;
-  background: linear-gradient(105deg, #ffd977, #e9a640);
-  border-radius: 5px;
-  padding: 6px 12px;
-  box-shadow: 0 0 14px #ffbd4666;
+  background: linear-gradient(105deg, #ffe08a, #f0a83e);
+  border: 1px solid #ffe7a6;
+  border-radius: 999px;
+  box-shadow: 0 0 18px #ffbd4688, inset 0 1px 0 #fff6d0;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.voteButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 26px #ffbd46aa, inset 0 1px 0 #fff6d0;
+}
+
+/* 自分が入れた案：金の縁で光らせ、押しても変わらない */
 .voteButton[data-chosen] {
-  background: #4d3a1f;
-  color: var(--gold-soft);
+  color: #1d1205;
+  background: linear-gradient(105deg, #fff2b8, #ffc75a);
+  box-shadow: 0 0 0 3px #ffd36b66, 0 0 30px #ffc54aaa;
+  cursor: default;
+}
+
+/* ほかの案に入れたあと：控えめにして、押せば入れ替えられる */
+.voteButton[data-other] {
+  color: #f3dfb5;
+  background: #2a1c10cc;
+  border-color: #9c763f;
   box-shadow: none;
-  border: 1px solid #9c763f;
 }
 
 .tieNote {
@@ -1382,4 +1406,87 @@
 }
 .finalStage .speech {
   z-index: 31;
+}
+
+/* ===== 最終投票：だれが投票済みか（中身は締め切るまで伏せる） ===== */
+.ballot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid #b98a4a;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2a1708e6, #1a0f26e6);
+  box-shadow: 0 0 22px #ffbd4633;
+  font-size: 12px;
+  color: #f3dfb5;
+  pointer-events: auto;
+}
+.ballotTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: var(--gold-soft);
+  white-space: nowrap;
+}
+.voters {
+  display: flex;
+  gap: 6px;
+}
+.voter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 3px;
+  border-radius: 999px;
+  border: 1px dashed #ffffff33;
+  color: #bfaecf;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voter i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed color-mix(in srgb, var(--judge) 70%, transparent);
+  color: #1d1205;
+}
+.voter[data-voted] {
+  border: 1px solid color-mix(in srgb, var(--judge) 70%, transparent);
+  background: color-mix(in srgb, var(--judge) 20%, transparent);
+  color: #fff;
+}
+.voter[data-voted] i {
+  border: none;
+  background: var(--judge);
+}
+.ballotCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d9c3a0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ballotCount b {
+  font-size: 16px;
+  color: #ffe08a;
+}
+.ballotBar {
+  width: 54px;
+  height: 5px;
+  border-radius: 999px;
+  background: #ffffff1f;
+  overflow: hidden;
+}
+.ballotBar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffd977, #f0a83e);
+  transition: width 0.3s ease;
 }

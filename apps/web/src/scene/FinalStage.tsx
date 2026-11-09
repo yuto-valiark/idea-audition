@@ -252,12 +252,25 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         <button
           className={styles.voteButton}
           data-chosen={myVote === instanceId || undefined}
+          data-other={(myVote && myVote !== instanceId) || undefined}
+          aria-pressed={myVote === instanceId}
           onClick={async () => {
+            if (myVote === instanceId) return;
             const r = await send('CAST_VOTE', { instanceId });
             if (r.ok) setMyVote(instanceId);
           }}
         >
-          {myVote === instanceId ? '✓ 投票済み' : 'この案に投票'}
+          {myVote === instanceId ? (
+            <>
+              <Check size={15} /> あなたの1票
+            </>
+          ) : myVote ? (
+            'こちらに変える'
+          ) : (
+            <>
+              <Crown size={15} /> この案に投票
+            </>
+          )}
         </button>
       )}
       {isTieCandidate &&
@@ -312,12 +325,34 @@ function ChampionControls() {
   const connected = snapshot.judges.filter((j) => j.connected).length;
 
   if (vote?.status === 'open') {
+    // だれに入れたかは締め切るまで伏せ、「だれが投票済みか」だけを出す
+    const judges = snapshot.judges.filter((j) => j.connected);
+    const done = judges.filter((j) => vote.votedJudgeIds.includes(j.judgeId)).length;
     return (
-      <div className={styles.voteStatus}>
-        <Trophy size={14} /> 投票中 {vote.votedJudgeIds.length} / {connected}
-        {isHost && (
+      <div className={styles.ballot} role="status" aria-label={`投票 ${done} / ${judges.length}`}>
+        <span className={styles.ballotTitle}>
+          <Trophy size={14} /> 最終投票
+        </span>
+        <div className={styles.voters}>
+          {judges.map((j) => {
+            const voted = vote.votedJudgeIds.includes(j.judgeId);
+            return (
+              <span key={j.judgeId} className={styles.voter} data-voted={voted || undefined} style={{ '--judge': j.color } as CSSProperties} title={voted ? '投票済み' : 'まだ'}>
+                <i>{voted ? <Check size={10} /> : null}</i>
+                {j.name ?? j.label}
+              </span>
+            );
+          })}
+        </div>
+        <span className={styles.ballotCount}>
+          <b>{done}</b> / {judges.length}
+          <span className={styles.ballotBar} aria-hidden>
+            <i style={{ width: `${(done / Math.max(1, judges.length)) * 100}%` }} />
+          </span>
+        </span>
+        {isHost && done < judges.length && (
           <button className={styles.finalButton} onClick={() => send('CLOSE_VOTE', {})}>
-            締め切る
+            ここで締め切る
           </button>
         )}
       </div>
