@@ -1614,3 +1614,30 @@
 }
 .ia-ceremony .stage {
   overflow: clip;}
+
+/* キャラを台座の上面に立たせる（元のままだと足元が台座に沈んで見える）。台座の高さに合わせて持ち上げ、
+   その分だけキャラの入る枠を高くして、上の「IDEA CHAMPION」の文字にかからないようにする */
+.ia-ceremony .champion-mascot {
+  margin-bottom: 36px;
+}
+.ia-ceremony .champion-hero {
+  height: 321px;
+}
+@media (min-width: 1250px) and (min-height: 760px) {
+  .ia-ceremony .champion-hero {
+    height: 301px;
+  }
+}
+@media (min-width: 1700px) {
+  .ia-ceremony .champion-mascot {
+    margin-bottom: 50px;
+  }
+  .ia-ceremony .champion-hero {
+    height: 400px;
+  }
+}
+@media (max-width: 1249px) {
+  .ia-ceremony .champion-hero {
+    height: 306px;
+  }
+}
