@@ -92,6 +92,14 @@
 }
 
 .footer {
+  /* ワイプの高さ（決勝のとき）。自分のマイクとカメラのボタン2つを縦に積んだ高さも、これにそろえる */
+  --wipe-base: clamp(60px, 12.5vh, 120px);
+  /*
+   * 人数（--n、Footer で入れる）が多いと横に入りきらないので、右側（挑戦者・チャット欄・ボタン）に
+   * --side-min の幅を残せる大きさまでにする。フッターの高さは --wipe-base のままなので、舞台の大きさは変わらない
+   */
+  --side-min: 600px;
+  --wipe-h: min(var(--wipe-base), calc((100vw - 94px - var(--side-min)) / (var(--n, 4) * 1.3333 + 0.5)));
   position: relative;
   z-index: 3;
   margin: 10px 32px 16px;
@@ -105,66 +113,50 @@
 }
 
 .judges {
+  align-self: flex-end;
   display: flex;
-  gap: 10px;
-}
-
-.judge {
-  display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
-  background: #1a1028ba;
-  border: 1px solid #5b3c7055;
-  border-radius: 7px;
-  padding: 6px 10px;
-  min-width: 140px;
 }
 
-.judge[data-you] {
-  border-color: var(--judge);
+/* 右側：上にこれまでの挑戦者、下にチャット欄とボタン。ワイプの上下にそろえる */
+.side {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--wipe-base);
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.judge[data-offline] {
-  opacity: 0.45;
-}
 
-.avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #110a20;
-  background: var(--judge);
-}
-
-.judge strong {
-  font-size: 10px;
-  font-weight: 500;
-  display: block;
-}
-
-.judge small {
-  font-size: 9px;
-  color: #967ba4;
+.sideRow {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 3px;
+  gap: 15px;
 }
 
-.judge small > span {
-  height: 4px;
-  width: 4px;
-  border-radius: 50%;
-  background: #6edfb2;
+/* 自分のマイクとカメラ（ワイプの右に縦に並べる。2つの高さの合計がワイプの高さと同じ） */
+.myControls {
+  --gap: 6px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--gap);
+  height: var(--wipe-h);
 }
 
-.hostCrown {
-  margin-left: auto;
-  color: var(--gold);
+.myControls > button {
+  width: calc((var(--wipe-h) - var(--gap)) / 2);
+  height: 100%;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.myControls > button svg {
+  width: 42%;
+  height: 42%;
 }
 
 .actions {
@@ -261,9 +253,6 @@
   .hint {
     display: none;
   }
-  .judge {
-    min-width: 110px;
-  }
 }
 
 .aiBadge {
@@ -335,17 +324,16 @@
   color: #e5d6f5;
 }
 
-/* 幅が狭いとき（ノート PC を半分にしたときなど）：下のボタンは記号と数だけにし、審査員の札も詰める */
+/* 幅が狭いとき（ノート PC を半分にしたときなど）：下のボタンは記号と数だけにする */
 @media (max-width: 1100px) {
   .footer {
+    --wipe-base: clamp(50px, 9vh, 72px);
+    --side-min: 360px;
     margin: 8px 12px 10px;
     gap: 8px;
   }
   .btnLabel {
     display: none;
-  }
-  .judge {
-    min-width: 0;
   }
   .actions button {
     white-space: nowrap;
@@ -358,4 +346,26 @@
   width: auto;
 
   filter: drop-shadow(0 0 6px #b250ff66);
+}
+
+/* スマホの幅：ワイプとボタンをさらに小さくする */
+@media (max-width: 760px) {
+  .footer {
+    --wipe-base: 52px;
+  }
+}
+
+/* 予選：ワイプは舞台の台に出すので、フッターは1段（マイク・カメラを横に並べる） */
+.footer[data-compact] .side {
+  min-height: 0;
+}
+
+.footer[data-compact] .myControls {
+  grid-template-rows: none;
+  grid-auto-flow: column;
+  height: 40px;
+}
+
+.footer[data-compact] .myControls > button {
+  width: 40px;
 }

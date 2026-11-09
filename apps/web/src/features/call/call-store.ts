@@ -20,8 +20,20 @@ interface CallStore {
   peers: string[];
   /** いま話している人（自分を含む） */
   speaking: Record<string, boolean>;
+  /** 声の大きさ（0〜4。ワイプの波形） */
+  levels: Record<string, number>;
   /** 通話に入っている人（自分以外。CALL_STATE で知る） */
   inCallOthers: Record<string, boolean>;
+  /** カメラを映している人（自分以外。CALL_STATE で知る） */
+  camOthers: Record<string, boolean>;
+  /** 届いている相手の映像（ワイプに映す） */
+  videos: Record<string, MediaStream>;
+  /** 自分のカメラ（映していないときは null） */
+  camera: MediaStream | null;
+  /** カメラを映したいか。既定はオン（通話に入ると映す）。カメラのボタンで切り替える */
+  cameraWanted: boolean;
+  cameraStarting: boolean;
+  toggleCamera(): Promise<void>;
   join(): Promise<void>;
   leave(): void;
   toggleMute(): void;
@@ -49,7 +61,7 @@ function startSync() {
     for (const j of s.snapshot?.judges ?? []) {
       if (!j.connected && prev.snapshot?.judges.find((x) => x.judgeId === j.judgeId)?.connected) {
         client?.forget(j.judgeId);
-        useCall.setState((st) => ({ inCallOthers: { ...st.inCallOthers, [j.judgeId]: false } }));
+        useCall.setState((st) => ({ inCallOthers: { ...st.inCallOthers, [j.judgeId]: false }, camOthers: { ...st.camOthers, [j.judgeId]: false } }));
       }
     }
   });
@@ -66,8 +78,8 @@ export const useCall = create<CallStore>((set, get) => {
     (client ??= new CallClient(
       {
         me: callId,
-        sendState: (on) =>
-          useSession.getState().client?.sendEphemeral('CALL_STATE', useSession.getState().judgeId ? { on } : { on, as: spectatorCallId }),
+        sendState: (on, cam) =>
+          useSession.getState().client?.sendEphemeral('CALL_STATE', useSession.getState().judgeId ? { on, cam } : { on, as: spectatorCallId }),
         sendSignal: (signal) => useSession.getState().client?.sendEphemeral('RTC_SIGNAL', signal),
       },
       {
@@ -75,6 +87,19 @@ export const useCall = create<CallStore>((set, get) => {
         onSpeaking: (speaking) => {
           if (!sameFlags(get().speaking, speaking)) set({ speaking });
         },
+        onLevels: (levels) => {
+          const prev = get().levels;
+          const keys = new Set([...Object.keys(prev), ...Object.keys(levels)]);
+          if ([...keys].some((k) => (prev[k] ?? 0) !== (levels[k] ?? 0))) set({ levels });
+        },
+        onVideo: (id, stream) =>
+          set((st) => {
+            const videos = { ...st.videos };
+            if (stream) videos[id] = stream;
+            else delete videos[id];
+            return { videos };
+          }),
+        onCamera: (camera) => set({ camera }),
         onError: (message) => useDisplay.getState().toast(message, 'warn'),
       },
     ));
@@ -89,7 +114,8 @@ export const useCall = create<CallStore>((set, get) => {
     listenOnly: false,
     async retryMic() {
       client?.leave();
-      set({ inCall: false, peers: [], speaking: {}, muted: false });
+      set({ inCall: false, peers: [], speaking: {}, levels: {}, muted: false, videos: {} });
+      // カメラは join で、cameraWanted に合わせて映し直す
       await get().join();
     },
     async unlock() {
@@ -103,7 +129,29 @@ export const useCall = create<CallStore>((set, get) => {
     },
     peers: [],
     speaking: {},
+    levels: {},
     inCallOthers: {},
+    camOthers: {},
+    videos: {},
+    camera: null,
+    cameraWanted: true,
+    cameraStarting: false,
+    async toggleCamera() {
+      if (get().cameraStarting) return;
+      const c = getClient();
+      if (get().camera) {
+        set({ cameraWanted: false });
+        c.stopCamera();
+        return;
+      }
+      set({ cameraWanted: true, cameraStarting: true });
+      try {
+        if (!get().inCall) await get().join();
+        await c.startCamera();
+      } finally {
+        set({ cameraStarting: false });
+      }
+    },
     async join() {
       if (get().inCall || get().joining) return;
       set({ joining: true });
@@ -116,6 +164,11 @@ export const useCall = create<CallStore>((set, get) => {
       if (!c.inCall) return;
       // 声は既定で届く。ミュートでなければ文字起こしも一緒に始める（聞くだけのときは始めない）
       if (!get().muted && !c.listenOnly) useVoice.getState().setActive(true);
+      // カメラも既定で映す（審査員だけ。自分で切った人は切ったまま）
+      if (get().cameraWanted && useSession.getState().judgeId && !get().camera) {
+        set({ cameraStarting: true });
+        void c.startCamera().finally(() => set({ cameraStarting: false }));
+      }
       // まだクリックしていないページでは音が鳴らない。最初のクリックで鳴らし始める
       if (c.audioBlocked) {
         const once = () => void get().unlock();
@@ -126,7 +179,7 @@ export const useCall = create<CallStore>((set, get) => {
     leave() {
       client?.leave();
       useVoice.getState().setActive(false);
-      set({ inCall: false, peers: [], speaking: {} });
+      set({ inCall: false, peers: [], speaking: {}, levels: {}, videos: {} });
     },
     toggleMute() {
       const muted = !get().muted;
@@ -138,8 +191,8 @@ export const useCall = create<CallStore>((set, get) => {
 });
 
 /** CAMP の Ephemeral から呼ぶ */
-function onCallState(from: string, on: boolean) {
-  useCall.setState((s) => ({ inCallOthers: { ...s.inCallOthers, [from]: on } }));
+function onCallState(from: string, on: boolean, cam: boolean) {
+  useCall.setState((s) => ({ inCallOthers: { ...s.inCallOthers, [from]: on }, camOthers: { ...s.camOthers, [from]: on && cam } }));
   client?.onState(from, on);
 }
 
@@ -147,5 +200,8 @@ function onCallSignal(from: string, signal: CallSignal) {
   void client?.onSignal(from, signal).catch(() => {});
 }
 
-onEphemeral('CALL_STATE', (from, payload) => onCallState(from, (payload as { on: boolean }).on));
+onEphemeral('CALL_STATE', (from, payload) => {
+  const p = payload as { on: boolean; cam?: boolean };
+  onCallState(from, p.on, !!p.cam);
+});
 onEphemeral('RTC_SIGNAL', (from, payload) => onCallSignal(from, payload as CallSignal));

@@ -1,8 +1,8 @@
-import { Crown, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
 import { useCall } from '../call/call-store.ts';
 import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
-import { CallBadge, CallControls, CallMicButton } from '../call/CallControls.tsx';
+import { CallControls, CallMicButton, CameraButton, JudgeWipeBand } from '../call/CallControls.tsx';
 import { useEffect } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
@@ -103,35 +103,28 @@ export function Footer() {
   const tasteOpen = useDisplay((s) => s.tasteOpen);
   const setTasteOpen = useDisplay((s) => s.setTasteOpen);
   const { judgeId, isHost } = useMe();
+  // 予選は審査員の顔を舞台の台に出すので、ここではワイプを出さない（決勝ではここに並べる）
+  const prelimStage = useDisplay((s) => s.prelimStage);
   if (!snapshot) return null;
   return (
-    <footer className={styles.footer}>
+    <footer
+      className={styles.footer}
+      data-compact={prelimStage || undefined}
+      style={{ ['--n' as string]: Math.max(1, snapshot.judges.length) }}
+    >
       <Captions />
       <div className={styles.judges}>
-        {snapshot.judges.map((j) => (
-          <div
-            key={j.judgeId}
-            className={styles.judge}
-            data-you={j.judgeId === judgeId || undefined}
-            data-offline={!j.connected || undefined}
-            style={{ ['--judge' as string]: j.color }}
-          >
-            <span className={styles.avatar}>{j.letter ?? j.label.slice(-1)}</span>
-            <div>
-              <strong>
-                {j.label}
-                {j.judgeId === judgeId ? '（あなた）' : ''}
-              </strong>
-              <small>
-                <span /> {j.connected ? (j.isHost ? 'ホスト' : '参加中') : '切断中'}
-              </small>
-            </div>
-            {j.isHost && <Crown size={13} className={styles.hostCrown} aria-label="ホスト" />}
-            <CallBadge judgeId={j.judgeId} />
-            {j.judgeId === judgeId ? <MicButton /> : null}
+        {!prelimStage && <JudgeWipeBand />}
+        {judgeId && (
+          <div className={styles.myControls}>
+            <MicButton />
+            <CameraButton />
           </div>
-        ))}
+        )}
       </div>
+      {/* 右側：チャット欄とボタン（ワイプの下端にそろえる） */}
+      <div className={styles.side}>
+        <div className={styles.sideRow}>
       <UtteranceInput />
       <div className={styles.actions}>
         <TastePanel />
@@ -165,6 +158,8 @@ export function Footer() {
             <RotateCcw size={16} />
           </button>
         )}
+        </div>
+        </div>
       </div>
     </footer>
   );

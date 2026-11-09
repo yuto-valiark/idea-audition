@@ -82,6 +82,8 @@ interface DisplayState {
   justUpdated: Record<string, number>; // instanceId → 改良版が公開された時刻
   /** 他の審査員のマイク状態（Ephemeral） */
   micOn: Record<string, boolean>;
+  /** 予選の舞台を出しているか（予選は審査員の台にワイプを出すので、フッターには出さない） */
+  prelimStage: boolean;
   setMic(judgeId: string, on: boolean): void;
   /** テキストで打った発言（直近のもの） */
   captions: Caption[];
@@ -130,6 +132,7 @@ export const useDisplay = create<DisplayState>((set) => ({
   setConsensusOpen: (consensusOpen) => set({ consensusOpen, ...(consensusOpen ? { chatOpen: false } : {}) }),
   justUpdated: {},
   micOn: {},
+  prelimStage: false,
   setMic: (judgeId, on) => set((s) => ({ micOn: { ...s.micOn, [judgeId]: on } })),
   captions: [],
   addCaption: (c) =>
