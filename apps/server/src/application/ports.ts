@@ -82,6 +82,26 @@ export interface EmbeddingPort {
   embed(texts: string[]): Promise<number[][]>;
 }
 
+/** 声の発言を、審査の話題かどうか判定してもらうための材料（issue #3） */
+export interface UtteranceTriageInput {
+  theme: string;
+  /** 舞台にいるキャラと、その企画名（「ルナが言っていた案」のような言及の判断に使う） */
+  stage: { characterName: string; title: string }[];
+  /** 直前の発言（「それは微妙」のような、前の話を受けた発言を落とさないため） */
+  recentRemarks: { judge: string; text: string }[];
+  /** 会議の語彙で聞き間違いを直したあとの文字起こし */
+  text: string;
+}
+
+/**
+ * 発言の仕分け結果。
+ * - keep=false：審査の話題ではない（雑談・アプリや機材の話）か、聞き間違いで意味が通らない。記録せず、誰にも渡さない
+ * - keep=true：summary は言い直した1文。AI が言い直さなかったとき（固定データなど）は null で、元の文をそのまま使う
+ */
+export type UtteranceTriage =
+  | { keep: true; summary: string | null }
+  | { keep: false; reason: 'off_topic' | 'garbled' };
+
 /** AI 生成のポート（ADR-0005 §1）。GeminiGateway と FixtureGateway が実装する。 */
 export interface IdeaGenerationPort {
   readonly name: string;
@@ -113,6 +133,8 @@ export interface IdeaGenerationPort {
     spoken?: boolean;
   }): Promise<string | null>;
   // 戻り値が null：質問が聞き間違いなどで意味が通らなかった（答えず、聞き直す）
+  /** 声の発言を仕分ける：審査の話題だけ残し、言い直して返す（issue #3） */
+  triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage>;
 }
 
 export interface RefineParticipant {

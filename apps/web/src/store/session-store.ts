@@ -248,7 +248,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       }
       break;
     case 'JUDGE_UTTERANCE_RECEIVED':
-      // 声の発言は画面に出さない（issue #2）。テキストで打った発言だけ字幕に出す
+      // 声の発言は、聞こえたままも AI が言い直したものも画面に出さない（issue #2・#3）。テキストで打った発言だけ字幕に出す
       if (d.source === 'text' && typeof d.judgeId === 'string' && typeof d.text === 'string') {
         display.addCaption({
           judgeId: d.judgeId,

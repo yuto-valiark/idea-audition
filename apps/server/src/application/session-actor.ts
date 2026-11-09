@@ -49,6 +49,11 @@ export interface ActorConfig {
   consensus: { afterUtteranceMs: number; afterDecisionMs: number; flushAfterUtterances: number } | null;
   /** 下段の枠の数。省略すると1人ずつ（#5）。古いテストは5 */
   lowerSlotCount?: number;
+  /**
+   * 声の発言を AI で仕分け・言い直しする（issue #3）。審査の話題だけ残し、雑談・アプリの話・聞き間違いは捨てる。
+   * 省略・false なら、声の発言もそのまま扱う（テスト用）
+   */
+  triage?: boolean;
 }
 
 export interface RotationConfig {
@@ -105,6 +110,22 @@ interface Deps {
   ids: IdProvider;
   config: ActorConfig;
   log?: (msg: string, extra?: unknown) => void;
+}
+
+/** 受け取った発言（補正まで済んだもの）。仕分けの前後で受け渡す */
+interface UtteranceContext {
+  judgeId: string;
+  /** 聞こえたまま（補正は済み）の文。宛先・意図の判定に使う */
+  text: string;
+  /** 補正の前の文字起こし */
+  rawText: string;
+  corrections: Correction[];
+  source: 'live' | 'text';
+  fallbackTargetId: string | null;
+  replyToClaim: string | null;
+  meta: { actorJudgeId: string; correlationId: string };
+  /** AI が言い直した文。仕分けをしなかった・言い直さなかったときは null */
+  summary: string | null;
 }
 
 type RefineTrigger =
@@ -172,6 +193,8 @@ export class SessionActor {
   private engagedUntil = new Map<string, number>();
   /** 同じ発言の二重送信を防ぐ（judgeId → 直前の発言） */
   private lastUtterance = new Map<string, { text: string; at: number }>();
+  /** 仕分け待ちの声の発言を、審査員ごとに言った順で処理するための列（AI の返りが前後しても順番を守る） */
+  private utteranceChain = new Map<string, Promise<void>>();
   private hesitation = new HesitationGate();
   private tasteTimer: (() => void) | null = null;
 
@@ -639,6 +662,64 @@ export class SessionActor {
       corrections = repaired.corrections;
       if (corrections.length) this.deps.log?.(`[voice] repaired ${corrections.map((c) => `${c.from}→${c.to}(${c.score})`).join(', ')}`);
     }
+    const ctx: UtteranceContext = { judgeId, text, rawText, corrections, source, fallbackTargetId, replyToClaim, meta, summary: null };
+    // 声の発言は、審査の話題かを AI に仕分けてもらってから扱う（雑談・アプリの話・聞き間違いは捨てる、issue #3）。
+    // キャラの名前を呼んでいる発言は、話しかけだと明らかなので待たずに扱う
+    if (this.deps.config.triage && source === 'live' && !this.findAddressee(text)) {
+      this.triageThenProcess(ctx);
+      return { ok: true };
+    }
+    return this.processUtterance(ctx);
+  }
+
+  /**
+   * 声の発言を AI で仕分け、残すものだけ本処理へ渡す。審査員ごとに言った順で処理する。
+   * AI が失敗したときは、本物の発言を落とさないよう、そのまま本処理へ渡す。
+   */
+  private triageThenProcess(ctx: UtteranceContext) {
+    const epoch = this.epoch;
+    const previous = this.utteranceChain.get(ctx.judgeId) ?? Promise.resolve();
+    const next = previous
+      .then(async () => {
+        const started = this.deps.clock.now();
+        const verdict = await this.triage(ctx.text).catch((e): null => {
+          this.deps.log?.('triageUtterance failed', e);
+          return null;
+        });
+        if (epoch !== this.epoch) return;
+        if (verdict && !verdict.keep) {
+          // 審査の話題ではない・聞き取れない発言は、記録せず、好みにも合意台帳にも入れない
+          this.deps.log?.(`[triage] dropped (${verdict.reason}) ${this.deps.clock.now() - started}ms`);
+          return;
+        }
+        this.deps.log?.(`[triage] kept ${this.deps.clock.now() - started}ms${verdict?.summary ? ' (summarized)' : ''}`);
+        this.processUtterance({ ...ctx, summary: verdict?.summary ?? null });
+      })
+      .catch((e) => this.deps.log?.('utterance failed', e));
+    this.utteranceChain.set(ctx.judgeId, next);
+  }
+
+  private triage(text: string) {
+    const s = this.session;
+    const onStage = [...s.lowerSlots.filter((x): x is string => x !== null), ...s.upper.map((f) => f.instanceId)];
+    const spotlight = this.validTarget(s.spotlight?.instanceId);
+    if (spotlight && !onStage.includes(spotlight)) onStage.push(spotlight);
+    return this.ai.triageUtterance({
+      theme: s.theme,
+      stage: onStage.map((id) => ({ characterName: this.characterName(id), title: s.currentRevision(s.characters.get(id)!.ideaId).title })),
+      recentRemarks: buildConsensusContext(s).recentRemarks.slice(-3),
+      text,
+    });
+  }
+
+  /**
+   * 仕分けを通った発言を扱う。宛先・意図の判定は聞こえたままの文（text）で行い、
+   * 記録・AI・キャラに渡す文は、言い直した文（summary があればそれ）にする。声の発言は画面には出さない。
+   */
+  private processUtterance(u: UtteranceContext): { ok: true } | { ok: false; reason: RejectReason } {
+    const s = this.session;
+    const { judgeId, text, rawText, corrections, source, fallbackTargetId, replyToClaim, meta, summary } = u;
+    const shown = summary ?? text;
     // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ → スポットライトのキャラ／予選の挑戦者
     const named = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
     const stageTarget = this.validTarget(s.spotlight?.instanceId) ?? this.validTarget(s.lowerSlots[0]);
@@ -690,12 +771,12 @@ export class SessionActor {
           type: 'JUDGE_UTTERANCE_RECEIVED',
           detail: {
             judgeId,
-            text,
+            text: shown,
             source,
             targetInstanceId,
             intent,
             mentioned: mentions.mentioned,
-            ...(corrections.length ? { rawText, corrections } : {}),
+            ...(corrections.length || summary ? { rawText, ...(corrections.length ? { corrections } : {}) } : {}),
           },
         },
         ...mentionEvents,
@@ -706,7 +787,7 @@ export class SessionActor {
     s.recordUtterance({
       seq: utteranceSeq,
       judgeId,
-      text,
+      text: shown,
       source,
       targetInstanceId,
       intent,
@@ -731,13 +812,13 @@ export class SessionActor {
       return r.ok ? { ok: true } : r;
     }
     if (willRefine) {
-      this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text });
-      if (alsoAnswer) return this.ask(judgeId, targetInstanceId, text, meta);
+      this.enqueueRefinement({ kind: 'instruction', instanceId: targetInstanceId, text: shown });
+      if (alsoAnswer) return this.ask(judgeId, targetInstanceId, shown, meta);
       return { ok: true };
     }
     const target = s.characters.get(targetInstanceId);
     if (target?.location === 'archived') return { ok: true };
-    return this.ask(judgeId, targetInstanceId, text, meta, source === 'live');
+    return this.ask(judgeId, targetInstanceId, shown, meta, source === 'live');
   }
 
   /** 発言の中にステージ上のキャラ名（英字名か読み）があれば、そのキャラを宛先にする */

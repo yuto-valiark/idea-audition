@@ -39,7 +39,7 @@ export interface Bubble {
   critiqueId: string;
 }
 
-/** テキストで打った発言の字幕（声の発言は出さない、issue #2） */
+/** テキストで打った発言の字幕（声の発言は、言い直したものも出さない、issue #2・#3） */
 export interface Caption {
   id: string;
   judgeId: string;
