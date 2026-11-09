@@ -50,12 +50,15 @@ export function ChampionScreen() {
           />
         ))}
       </div>
-      <div className={styles.eyebrow}>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</div>
-      <Crown className={styles.crown} />
-      <h1>IDEA CHAMPION</h1>
-      <div className={styles.spot}>
-        <Mascot designId={character.designId} className={styles.mascot} />
+      <div className={styles.hero}>
+        <div className={styles.eyebrow}>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</div>
+        <Crown className={styles.crown} />
+        <h1>IDEA CHAMPION</h1>
+        <div className={styles.spot}>
+          <Mascot designId={character.designId} className={styles.mascot} />
+        </div>
       </div>
+      <div className={styles.body}>
       <h2>{rev.title}</h2>
       <p className={styles.summary}>{rev.summary}</p>
       {allPoints.length > 0 && (
@@ -105,6 +108,7 @@ export function ChampionScreen() {
           </button>
         )}
       </div>
+      </div>
     </section>
   );
 }
@@ -122,7 +126,6 @@ function ProposalButton() {
     return (
       <div className={styles.proposal} data-state="generating" role="status">
         <Loader2 size={18} className={styles.spin} /> 企画書と審査レポートを作成中…
-        <small>決まった案と、ここまでの審査の流れをまとめています</small>
       </div>
     );
   }
@@ -161,7 +164,6 @@ function ProposalButton() {
         {saving ? <Loader2 size={18} className={styles.spin} /> : <FileDown size={18} />}
         {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
       </button>
-      <small>企画書（AI作成）＋ 審査レポート（合意の経緯・改良の流れ・批評・質疑・投票）</small>
     </motion.div>
   );
 }
