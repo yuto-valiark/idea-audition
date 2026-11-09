@@ -7,7 +7,7 @@ PROFILE_BASE="/tmp/idea-audition-v12-chrome"
 
 python3 "$SCRIPT_DIR/gen.py"
 
-for no in {06..15}; do
+for no in {06..18}; do
   "$CHROME" \
     --headless=new \
     --disable-gpu \
@@ -15,6 +15,7 @@ for no in {06..15}; do
     --no-first-run \
     --user-data-dir="$PROFILE_BASE-$no" \
     --window-size=1672,941 \
+    --force-device-scale-factor=2 \
     --screenshot="$SCRIPT_DIR/s$no.png" \
     "file://$SCRIPT_DIR/s$no.html"
 done

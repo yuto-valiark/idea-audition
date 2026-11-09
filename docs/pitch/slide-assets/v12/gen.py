@@ -141,6 +141,56 @@ slides[14]=('WHY NOT EXISTING',f'''
 {trow('Liveblocks / Yjs','共同編集（みんなの編集を混ぜる）','混ぜるのが前提。合格・優勝のように「1つに決める」判断に向かない')}
 {trow('CAMP','人の操作も AI の結果も、1つの順番で確定','再送しても実行は1回（commandId）。古い AI の結果は捨てる（epoch）。断るときは理由つき',True)}
 </div>''')
+slides={(k+1 if k>=16 else k):v for k,v in slides.items()}
+# 16 企画書：決勝のあいだに全員分を作り置き → 優勝の瞬間に0秒（#37）
+def lane(y,name,bars,champ=False):
+    c='#ffd76b' if champ else '#c97cfa'
+    out=f'<text x="18" y="{y+31}" font-size="24" font-weight="900" fill="{c}">{name}</text>'
+    for x1,x2,label,kind in bars:
+        if kind=='old':
+            out+=f'<rect x="{x1}" y="{y}" width="{x2-x1}" height="46" rx="10" fill="#2a1840" stroke="#6a4a8a" stroke-dasharray="5 5"/><text x="{(x1+x2)/2}" y="{y+30}" text-anchor="middle" font-size="18" fill="#8f7aa8" text-decoration="line-through">{label}</text>'
+        else:
+            f='url(#gold)' if champ else 'url(#pink)'
+            out+=f'<rect x="{x1}" y="{y}" width="{x2-x1}" height="46" rx="10" fill="{f}"/><text x="{(x1+x2)/2}" y="{y+30}" text-anchor="middle" font-size="20" font-weight="800" fill="#1a0820">{label}</text>'
+    return out
+def page_mock(part,title,by,items,accent):
+    lis=''.join(f'<div style="display:flex;gap:8px;align-items:center;font-size:19px;color:#3a2a4a;padding:13px 0;border-bottom:1px solid #eee4f4"><span style="width:6px;height:6px;border-radius:50%;background:{accent};flex:none"></span>{t}</div>' for t in items)
+    return f'''<div style="background:#fbf8ff;border-radius:10px;padding:20px 22px;box-shadow:0 0 30px #b250ff66,0 18px 40px #000a;display:flex;flex-direction:column;gap:6px">
+<div style="font-size:14px;font-weight:900;letter-spacing:2px;color:{accent}">{part}</div>
+<div style="font-size:27px;font-weight:900;color:#1a0f2a">{title}</div>
+<div style="font-size:15px;color:#7a6a8c;margin-bottom:8px;line-height:1.5">{by}</div>{lis}</div>'''
+slides[16]=('THE PROPOSAL',f'''
+<h1 style="position:absolute;left:60px;top:112px;font-size:56px">優勝した瞬間、<em>企画書はもうできている。</em></h1>
+<div class="card" style="position:absolute;left:60px;top:225px;width:830px;bottom:50px;padding:24px 28px;display:flex;flex-direction:column">
+<div style="font-size:26px;font-weight:900">決勝のあいだに、<span style="color:#FF72ED">ファイナリスト全員分</span>を裏で作り置き</div>
+<svg width="770" height="440" viewBox="0 0 770 440" style="margin-top:18px">
+<defs><linearGradient id="pink" x1="0" x2="1"><stop offset="0" stop-color="#c97cfa"/><stop offset="1" stop-color="#FF72ED"/></linearGradient>
+<linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#ffb84d"/><stop offset="1" stop-color="#ffd76b"/></linearGradient>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffd76b"/></marker></defs>
+<line x1="90" y1="340" x2="740" y2="340" stroke="#6a3fa0" stroke-width="2"/>
+''' + ''.join(f'<line x1="{x}" y1="10" x2="{x}" y2="340" stroke="{c}" stroke-width="{w}" stroke-dasharray="{d}"/><circle cx="{x}" cy="340" r="7" fill="{c}"/><text x="{x}" y="374" text-anchor="middle" font-size="19" font-weight="800" fill="{c}">{l}</text>' for x,l,c,w,d in [(110,'決勝がそろう','#cdb8e8',1.5,'4 6'),(360,'案Bを改良','#cdb8e8',1.5,'4 6'),(530,'投票','#cdb8e8',1.5,'4 6'),(690,'優勝！','#ffd76b',3,'')]) + lane(40,'案A',[(120,350,'企画書','new')]) + lane(145,'案B',[(120,350,'企画書 v1','old'),(370,600,'企画書 v2','new')],True) + lane(250,'案C',[(120,350,'企画書','new')]) + f'''
+<path d="M606 168 L680 168" stroke="#ffd76b" stroke-width="3" marker-end="url(#ar)"/>
+<text x="643" y="152" text-anchor="middle" font-size="16" font-weight="800" fill="#ffd76b">そのまま</text>
+<text x="235" y="420" text-anchor="middle" font-size="17" fill="#b9a8d0">改良された案は、古い企画書を捨てて作り直す</text>
+</svg>
+<div style="margin-top:auto;display:flex;align-items:center;gap:20px;padding-top:12px;border-top:1px solid #4a2c70;white-space:nowrap">
+<div style="font-size:22px;color:#b9a8d0;font-weight:800">優勝 → 企画書</div>
+<div style="font-size:32px;font-weight:900;color:#8f7aa8;text-decoration:line-through">11〜13秒</div>
+<div style="font-size:30px;color:#cdb8e8">→</div>
+<div style="font-size:72px;font-weight:900;color:#ffd76b;text-shadow:0 0 18px #ffb40088;line-height:1">0<span style="font-size:28px;color:#ffe9b0"> 秒</span></div>
+<div style="font-size:14px;color:#9a88b0;line-height:1.6;margin-left:auto;text-align:right">11〜13 秒：本番の3人プレイ（11/8）<br>0 秒：作り置き後のログで実測</div>
+</div></div>
+<div style="position:absolute;left:930px;right:60px;top:225px;font-size:24px;font-weight:900">PDF の中身</div>
+<div style="position:absolute;left:930px;right:60px;top:275px;bottom:50px;display:grid;grid-template-columns:1fr 1fr;gap:22px">
+{page_mock('第1部','企画書','Gemini 3.8 Flash が審査の記録から作る',['背景・課題','対象者と価値','主な内容','進め方・体制・予算','リスクと対策','成果の測り方・次の一手','要検証の前提'],'#c03fb0')}
+{page_mock('第2部','この企画に決まるまで','審査の記録そのまま（AI を通さない）',['審査で合意した方針','改良の経緯','決勝での相互批評','審査員の質問と回答','決め方（得票）','見送った・入れ替わった案','好みの読み取り'],'#6a3fd0')}
+</div>''')
+
+# v12 に置いていない素材は、元の場所を指す
+ASSET_PATHS={'"brands.js"':'"../brands.js"','"vertexai.svg"':'"../logos/vertexai.svg"','"cloudrun.svg"':'"../logos/cloudrun.svg"','"firestore.svg"':'"../logos/firestore.svg"',
+  '"camp-logo.png"':'"../../../../packages/camp/assets/camp-logo.png"','"logo.webp"':'"../../../../apps/web/public/brand/logo-neon.webp"','"github_readme.png"':'"../github_readme.png"'}
 for no,(sec,body) in sorted(slides.items()):
-    open(os.path.join(S,f's{no:02d}.html'),'w').write(page(no,sec,body))
+    html=page(no,sec,body)
+    for a,b in ASSET_PATHS.items(): html=html.replace(a,b)
+    open(os.path.join(S,f's{no:02d}.html'),'w').write(html)
 print(sorted(slides))

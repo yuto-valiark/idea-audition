@@ -1,17 +1,17 @@
 <!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="../brands.js"></script></head><body>
 <div class="bg"><i></i><i></i><i></i></div>
-<div class="hd"><b>IDEA AUDITION</b> — PROOF</div><div class="ln"></div><div class="no">14</div>
+<div class="hd"><b>IDEA AUDITION</b> — WHY NOT EXISTING</div><div class="ln"></div><div class="no">14</div>
 
-<h1 style="position:absolute;left:60px;top:118px;font-size:60px">本当に、<em>作る意味があったのか。</em></h1>
-<div style="position:absolute;left:60px;right:60px;top:250px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px">
-<div class="card" style="padding:26px 28px;display:grid;gap:6px"><div style="font-size:64px;font-weight:900;color:#ffd76b;text-shadow:0 0 18px #ffb40088">0<span style="font-size:26px;color:#ffe9b0"> 秒</span></div><div style="font-size:22px;font-weight:800">優勝から企画書が出るまで</div><div style="font-size:15px;color:#b9a8d0">以前は本番で 11〜13 秒 → 決勝の間に作り置き</div></div>
-<div class="card" style="padding:26px 28px;display:grid;gap:6px"><div style="font-size:64px;font-weight:900;color:#ffd76b;text-shadow:0 0 18px #ffb40088">161<span style="font-size:26px;color:#ffe9b0"> 件</span></div><div style="font-size:22px;font-weight:800">自動テスト（すべて合格）</div><div style="font-size:15px;color:#b9a8d0">4人同時のブザーでも合格は1回・再送は二重に実行しない など</div></div>
-<div class="card" style="padding:26px 28px;display:grid;gap:6px"><div style="font-size:64px;font-weight:900;color:#ffd76b;text-shadow:0 0 18px #ffb40088">5 → 1<span style="font-size:26px;color:#ffe9b0"> 人</span></div><div style="font-size:22px;font-weight:800">予選で同時に見る案</div><div style="font-size:15px;color:#b9a8d0">5人並びで見るものが多すぎる → 1人ずつ登場</div></div>
-</div>
-<div class="card" style="position:absolute;left:60px;right:60px;top:560px;padding:24px 30px">
-<div style="font-size:22px;font-weight:900;margin-bottom:12px">使ってもらって、直したこと</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 40px;font-size:18px;color:#e3d3f5">
-<span>✓ 5人並びで見るものが多すぎる → 1人ずつ登場</span><span>✓ 改良で旧版の条件が残る → 版ごとに中身を持つ</span>
-<span>✓ 時間に急かされる → 深掘りタイムで止まる</span><span>✓ 同じ質問が2回出る → 二重送信を防止</span>
-<span>✓ 企画書が出るまで待つ → 作り置きで 0 秒</span><span>✓ 質問が誰宛か分からない → スポットライトで共有</span>
-</div></div></body></html>
+<h1 style="position:absolute;left:60px;top:112px;font-size:56px">なぜ、<em>既存の仕組みではダメなのか。</em></h1>
+<div style="position:absolute;left:60px;right:60px;top:212px;font-size:26px;font-weight:800;padding:16px 26px;border-left:6px solid #FF72ED;background:#1a0a2acc">人の操作と、遅れて届く AI の結果を、<span style="color:#FF72ED">同じ順番で確定させる仕組み</span>が無い。</div>
+<div style="position:absolute;left:60px;right:60px;top:318px;display:grid;gap:14px">
+<div style="display:grid;grid-template-columns:330px 380px 1fr;gap:28px;padding:0 32px;font-size:17px;color:#b9a8d0;letter-spacing:2px"><span>仕組み</span><span>得意なこと</span><span>IDEA AUDITION で足りないこと</span></div>
+<div style="display:grid;grid-template-columns:330px 380px 1fr;gap:28px;align-items:center;padding:22px 30px;border-radius:16px;background:#1a0f2acc;border:1.5px solid #4a2c70">
+<div style="font-size:26px;font-weight:900;color:#F8F3FF">Socket.IO</div><div style="font-size:19px;color:#e3d3f5;line-height:1.55">メッセージを速く届ける</div><div style="font-size:19px;color:#cdb8e8;line-height:1.55">届けるだけ。どれを先に確定するか、再送を1回にするか、古い AI の結果を捨てるかは全部自前</div></div>
+<div style="display:grid;grid-template-columns:330px 380px 1fr;gap:28px;align-items:center;padding:22px 30px;border-radius:16px;background:#1a0f2acc;border:1.5px solid #4a2c70">
+<div style="font-size:26px;font-weight:900;color:#F8F3FF">Firebase</div><div style="font-size:19px;color:#e3d3f5;line-height:1.55">データを全員に同期する</div><div style="font-size:19px;color:#cdb8e8;line-height:1.55">「4票目で合格を1回だけ」「遅れて届いた AI の結果は古い」を判断する場所が無い</div></div>
+<div style="display:grid;grid-template-columns:330px 380px 1fr;gap:28px;align-items:center;padding:22px 30px;border-radius:16px;background:#1a0f2acc;border:1.5px solid #4a2c70">
+<div style="font-size:26px;font-weight:900;color:#F8F3FF">Liveblocks / Yjs</div><div style="font-size:19px;color:#e3d3f5;line-height:1.55">共同編集（みんなの編集を混ぜる）</div><div style="font-size:19px;color:#cdb8e8;line-height:1.55">混ぜるのが前提。合格・優勝のように「1つに決める」判断に向かない</div></div>
+<div style="display:grid;grid-template-columns:330px 380px 1fr;gap:28px;align-items:center;padding:22px 30px;border-radius:16px;background:linear-gradient(90deg,#3a1660,#22123a);border:2px solid #FF72ED;box-shadow:0 0 24px #ff72ed55">
+<div style="font-size:26px;font-weight:900;color:#FF72ED">CAMP</div><div style="font-size:19px;color:#e3d3f5;line-height:1.55">人の操作も AI の結果も、1つの順番で確定</div><div style="font-size:19px;color:#fff;line-height:1.55">再送しても実行は1回（commandId）。古い AI の結果は捨てる（epoch）。断るときは理由つき</div></div>
+</div></body></html>
