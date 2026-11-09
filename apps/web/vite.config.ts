@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true,
+    host: '0.0.0.0',
+    allowedHosts: ['tatsuki-desktop.tail081588.ts.net'],
     proxy: {
       '/camp': { target: 'ws://localhost:8787', ws: true },
       '/api': { target: 'http://localhost:8787' },
