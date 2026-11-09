@@ -266,10 +266,10 @@
 
 <h2><span class="no">10</span>公開の手順と、その前に決めること</h2>
 <ol>
-<li><b>決める</b>：<code>package.json</code> の著者欄の Gmail アドレスを、npm に出してよいか（出ると公開される）</li>
+<li><b>済み</b>：個人のメールは出さない。<code>package.json</code> の著者欄は名前と GitHub の URL だけ。公開用のコミットの作者は GitHub の noreply アドレス。npm のアカウントのメールは、公開のデータ（maintainers）に入る</li>
 <li><b>決める</b>：npm のアカウントの2段階認証。GitHub Actions から出所の証明（provenance）付きで公開するか</li>
 <li>公開前の確認（秘密の情報・アプリの言葉が入っていないか、境界テスト）</li>
-<li>切り出しスクリプトを「英語の1コミット」で出す形にして、公開リポジトリを置き換える（今の日本語の5コミットと古い Actions の記録を消す）</li>
+<li><code>scripts/camp-split.sh</code> で英語の1コミットを作り（noreply の作者・Gmail の文字が入っていたら止まる）、公開リポジトリを置き換える（今の日本語の5コミットと古い Actions の記録を消す）</li>
 <li>公開リポジトリの CI（Node 20・22・24）が通る</li>
 <li><code>pnpm publish --access public</code> → <code>npm view @camp-protocol/kit</code> で見える</li>
 <li>アプリの package.json を <code>workspace:*</code> から npm の版に切り替え、本番で確かめる</li>
