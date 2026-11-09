@@ -339,11 +339,12 @@ function History({ snapshot, current }: { snapshot: SessionSnapshot; current: st
 }
 
 function useSecondsLeft(leavingAt: string | null) {
-  const [now, setNow] = useState(() => Date.now());
+  // 時刻は描画のたびにその場で読む。止まっていた間の古い時刻で計算すると、再開した瞬間に大きな数字が一度出る
+  const [, tick] = useState(0);
   useEffect(() => {
     if (!leavingAt) return;
-    const t = setInterval(() => setNow(Date.now()), 250);
+    const t = setInterval(() => tick((x) => x + 1), 250);
     return () => clearInterval(t);
   }, [leavingAt]);
-  return leavingAt ? Math.max(0, Math.ceil((Date.parse(leavingAt) - now) / 1000)) : 0;
+  return leavingAt ? Math.max(0, Math.ceil((Date.parse(leavingAt) - Date.now()) / 1000)) : 0;
 }
