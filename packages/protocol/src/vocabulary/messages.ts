@@ -87,6 +87,8 @@ export const EphemeralPayloads = {
     on: z.boolean(),
     /** 観覧者（5人目以降）が聞くだけで入るときの通話用の ID。ブラウザで作る（spec_ で始まる） */
     as: z.string().regex(/^spec_[a-z0-9]{6,24}$/).optional(),
+    /** カメラを映しているか（ワイプに顔を出すか、アイコンにするか） */
+    cam: z.boolean().optional(),
   }),
   /** 通話をつなぐための受け渡し（offer / answer / 経路の候補 ice）。to で宛先の審査員を指定し、ほかの人は無視する */
   RTC_SIGNAL: z.object({

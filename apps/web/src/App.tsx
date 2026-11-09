@@ -10,6 +10,7 @@ import { DragLayer } from './scene/DragLayer.tsx';
 import { RoomNotFound } from './features/audition/RoomNotFound.tsx';
 import { NameGate } from './features/audition/NameGate.tsx';
 import { useCall } from './features/call/call-store.ts';
+import { JudgeWipeBand } from './features/call/CallControls.tsx';
 import { finalistTarget, useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
 
@@ -70,7 +71,12 @@ export function App() {
           <Footer />
         </>
       )}
-      {screen === 'champion' && <ChampionScreen />}
+      {screen === 'champion' && (
+        <>
+          <ChampionScreen />
+          <JudgeWipeBand floating />
+        </>
+      )}
       <ResultReveal show={revealing} />
       {screen === 'arena' && <DetailModal />}
       <IdeaBoxModal />

@@ -65,6 +65,7 @@ interface Client {
   ws: WebSocket;
   received: ServerMessage[];
   judgeId: string | null;
+  resumeToken: string | null;
   send(m: unknown): void;
   waitFor<T extends ServerMessage>(pred: (m: ServerMessage) => m is T, ms?: number): Promise<T>;
   waitFor(pred: (m: ServerMessage) => boolean, ms?: number): Promise<ServerMessage>;
@@ -81,6 +82,7 @@ function open(): Promise<Client> {
       ws,
       received,
       judgeId: null,
+      resumeToken: null,
       send: (m) => ws.send(typeof m === 'string' ? m : JSON.stringify(m)),
       waitFor: ((pred: (m: ServerMessage) => boolean, ms = 2000) =>
         new Promise<ServerMessage>((res, rej) => {
@@ -94,7 +96,10 @@ function open(): Promise<Client> {
     ws.on('message', (raw) => {
       const m = JSON.parse(raw.toString()) as ServerMessage;
       received.push(m);
-      if (m.kind === 'welcome') client.judgeId = m.participantId;
+      if (m.kind === 'welcome') {
+        client.judgeId = m.participantId;
+        client.resumeToken = m.resumeToken ?? null;
+      }
       for (const w of [...waiters]) if (w.pred(m)) (waiters.splice(waiters.indexOf(w), 1), w.resolve(m));
     });
     ws.on('open', () => resolve(client));
@@ -103,9 +108,9 @@ function open(): Promise<Client> {
 }
 
 let sessionNo = 0;
-async function join(sessionId: string, judgeId?: string, lastSeq?: number) {
+async function join(sessionId: string, judgeId?: string, lastSeq?: number, resumeToken?: string) {
   const c = await open();
-  c.send({ camp: CAMP_VERSION, kind: 'hello', sessionId, participantId: judgeId, lastSeq });
+  c.send({ camp: CAMP_VERSION, kind: 'hello', sessionId, participantId: judgeId, resumeToken, lastSeq });
   await c.waitFor((m) => m.kind === 'welcome');
   return c;
 }
@@ -185,13 +190,26 @@ describe('CAMP v1 適合テスト', () => {
     expect(confirmedCount(c)).toBe(1);
   });
 
+  it('ほかの審査員の ID を名乗っても、合言葉が無ければその人にはなれない（なりすまし防止）', async () => {
+    const { sessionId, clients } = await startSession(2);
+    const [host, guest] = clients as [typeof clients[number], typeof clients[number]];
+    expect(host.resumeToken).toBeTruthy();
+    // 審査員の ID は snapshot で全員に見えている。合言葉なし・違う合言葉で名乗っても別人として入る
+    const noToken = await join(sessionId, host.judgeId!);
+    expect(noToken.judgeId).not.toBe(host.judgeId);
+    const wrongToken = await join(sessionId, host.judgeId!, undefined, guest.resumeToken!);
+    expect(wrongToken.judgeId).not.toBe(host.judgeId);
+    // 合言葉は snapshot に出ない
+    expect(JSON.stringify(lastSnapshot(guest))).not.toContain(host.resumeToken!);
+  });
+
   it('返事の前に切断 → 再接続して同じ commandId で再送しても二重に実行されない', async () => {
     const { sessionId, clients } = await startSession(1);
     const c = clients[0]!;
     const promote = command('REQUEST_PROMOTION', { instanceId: lastSnapshot(c)!.lowerSlots[0] });
     c.send(promote);
     c.ws.terminate();
-    const again = await join(sessionId, c.judgeId!);
+    const again = await join(sessionId, c.judgeId!, undefined, c.resumeToken!);
     expect(again.judgeId).toBe(c.judgeId);
     again.send(promote);
     const r = await resultOf(again, promote.commandId);
@@ -212,7 +230,7 @@ describe('CAMP v1 適合テスト', () => {
     b.send(promote);
     await resultOf(b, promote.commandId);
     await settle();
-    const back = await join(sessionId, a.judgeId!, seqBefore);
+    const back = await join(sessionId, a.judgeId!, seqBefore, a.resumeToken!);
     const welcome = back.received.find((m) => m.kind === 'welcome');
     if (welcome?.kind !== 'welcome') throw new Error('no welcome');
     expect(welcome.snapshot.seq).toBeGreaterThan(seqBefore);

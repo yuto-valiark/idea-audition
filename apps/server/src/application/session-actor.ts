@@ -305,13 +305,15 @@ export class SessionActor {
   /* --------------------------- 接続・切断 --------------------------- */
 
   attach(conn: Connection, hello: HelloMessage) {
-    const joined = this.session.join(hello.participantId);
+    const joined = this.session.join(hello.participantId, hello.resumeToken);
     this.session.refreshLedgerStatuses();
     const judgeId = joined.ok ? joined.value.judgeId : null;
     const wasEmpty = this.connections.size === 0;
     this.connections.set(conn.id, { conn, judgeId });
     if (wasEmpty) this.resumeAfterEmpty();
-    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: judgeId, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
+    // 合言葉は本人の接続にだけ送る（snapshot には入れない）
+    const resumeToken = joined.ok ? joined.value.resumeToken : null;
+    conn.send({ camp: CAMP_VERSION, kind: 'welcome', participantId: judgeId, resumeToken, snapshot: toSnapshot(this.session, this.seq, this.deps.clock.now()) });
     if (joined.ok) this.emit(joined.events, { actorJudgeId: judgeId });
   }
 

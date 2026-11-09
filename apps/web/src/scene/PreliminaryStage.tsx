@@ -8,6 +8,7 @@ import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, finalistTarget, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
 import { COUNTDOWN_CLIP, playCountdownClip, playSfx, preloadClip } from '../shared/sfx.ts';
+import { JudgeWipe } from '../features/call/CallControls.tsx';
 import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
@@ -80,7 +81,6 @@ export function PreliminaryStage() {
           <BuzzerZone snapshot={snapshot} instanceId={celebrating ? null : challenger} celebrating={celebrating} />
           {celebrating && <PassEffect seed={passed!.seed} name={snapshot.characters[passed!.instanceId]?.name ?? ''} />}
         </section>
-        <History snapshot={snapshot} current={shown} />
       </div>
     </div>
   );
@@ -384,36 +384,62 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   useBuzzSound(pressed.length, instanceId);
   return (
     <div className="buzzer-zone">
-      {/* いまブザーで審査しているのが誰の案か（見ている間に入れ替わっても、押す相手が分かるように） */}
-      {targetName && !celebrating && (
-        <span className="ia-buzz-target" key={instanceId}>
-          <span>
-            <b>{targetName}</b> に合格を出す？
+      {/*
+        いまブザーで審査しているのが誰の案か（見ている間に入れ替わっても、押す相手が分かるように）。
+        合格の演出中や次の挑戦者を待つあいだも、場所は空けたまま残す（台の位置がずれないように）
+      */}
+      {/* 左右は同じ幅の欄にして、台の列がちょうど画面の真ん中に来るようにする */}
+      <div className="buzz-side buzz-left">
+        {targetName && !celebrating ? (
+          <span className="ia-buzz-target" key={instanceId}>
+            <span>
+              <b>{targetName}</b> に合格を出す？
+            </span>
+            <small>
+              {pressed.length} / {judges.length} 人が押した
+            </small>
           </span>
-          <small>
-            {pressed.length} / {judges.length} 人が押した
-          </small>
-        </span>
-      )}
-      {!isSpectator && instanceId && <HoldButton snapshot={snapshot} instanceId={instanceId} />}
-      <div className="buzzers" style={{ '--count': judges.length } as CSSProperties}>
-        {judges.map((j) => (
-          <Buzzer
-            key={j.judgeId}
-            judge={j}
-            mine={j.judgeId === judgeId}
-            pressed={celebrating || pressed.includes(j.judgeId)}
-            disabled={celebrating || !instanceId || j.judgeId !== judgeId}
-            onClick={() => instanceId && void send('PRESS_BUZZER', { instanceId, on: !pressed.includes(j.judgeId) })}
-          />
-        ))}
+        ) : (
+          <span className="ia-buzz-target" aria-hidden />
+        )}
+        {!isSpectator && instanceId ? <HoldButton snapshot={snapshot} instanceId={instanceId} /> : <span className="ia-skip ia-slot" aria-hidden />}
       </div>
-      {!isSpectator && instanceId && (
-        <button className="ia-skip" onClick={() => void send('REJECT_CANDIDATE', { instanceId })} aria-label="見送って次のアイデアへ" title="見送る">
-          <SkipForward size={22} />
-          <span>交代</span>
-        </button>
-      )}
+      {/* 審査員ごとの台：上にその人のブザー、正面にその人の顔（ワイプ）。切断中の人も台は残す */}
+      <div className="buzzers" style={{ '--count': snapshot.judges.length } as CSSProperties}>
+        {snapshot.judges.map((j) => {
+          const on = celebrating || pressed.includes(j.judgeId);
+          return (
+            <div
+              key={j.judgeId}
+              className="podium"
+              data-pressed={on || undefined}
+              data-offline={!j.connected || undefined}
+              style={{ '--person': j.color } as CSSProperties}
+            >
+              <Buzzer
+                judge={j}
+                mine={j.judgeId === judgeId}
+                pressed={on}
+                disabled={celebrating || !instanceId || j.judgeId !== judgeId || !j.connected}
+                onClick={() => instanceId && void send('PRESS_BUZZER', { instanceId, on: !pressed.includes(j.judgeId) })}
+              />
+              <div className="podium-screen">
+                <JudgeWipe judgeId={j.judgeId} letter={j.letter ?? j.label.slice(-1)} name={j.name ?? j.label} color={j.color} host={j.isHost} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="buzz-side buzz-right">
+        {!isSpectator && instanceId ? (
+          <button className="ia-skip" onClick={() => void send('REJECT_CANDIDATE', { instanceId })} aria-label="見送って次のアイデアへ" title="見送る">
+            <SkipForward size={22} />
+            <span>交代</span>
+          </button>
+        ) : (
+          <span className="ia-skip ia-slot" aria-hidden />
+        )}
+      </div>
     </div>
   );
 }
@@ -452,12 +478,6 @@ function Buzzer({ judge, mine, pressed, disabled, onClick }: { judge: JudgeView;
         {pressed && <Check size={26} />}
       </span>
       <span className="buzzer-collar" />
-      <span className="buzzer-base">
-        <span className="person-initial">{judge.letter ?? judge.label.slice(-1)}</span>
-        <strong>{judge.name ?? judge.label}</strong>
-        {judge.isHost && <Crown size={13} />}
-      </span>
-      <span className="buzzer-shadow" />
     </motion.button>
   );
 }
@@ -546,39 +566,6 @@ function useCountdownSound(leavingAt: string | null) {
     if (deadline <= Date.now()) return;
     return playCountdownClip(deadline);
   }, [leavingAt]);
-}
-
-/** これまでの挑戦者：参考程度に、小さく下に並べる */
-function History({ snapshot, current }: { snapshot: SessionSnapshot; current: string | null }) {
-  const select = useDisplay((s) => s.select);
-  const past = Object.values(snapshot.characters)
-    .filter((c) => c.instanceId !== current && (c.location === 'archived' || c.location === 'upper'))
-    .sort((a, b) => Date.parse(a.spawnedAt ?? '') - Date.parse(b.spawnedAt ?? ''));
-  return (
-    <section className="history" aria-label="これまでの挑戦者">
-      <h2>
-        <ChevronRight size={12} />
-        これまでの挑戦者
-      </h2>
-      <div className="history-items">
-        {past.length ? (
-          past.map((c) => {
-            const passed = c.location === 'upper';
-            return (
-              <button key={c.instanceId} onClick={() => select(c.instanceId)}>
-                <Mascot designId={c.designId} className="mascot" />
-                <span>{currentRevision(snapshot, c.instanceId)?.title}</span>
-                <b className={passed ? 'passed' : 'skipped'}>{passed ? '合格' : '見送り'}</b>
-              </button>
-            );
-          })
-        ) : (
-          <span className="empty-history" />
-        )}
-      </div>
-      <span className="history-count">{past.length} IDEAS</span>
-    </section>
-  );
 }
 
 function useSecondsLeft(leavingAt: string | null) {

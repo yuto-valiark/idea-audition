@@ -33,6 +33,11 @@ export function Arena() {
   }, [upperLen]);
   const holdPrelim = fullAt.current !== null && Date.now() - fullAt.current < PASS_CEREMONY_MS + 100;
   const prelim = active && (upperLen < target || holdPrelim);
+  // 予選は審査員の台に顔を出すので、フッターのワイプを隠す（Footer が読む）
+  useEffect(() => {
+    useDisplay.setState({ prelimStage: prelim });
+    return () => useDisplay.setState({ prelimStage: false });
+  }, [prelim]);
 
   useEffect(() => {
     const el = ref.current;

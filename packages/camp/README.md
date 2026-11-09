@@ -16,7 +16,7 @@ WebSocket only delivers bytes, one connection at a time. Every realtime app ends
 | Who went first? | The server processes one message at a time per room, numbers every change with `seq`, and sends changes to everyone in the same order |
 | Did my action work? | Every command gets a `result`: `ok`, or a reason code the UI can show |
 | Double clicks, retries | Commands carry a `commandId`. Duplicates are not run again; the first result is returned |
-| Disconnects | The client reconnects with backoff, comes back as the same participant, gets the full state, and resends commands that never got a result |
+| Disconnects | The client reconnects with backoff, comes back as the same participant (with a secret resume token, so nobody else can take the seat), gets the full state, and resends commands that never got a result |
 | Slow AI results | `room.task()` runs the work. If the room was reset while the AI was thinking, the old result is thrown away |
 | "Was it still the same version?" | Commands can say which version they were looking at (`expected.rev`). The server can turn down stale ones with `STALE_VERSION` |
 | Who may enter | Rooms the app created, joined by link (`randomRoomId()` gives Meet-style IDs). Unknown rooms get `ROOM_NOT_FOUND` |
@@ -115,6 +115,20 @@ sendInvite(`https://example.com/r/${roomId}`); // whoever opens the link joins
 camp.on({ onRoomNotFound: () => showNotFound() });
 ```
 
+`createCampServer` keeps at most `maxRooms` rooms (100 by default), so nobody can fill your memory by joining made-up room IDs.
+
+### Coming back after a page reload
+
+The client reconnects by itself while the page is open. To come back as the same participant after a reload, keep both the ID and the secret token from `welcome`:
+
+```ts
+camp.on({ onWelcome: () => sessionStorage.setItem('camp', JSON.stringify({ id: camp.id, token: camp.resumeToken })) });
+const saved = JSON.parse(sessionStorage.getItem('camp') ?? 'null');
+new CampClient(vocabulary, { url, room, participantId: saved?.id, resumeToken: saved?.token });
+```
+
+Participant IDs are visible to everyone in the snapshot; the token is sent only to its owner. If you write your own `RoomEndpoint`, use `createResumeToken()` and `resumeTokenMatches()` from `@camp-protocol/kit/server` the same way.
+
 ### Bring your own room
 
 If you need storage or your own processing order, implement `RoomEndpoint` (`attach` / `detach` / `receiveCommand` / `receiveEphemeral` / `receiveSignal`) and pass it to `createCampTransport({ vocabulary, rooms })`. IDEA AUDITION's session actor works this way: it saves to Firestore and plans AI generations, while CAMP handles the wire.
@@ -153,7 +167,9 @@ CAMP guarantees, within one room on one server process:
 CAMP leaves to your app:
 
 - Your rules: who may do what, limits, how to merge conflicting intents
-- Who may create rooms, and how often (CAMP gives you hard-to-guess IDs; rate limiting room creation is up to you)
+- Who may create rooms, and how often (CAMP gives you hard-to-guess IDs and a cap on how many rooms exist; rate limiting room creation per user is up to you)
+- Sign-in. CAMP does not know who a person is; put authentication in front of the WebSocket upgrade, or check it in your room registry
+- Scale. Every event carries the full state, which suits small rooms (a meeting, a class, a game table), not thousands of people or very large states
 - Checking `expected.rev` against your own versions (the field is carried for you)
 - Storage. `CampRoom` keeps state in memory; bring your own `RoomEndpoint` to persist
 - Running one room across several server processes. Pin each room to one process (for example with session affinity)
