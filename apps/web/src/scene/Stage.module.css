@@ -1277,7 +1277,7 @@
 .thought {
   position: absolute;
   top: -14%;
-  right: -10%;
+  left: -4%;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -1296,7 +1296,7 @@
 .thought::after {
   content: '';
   position: absolute;
-  left: 8px;
+  right: 10px;
   bottom: -7px;
   width: 8px;
   height: 8px;
@@ -1335,4 +1335,26 @@
   .thoughtDots i {
     animation: none;
   }
+}
+
+/* ===== 決勝の配置の調整（⑦）：キャラを大きく、横幅を広く使い、企画名の変な改行をなくす ===== */
+.finalLineup {
+  gap: 2%;
+  padding-left: 2%;
+  padding-right: 2%;
+}
+.finalPerformer {
+  --mascot-col: clamp(120px, 11.5vw, 230px);
+  width: 33%;
+  max-width: clamp(400px, 34vw, 680px);
+}
+.finalFlip {
+  min-height: clamp(170px, 30vh, 300px);
+}
+/* 「ー」だけが次の行に落ちるような改行を避け、行の長さをそろえる */
+.finalFlip .flipTitle {
+  text-wrap: balance;
+  line-break: strict;
+  /* 日本語を文節で折り返す（「推しメ／ニュー」のような語の途中での改行を避ける。対応していないブラウザはそのまま） */
+  word-break: auto-phrase;
 }
