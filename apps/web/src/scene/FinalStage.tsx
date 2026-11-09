@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUpRight, Check, Crown, Plus, Trophy } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { UPPER_CAPACITY } from '@idea-audition/protocol';
+import { UPPER_CAPACITY, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../store/display-store.ts';
 import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
@@ -132,6 +132,7 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
 
   const vote = snapshot.vote;
   const evolved = revision.version > 1;
+  const thinking = thinkingLabel(snapshot, instanceId, finalist.status);
   const bubbleTarget = bubble ? snapshot.characters[bubble.toInstanceId]?.name : null;
   const isTieCandidate = vote?.status === 'tie' && vote.tieInstanceIds.includes(instanceId);
   // 「C1 を反映」ではなく、反映したみんなの意見そのものを出す
@@ -143,6 +144,7 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
     <article
       className={`${styles.performer} ${styles.finalPerformer}`}
       data-status={finalist.status}
+      data-busy={thinking ? true : undefined}
       data-arriving={arriving || undefined}
       data-spot={spotlight ?? undefined}
       style={{ '--accent': character.accent } as CSSProperties}
@@ -170,6 +172,25 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         onClick={() => void send('SET_SPOTLIGHT', { instanceId: spotlight === 'on' ? null : instanceId })}
       >
         <Mascot designId={character.designId} className={styles.mascot} />
+        <AnimatePresence>
+          {thinking && (
+            <motion.span
+              className={styles.thought}
+              role="status"
+              aria-label={`${character.name}が${thinking}`}
+              initial={{ opacity: 0, scale: 0.6, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+            >
+              <span className={styles.thoughtDots} aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+              <small>{thinking}</small>
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
       <button className={`${styles.flip} ${styles.finalFlip}`} onClick={() => select(instanceId)}>
         <AnimatePresence mode="wait" initial={false}>
@@ -248,6 +269,17 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         ))}
     </article>
   );
+}
+
+/**
+ * キャラが何を考えているか（C2）。改良中・批評中・質問への答えを待っているあいだは、
+ * キャラの頭の横に「…」の吹き出しを出し、首をかしげさせる。考えていなければ null。
+ */
+function thinkingLabel(snapshot: SessionSnapshot, instanceId: string, status: 'refining' | 'critiquing' | 'ready') {
+  if (status === 'refining') return '改良を考え中';
+  if (status === 'critiquing') return '批評を考え中';
+  if (snapshot.answers.some((a) => a.instanceId === instanceId && a.answer === null)) return '答えを考え中';
+  return null;
 }
 
 /** 改良・批評の途中を、経過秒数と動くバーで見せる（何もしていないように見えないように） */

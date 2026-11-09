@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react';
 import { ArrowRight, Check, ChevronRight, Crown, SkipForward, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { PITCH_ROLE_ICON, UPPER_CAPACITY, type JudgeView, type SessionSnapshot } from '@idea-audition/protocol';
@@ -47,12 +47,24 @@ export function PreliminaryStage() {
             <div />
             <i />
           </div>
-          <AnimatePresence initial={false}>
+          {/* custom：退場するキャラが合格（上段）か見送り・時間切れかで、去り方を変える */}
+          <AnimatePresence initial={false} custom={snapshot}>
             {shown ? (
               <Performance key={shown} snapshot={snapshot} instanceId={shown} promoting={celebrating} />
             ) : (
               <motion.div key="prep" className="solo-performance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <p className="ia-preparing">次の挑戦者が準備中…</p>
+                {/* 次の挑戦者を AI が考えているあいだ：影だけのキャラと「…」で、考え中だと分かるように */}
+                <div className="ia-preparing" role="status">
+                  <span className="ia-silhouette" aria-hidden>
+                    <Mascot designId={0} className="mascot" />
+                  </span>
+                  <span className="ia-prep-dots" aria-hidden>
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <p>次の挑戦者がアイデアを考え中…</p>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -86,7 +98,35 @@ function usePassCeremony(snapshot: SessionSnapshot) {
   return passed;
 }
 
+/** 合格したキャラが待機室へ飛んでいって着くまでの時間（ReactiveMascot の跳ねる＋飛ぶ の長さ） */
+const ARRIVE_DELAY_S = 1.35;
+
+/**
+ * 待機室に新しく入ったキャラ（この画面を開いてから合格したもの）。
+ * 最初の描画から分かるようにする：合格の演出の state は1回あとの描画で立つので、それを待つと枠の中身が先に出てしまう。
+ */
+function useNewArrivals(ids: readonly string[]) {
+  const known = useRef<Set<string> | null>(null);
+  if (!known.current) known.current = new Set(ids);
+  const [recent, setRecent] = useState<readonly string[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const newcomers = ids.filter((id) => !known.current!.has(id));
+  const key = newcomers.join(',');
+  useEffect(() => {
+    if (!key) return;
+    const added = key.split(',');
+    added.forEach((id) => known.current!.add(id));
+    setRecent((r) => [...r, ...added]);
+    // 枠が光り終わるまで（約2.6秒）は「着いたばかり」として扱う
+    timers.current.push(setTimeout(() => setRecent((r) => r.filter((id) => !added.includes(id))), 2_600));
+  }, [key]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  return (id: string) => newcomers.includes(id) || recent.includes(id);
+}
+
 function WaitingRoom({ snapshot }: { snapshot: SessionSnapshot }) {
+  const reduced = useReducedMotion();
+  const isArriving = useNewArrivals(snapshot.upper.map((f) => f.instanceId));
   const select = useDisplay((s) => s.select);
   return (
     <aside className="waiting-room">
@@ -103,9 +143,15 @@ function WaitingRoom({ snapshot }: { snapshot: SessionSnapshot }) {
           const c = f ? snapshot.characters[f.instanceId] : null;
           const rev = f ? currentRevision(snapshot, f.instanceId) : null;
           return (
-            <div className={'waiting-slot ' + (c ? 'filled' : '')} key={n}>
+            <div className={'waiting-slot ' + (c ? 'filled' : '') + (f && isArriving(f.instanceId) ? ' arriving' : '')} key={n} data-waiting-slot={n}>
               {c && rev ? (
-                <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={() => select(c.instanceId)}>
+                <motion.div
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  // 飛んできたキャラが着いてから、枠の中に現れる（先に人数だけ増えて見えないように）
+                  transition={{ delay: isArriving(c.instanceId) && !reduced ? ARRIVE_DELAY_S : 0 }}
+                  onClick={() => select(c.instanceId)}
+                >
                   <Mascot designId={c.designId} className="mascot" />
                   <span>{rev.title}</span>
                 </motion.div>
@@ -134,11 +180,11 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
     <motion.div
       className="solo-performance"
       initial={{ opacity: 0, y: reduced ? 0 : 45 }}
-      animate={{ opacity: promoting ? 0 : 1, y: promoting ? (reduced ? 0 : -220) : 0, scale: promoting ? 0.7 : 1 }}
-      // 消えるのはすぐ（透明のまま残ると、次のキャラへのカーソルやクリックをさえぎる）
-      exit={{ opacity: 0, transition: { duration: 0.15 } }}
+      animate={{ opacity: 1, y: 0 }}
+      variants={{ leave: (latest: SessionSnapshot) => leaveAnimation(latest, instanceId, !!reduced) }}
+      exit="leave"
       style={{ pointerEvents: promoting ? 'none' : undefined }}
-      transition={promoting ? { duration: 1.7, ease: 'easeIn' } : { type: 'spring', stiffness: 110, damping: 17 }}
+      transition={{ type: 'spring', stiffness: 110, damping: 17 }}
     >
       <motion.button
         className="hero-character"
@@ -151,7 +197,7 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
         transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
       >
         {bubble && <span className="ia-bubble">{bubble.text}</span>}
-        <Mascot designId={character.designId} className="mascot" />
+        <ReactiveMascot snapshot={snapshot} instanceId={instanceId} designId={character.designId} promoting={promoting} />
         <span className="character-label">
           <span />
           {character.name}
@@ -160,8 +206,9 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
       <motion.button
         className="idea-flip"
         initial={{ opacity: 0, x: reduced ? 0 : 35 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.2 }}
+        // 合格したらフリップは消え、キャラだけが待機室へ飛んでいく
+        animate={{ opacity: promoting ? 0 : 1, x: 0 }}
+        transition={{ delay: promoting ? 0 : 0.2 }}
         onClick={() => select(instanceId)}
       >
         <div className="flip-eyebrow">
@@ -176,6 +223,124 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
         </span>
       </motion.button>
     </motion.div>
+  );
+}
+
+/**
+ * 舞台を去るときの動き。合格（上段へ）は演出で飛んでいったあとなのですぐ消す。
+ * 見送り・時間切れは、しょんぼり縮んで沈みながら消える。
+ * どちらも pointerEvents を先に切る（透明のまま残ると、次のキャラへのカーソルやクリックをさえぎる）。
+ */
+function leaveAnimation(latest: SessionSnapshot, instanceId: string, reduced: boolean) {
+  const promoted = latest.characters[instanceId]?.location === 'upper';
+  if (promoted || reduced) return { opacity: 0, pointerEvents: 'none' as const, transition: { duration: 0.15 } };
+  return {
+    opacity: 0,
+    y: 40,
+    scale: 0.82,
+    rotate: -6,
+    pointerEvents: 'none' as const,
+    transition: { duration: 0.45, ease: 'easeIn' as const },
+  };
+}
+
+/** 押されたブザーの数（このキャラに対して） */
+function pressedCount(snapshot: SessionSnapshot, instanceId: string) {
+  return snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer.judgeIds.length : 0;
+}
+
+/**
+ * キャラの反応（C1）。静止画のまま、動きだけで気持ちを見せる（ADR-0001）。
+ * - 登場：ぽんと弾んで、頭の上に 💡
+ * - ブザーが押されるたび：うれしそうに跳ねる
+ * - 合格：大きくジャンプ
+ * - 待機中：ときどき、まばたきのように縦に縮む（CSS の ia-blink）
+ */
+function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapshot: SessionSnapshot; instanceId: string; designId: number; promoting: boolean }) {
+  const reduced = useReducedMotion();
+  const controls = useAnimationControls();
+  const presses = pressedCount(snapshot, instanceId);
+  const prevPresses = useRef(presses);
+  const [spark, setSpark] = useState(true);
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({ scale: [0.7, 1.08, 1], transition: { duration: 0.55, times: [0, 0.6, 1] } });
+    const t = setTimeout(() => setSpark(false), 1_400);
+    return () => clearTimeout(t);
+  }, [controls, reduced]);
+
+  useEffect(() => {
+    const increased = presses > prevPresses.current;
+    prevPresses.current = presses;
+    if (!increased || reduced || promoting) return;
+    void controls.start({
+      y: [0, -26, 0, -8, 0],
+      scaleX: [1, 0.92, 1.06, 0.98, 1],
+      scaleY: [1, 1.08, 0.94, 1.02, 1],
+      transition: { duration: 0.7, times: [0, 0.3, 0.55, 0.75, 1] },
+    });
+  }, [presses, controls, reduced, promoting]);
+
+  const ref = useRef<HTMLSpanElement>(null);
+  const slot = snapshot.upper.findIndex((f) => f.instanceId === instanceId);
+  useEffect(() => {
+    if (!promoting) return;
+    if (reduced) {
+      void controls.start({ opacity: 0, transition: { duration: 0.6 } });
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      // 合格：その場で大きくジャンプ → 待機室の自分の枠へ小さくなりながら飛んでいく
+      await controls.start({
+        y: [0, -60, 0],
+        rotate: [0, -8, 8, 0],
+        scale: [1, 1.12, 1],
+        transition: { duration: 0.55, ease: 'easeOut' },
+      });
+      const target = document.querySelector(`.ia-prelim [data-waiting-slot="${slot}"]`);
+      if (cancelled || !ref.current || !target) return;
+      const from = ref.current.getBoundingClientRect();
+      const to = target.getBoundingClientRect();
+      // originY: 1（足元）を基準に縮むので、行き先も枠の下寄せで合わせる
+      const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+      const dy = to.top + to.height * 0.85 - (from.top + from.height);
+      const scale = Math.max(0.12, (to.width * 0.8) / from.width);
+      await controls.start({
+        x: dx,
+        y: [0, dy - 80, dy],
+        scale,
+        rotate: [0, -12, 0],
+        transition: { duration: 0.8, ease: 'easeInOut' },
+      });
+      if (!cancelled) void controls.start({ opacity: 0, transition: { duration: 0.15 } });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [promoting, controls, reduced, slot]);
+
+  return (
+    <motion.span ref={ref} className="ia-mascot-react" animate={controls} style={{ originY: 1 }}>
+      <AnimatePresence>
+        {spark && !reduced && (
+          <motion.span
+            className="ia-spark"
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.3, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, y: -14 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 14 }}
+          >
+            💡
+          </motion.span>
+        )}
+      </AnimatePresence>
+      <span className="ia-blink">
+        <Mascot designId={designId} className="mascot" />
+      </span>
+    </motion.span>
   );
 }
 
