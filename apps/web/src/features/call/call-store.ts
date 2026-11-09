@@ -9,6 +9,9 @@ interface CallStore {
   joining: boolean;
   /** マイクのミュート。既定はオフ（声が届く）。ミュート中は通話にも文字起こしにも声を送らない */
   muted: boolean;
+  /** 相手の声を消している（通話はつないだまま）。場面が変わっても、部屋を出るまで保つ */
+  othersMuted: boolean;
+  toggleOthers(): void;
   /** ブラウザが音を止めている（ページでまだクリックしていない）。クリックすれば鳴る */
   blocked: boolean;
   /** マイクが使えず、聞くだけで参加している */
@@ -110,6 +113,12 @@ export const useCall = create<CallStore>((set, get) => {
     inCall: false,
     joining: false,
     muted: false,
+    othersMuted: false,
+    toggleOthers() {
+      const othersMuted = !get().othersMuted;
+      client?.setOthersMuted(othersMuted);
+      set({ othersMuted });
+    },
     blocked: false,
     listenOnly: false,
     async retryMic() {
@@ -160,6 +169,7 @@ export const useCall = create<CallStore>((set, get) => {
       // 観覧者（5人目以降）は話せない。聞くだけで入る
       await c.join({ listenOnly: !useSession.getState().judgeId });
       c.setMuted(get().muted);
+      c.setOthersMuted(get().othersMuted);
       set({ joining: false, inCall: c.inCall, blocked: c.audioBlocked, listenOnly: c.listenOnly });
       if (!c.inCall) return;
       // 声は既定で届く。ミュートでなければ文字起こしも一緒に始める（聞くだけのときは始めない）
