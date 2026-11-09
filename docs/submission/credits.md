@@ -8,11 +8,11 @@
 
 | 素材 | 使っている場所 | 作った人・方法 | 利用条件 |
 |---|---|---|---|
-| キャラクター7体（ロボット・ライオン・魔法使いの猫・うさぎ・雲・芽のロボット・ドラゴン）`apps/web/public/assets/characters/mascots.png` | 予選・決勝・表彰の舞台 | チームで作成（**要確認**：作ったツールと作った人） | 自作。画像生成 AI を使った場合は、そのサービスの出力物の利用規約に従う（**要確認**） |
-| IDEA AUDITION のロゴ `apps/web/public/brand/logo-neon*.webp`、アイコン `apps/web/public/icons/*` | ヘッダー・舞台の奥・ブラウザのタブ | チームで作成（**要確認**：作ったツールと作った人） | 同上 |
-| CAMP のロゴ・アイコン `packages/camp/assets/*` | CAMP の README・GitHub・npm | チームで作成（**要確認**） | 同上。CAMP のリポジトリは MIT |
+| キャラクター7体（ロボット・ライオン・魔法使いの猫・うさぎ・雲・芽のロボット・ドラゴン）`apps/web/public/assets/characters/mascots.png` | 予選・決勝・表彰の舞台 | チームのメンバーが作成。**要確認：画像の中の来歴情報（C2PA）は Gemini ではなく別の画像生成サービスを示している** | 作ったサービスの利用規約に従う |
+| IDEA AUDITION のロゴ `apps/web/public/brand/logo-neon*.webp`、アイコン `apps/web/public/icons/*` | ヘッダー・舞台の奥・ブラウザのタブ | チームのメンバーが Gemini で作成 | 同上 |
+| CAMP のロゴ・アイコン `packages/camp/assets/*` | CAMP の README・GitHub・npm | チームのメンバーが Gemini で作成 | 同上。CAMP のリポジトリは MIT |
 | 企画書 PDF の企画イメージ画像 | 優勝後の企画書 PDF | アプリが Gemini（`gemini-3.1-flash-lite-image`、Vertex AI）でその場で作る | Google Cloud の利用規約に従う |
-| スライドの生成画像 `docs/pitch/slide-assets/*-generated.png` ほか | ピッチ用スライド | チームで作成（**要確認**：作ったツール）。プロンプトは `docs/pitch/deck/image-generation-notes.md` | 同上 |
+| スライドの生成画像 `docs/pitch/slide-assets/*-generated.png` ほか | ピッチ用スライド | チームのメンバーが作成。**要確認：上と同じく、来歴情報は別の画像生成サービスを示している**。プロンプトは `docs/pitch/deck/image-generation-notes.md` | 同上 |
 | アプリの画面写真 | スライド・ドキュメント・動画 | 自分たちのアプリを撮影 | 自作 |
 
 ## 2. 音
@@ -67,5 +67,5 @@
 
 | もの | 使い方 |
 |---|---|
-| `reference/mock-app`（画面のモック） | 画面の作りの参考。ビルドには入れていない（**要確認**：作ったツール） |
-| 表彰画面の元になった画面のソース（IDEA_AUDITION_Champion_Source） | 表彰画面の演出（カウントダウン・紙吹雪・トロフィー）の参考にし、取り込んで作り直した（**要確認**：作ったツール） |
+| `reference/mock-app`（画面のモック） | チームで作った画面の参考。ビルドには入れていない |
+| 表彰画面の元になった画面のソース（IDEA_AUDITION_Champion_Source） | チームで作った表彰画面の試作。演出（カウントダウン・紙吹雪・トロフィー）を取り込んで作り直した |
