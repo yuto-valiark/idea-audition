@@ -21,10 +21,7 @@ export function Header() {
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
-        <img className={styles.appIcon} src="/icons/icon-192.png" alt="" width={32} height={32} />
-        <strong>
-          IDEA <span>AUDITION</span>
-        </strong>
+        <img className={styles.logo} src="/brand/logo-neon-sm.webp" alt="IDEA AUDITION" />
       </div>
       <div className={styles.tag}>AIがプレゼン。あなたが審査員。</div>
       {room === 'active' && (

@@ -46,6 +46,7 @@ export function FinalStage() {
       }}
     >
       <div className={`${styles.floorGrid}`} aria-hidden />
+      <img className={styles.backdrop} src="/brand/logo-neon.webp" alt="" aria-hidden />
       <div className={styles.heading}>
         <div>
           <Crown />

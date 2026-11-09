@@ -1544,3 +1544,16 @@
   border-color: #ff9bf0 !important;
   color: #fff !important;
 }
+
+/* 舞台の奥のネオンサイン（ロゴ） */
+.ia-prelim .ia-backdrop {
+  position: absolute;
+  left: 50%;
+  top: 2.5%;
+  width: min(26%, 420px);
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.92;
+  filter: drop-shadow(0 0 18px #b250ffaa) drop-shadow(0 0 40px #8a2be255);
+}

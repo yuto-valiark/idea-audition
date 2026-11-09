@@ -1248,3 +1248,17 @@
 .finalStage .floorGrid {
   bottom: calc(var(--lift) - 6%);
 }
+
+/* 舞台の奥のネオンサイン（ロゴ） */
+.backdrop {
+  position: absolute;
+  left: 50%;
+  top: 2%;
+  width: min(40%, 620px);
+  translate: -50% 0;
+  z-index: -1;
+  pointer-events: none;
+
+  opacity: 0.92;
+  filter: drop-shadow(0 0 18px #b250ffaa) drop-shadow(0 0 40px #8a2be255);
+}

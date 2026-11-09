@@ -42,7 +42,7 @@ export function PreliminaryStage() {
           <div className="stage-light light-three" />
           <div className="ambient-particles" />
           <WaitingRoom snapshot={snapshot} />
-          <div className="stage-brand">IDEA AUDITION</div>
+          <img className="ia-backdrop" src="/brand/logo-neon.webp" alt="" aria-hidden />
           <div className="ring-floor">
             <div />
             <i />

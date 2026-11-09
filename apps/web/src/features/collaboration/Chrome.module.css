@@ -351,3 +351,11 @@
     white-space: nowrap;
   }
 }
+
+/* ロゴ（黒地のネオン画像。黒は画面になじませる） */
+.logo {
+  height: 42px;
+  width: auto;
+
+  filter: drop-shadow(0 0 6px #b250ff66);
+}
