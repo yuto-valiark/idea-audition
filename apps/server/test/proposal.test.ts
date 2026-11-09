@@ -53,10 +53,13 @@ describe('企画書', () => {
     actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
     await advance(5_000);
     expect(ai.proposalCalls).toHaveLength(1); // 優勝が決まる前に作っておいた
+    expect(ai.proposalImageCalls).toHaveLength(1); // イメージ画像も先行生成しておいた
     actor.receiveCommand(a.conn, cmd('SELECT_CHAMPION', { instanceId: id }));
     await advance(0);
     expect(ai.proposalCalls).toHaveLength(1); // 作り直していない
+    expect(ai.proposalImageCalls).toHaveLength(1);
     expect(actor.session.proposal?.status).toBe('ready');
+    expect(actor.session.proposal?.content?.imageUrl).toContain('data:image/svg+xml');
   });
 
   it('優勝が決まると自動で作り始め、できたら全員に配られる', async () => {
@@ -69,6 +72,33 @@ describe('企画書', () => {
     const ready = events().find((e) => e.type === 'PROPOSAL_UPDATED')!;
     expect(ready.snapshot.proposal).toMatchObject({ status: 'ready', generatedBy: 'stub' });
     expect(ready.snapshot.proposal!.content!.title).toBe('改良版');
+    expect(ready.snapshot.proposal!.content!.imageUrl).toContain('data:image/svg+xml');
+  });
+
+  it('イメージ画像の生成が失敗しても、企画書本文は ready として配られる', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const ai = new StubAi();
+    ai.failProposalImage = true;
+    const actor = await SessionActor.open('img-fail', {
+      ai,
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: fakeClock(),
+      ids: seqIds(),
+      config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'img-fail' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '学食', mode: 'solo' }));
+    await advance(0);
+    const id = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+    await advance(100);
+    actor.receiveCommand(a.conn, cmd('SELECT_CHAMPION', { instanceId: id }));
+    await advance(10);
+    expect(actor.session.proposal?.status).toBe('ready');
+    expect(actor.session.proposal?.content?.title).toBe('改良版');
+    expect(actor.session.proposal?.content?.imageUrl).toBeUndefined();
   });
 
   it('失敗したら failed になり、作り直しできる', async () => {

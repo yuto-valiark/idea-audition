@@ -13,12 +13,14 @@ export function Mascot(props: { designId: number; size?: number | string; classN
       className={`${styles.mascot} ${props.className ?? ''}`}
       role="img"
       aria-label={`${design.name}のキャラクター`}
+      data-mascot-design={design.designId}
       style={
         {
           backgroundImage: `url(${sheet})`,
           backgroundSize: `${cols * 100}% ${rows * 100}%`,
           backgroundPosition: `${x}% ${y}%`,
           '--accent': design.accent,
+          '--accent-glow': `${design.accent}47`,
           width: props.size,
           height: props.size,
           ...props.style,

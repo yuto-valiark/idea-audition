@@ -56,9 +56,14 @@ export interface ChatEntry extends Omit<Caption, 'id'> {
 
 const CHAT_LOG_MAX = 200;
 
+/** 知らせの文言。モードで言い方が違うものは両方を作っておき、表示のときに今のモードの方を出す */
+export type ToastText = string | { casual: string; official: string };
+
+const toastKey = (t: ToastText) => (typeof t === 'string' ? t : `${t.casual}\u0000${t.official}`);
+
 export interface Toast {
   id: string;
-  text: string;
+  text: ToastText;
   tone: 'info' | 'warn' | 'gold';
 }
 
@@ -109,7 +114,7 @@ interface DisplayState {
   setHeld(judgeId: string, instanceId: string | null): void;
   setBubble(from: string, b: Bubble | null): void;
   clearBubbles(): void;
-  toast(text: string, tone?: Toast['tone']): void;
+  toast(text: ToastText, tone?: Toast['tone']): void;
   dismissToast(id: string): void;
   select(instanceId: string | null): void;
   setIdeaBoxOpen(open: boolean): void;
@@ -202,8 +207,9 @@ export const useDisplay = create<DisplayState>((set) => ({
       return { bubbles };
     }),
   clearBubbles: () => set({ bubbles: {} }),
+  // 同じ知らせが出ているあいだは重ねない（同じ出来事を二度受けても1回だけ）
   toast: (text, tone = 'info') =>
-    set((s) => ({ toasts: [...s.toasts.slice(-2), { id: `t${++n}`, text, tone }] })),
+    set((s) => (s.toasts.some((t) => toastKey(t.text) === toastKey(text)) ? {} : { toasts: [...s.toasts.slice(-2), { id: `t${++n}`, text, tone }] })),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   select: (selected) => set({ selected }),
   setIdeaBoxOpen: (ideaBoxOpen) => set({ ideaBoxOpen }),

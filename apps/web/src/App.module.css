@@ -99,3 +99,12 @@
     transform: rotate(4deg);
   }
 }
+
+/* オフィシャル会議モード：背景は無地、舞台照明の層（左右の暗がり・光）は出さない */
+:global(:root[data-formality='official']) .main {
+  background: var(--bg);
+}
+
+:global(:root[data-formality='official']) .studio {
+  display: none;
+}

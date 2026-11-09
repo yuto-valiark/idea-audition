@@ -7,7 +7,8 @@ import styles from './Voice.module.css';
 /**
  * 自分のマイク。既定はオン（みんなに声が届き、文字起こしもされる）。押すとミュートに切り替わる。
  */
-export function MicButton() {
+/** label：オフィシャルの下のバーでは「ミュート」の文字も出す */
+export function MicButton({ label = false }: { label?: boolean } = {}) {
   const state = useVoice((s) => s.state);
   const inCall = useCall((s) => s.inCall);
   const muted = useCall((s) => s.muted);
@@ -38,6 +39,7 @@ export function MicButton() {
       title={on ? 'ミュートする（声がみんなにも AI にも届かなくなります）' : 'ミュートを解除する（キャラの名前を呼ぶと、そのキャラ宛てになります）'}
     >
       {on ? <Mic size={16} /> : <MicOff size={16} />}
+      {label && <span>{on ? 'ミュート' : 'ミュート解除'}</span>}
     </button>
   );
 }

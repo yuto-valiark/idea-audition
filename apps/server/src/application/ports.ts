@@ -44,6 +44,18 @@ export interface ProposalInput {
   otherFinalists: string[];
 }
 
+/** 企画書のイメージ画像を作るための入力（タイトル・課題・対象者・提供価値・概要） */
+export interface ProposalImageInput {
+  theme: string;
+  title: string;
+  catchphrase?: string;
+  problem: string;
+  target: string;
+  value: string;
+  overview: string;
+  characterName?: string;
+}
+
 /** LLM が提案する台帳の操作（ラベルで指す。サーバーが ID に直して当てはめる） */
 export type ConsensusOpDraft =
   | { op: 'add_claim'; text: string; judge: string | null; stance: 'support' | 'oppose' | null; seq: number | null }
@@ -86,7 +98,7 @@ export interface EmbeddingPort {
 export interface UtteranceTriageInput {
   theme: string;
   /** 舞台にいるキャラと、その企画名・説明文（「ルナが言っていた案」のような言及や、企画の中身への質問の判断に使う） */
-  stage: { characterName: string; title: string; summary: string }[];
+  stage: { characterName: string; title: string; summary: string; letter?: string }[];
   /** 直前の発言（「それは微妙」のような、前の話を受けた発言を落とさないため） */
   recentRemarks: { judge: string; text: string }[];
   /** 会議の語彙で聞き間違いを直したあとの文字起こし */
@@ -99,7 +111,12 @@ export interface UtteranceTriageInput {
  * - keep=true：summary は言い直した1文。AI が言い直さなかったとき（固定データなど）は null で、元の文をそのまま使う
  */
 export type UtteranceTriage =
-  | { keep: true; summary: string | null }
+  | {
+      keep: true;
+      summary: string | null;
+      /** 発言が特定の案の話なら、stage の番号（1 始まり）。全体の話・決められないときは 0 か無し */
+      targetIndex?: number;
+    }
   | { keep: false; reason: 'off_topic' | 'garbled' };
 
 /** AI 生成のポート（ADR-0005 §1）。GeminiGateway と FixtureGateway が実装する。 */
@@ -117,6 +134,8 @@ export interface IdeaGenerationPort {
   varyIdea(input: VaryInput): Promise<IdeaDraft>;
   /** 優勝案の企画書（第1部）を作る */
   generateProposal(input: ProposalInput): Promise<ProposalContent>;
+  /** 企画書の内容に基づき、企画を象徴するイメージ画像（data URL 等）を生成する */
+  generateProposalImage?(input: ProposalImageInput): Promise<string | null>;
   /** 会話と行動から、合意台帳への操作を提案する（ADR-0007） */
   updateConsensus(input: ConsensusUpdateInput): Promise<ConsensusOpDraft[]>;
   /**

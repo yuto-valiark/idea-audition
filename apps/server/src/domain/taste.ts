@@ -24,7 +24,7 @@ export interface TasteState {
 
 export const HALF_LIFE_MS = 90_000;
 /** この数より反応が少ない審査員の好みは、選び方にあまり使わない */
-export const CONFIDENT_SIGNALS = 3;
+export const CONFIDENT_SIGNALS = 5;
 
 export const zeros = (): Vec => Array.from({ length: TASTE_AXIS_COUNT }, () => 0);
 

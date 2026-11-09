@@ -30,5 +30,10 @@ export function geminiConfigFromEnv(env: NodeJS.ProcessEnv): GeminiConfig {
       thinkingLevel: (env.GEMINI_THINKING_REFINE as GeminiConfig['refine']['thinkingLevel']) ?? 'LOW',
       timeoutMs: Number(env.GEMINI_TIMEOUT_REFINE_MS ?? 25_000),
     },
+    image: {
+      // Imagen は Vertex で提供が終わっている（3.0・4.0 とも見つからない）。Gemini の画像モデルの軽い版（約5秒・約270KB の JPEG）
+      model: env.GEMINI_MODEL_IMAGE ?? 'gemini-3.1-flash-lite-image',
+      timeoutMs: Number(env.GEMINI_TIMEOUT_IMAGE_MS ?? 25_000),
+    },
   };
 }

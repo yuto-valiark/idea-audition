@@ -61,7 +61,8 @@
 }
 
 .judgeShape {
-  fill: color-mix(in srgb, var(--judge) 22%, transparent);
+  fill: var(--judge);
+  fill-opacity: 0.22;
   stroke: var(--judge);
   stroke-width: 1.6;
   transition: all 600ms ease;
@@ -218,9 +219,20 @@
 .print .axisLabel { fill: #4d3f5c; }
 .print .axisLabel[data-split] { fill: #b07800; }
 .print .splitMark { stroke: #d49a00; }
-.print .judgeShape { fill: color-mix(in srgb, var(--judge) 18%, transparent); }
+/* PDF 用：html2canvas は color-mix を描けないので、色と透明度を分けて書く */
+.print .judgeShape { fill: var(--judge); fill-opacity: 0.18; }
 
 /* オフィシャル会議モード（#36）：詳しいパネルは暗いままなので、見出しの文字は明るい色に固定する（ページの文字色が濃くなっても埋もれないように） */
 :global(:root[data-formality='official']) .panel {
   color: #f6efff;
+}
+
+/* 読み取り中（反応が TASTE_MIN_SIGNALS 回に満たない）：形は薄い点線、一覧の文字は控えめに */
+.judgeShape[data-reading] {
+  fill-opacity: 0.06;
+  stroke-opacity: 0.55;
+  stroke-dasharray: 3 3;
+}
+.legend li[data-reading] {
+  color: #a995bd;
 }

@@ -169,12 +169,74 @@ describe('GeminiGateway', () => {
     expect(calls[0]!.contents).toContain('声の文字起こしなので');
   });
 
+  it('企画書イメージ画像生成：Imagen モデルは generateImages、Gemini Image モデルは generateContent で data URL を返す', async () => {
+    const imgCalls: { model: string; prompt: string }[] = [];
+    const imagenClient: GenerateContentClient = {
+      models: {
+        async generateContent() {
+          return { text: '' };
+        },
+        async generateImages(params) {
+          imgCalls.push({ model: params.model, prompt: params.prompt });
+          return {
+            generatedImages: [{ image: { imageBytes: 'QUJDRA==', mimeType: 'image/jpeg' } }],
+          };
+        },
+      },
+    };
+    const gImagen = new GeminiGateway(imagenClient, {
+      ...config,
+      image: { model: 'imagen-3.0-generate-002', timeoutMs: 1000 },
+    });
+    const url1 = await gImagen.generateProposalImage({
+      theme: '放課後',
+      title: '30分探検クラブ',
+      catchphrase: '毎日が冒険',
+      problem: '習い事が長い',
+      target: '小学生',
+      value: '手軽な発見体験',
+      overview: '地域を30分探検する',
+    });
+    expect(url1).toBe('data:image/jpeg;base64,QUJDRA==');
+    expect(imgCalls[0]!.model).toBe('imagen-3.0-generate-002');
+    expect(imgCalls[0]!.prompt).toContain('30分探検クラブ');
+
+    const geminiImgClient: GenerateContentClient = {
+      models: {
+        async generateContent() {
+          return {
+            candidates: [
+              {
+                content: {
+                  parts: [{ inlineData: { mimeType: 'image/png', data: 'WFla' } }],
+                },
+              },
+            ],
+          };
+        },
+      },
+    };
+    const gGeminiImg = new GeminiGateway(geminiImgClient, {
+      ...config,
+      image: { model: 'gemini-2.5-flash-image', timeoutMs: 1000 },
+    });
+    const url2 = await gGeminiImg.generateProposalImage({
+      theme: '放課後',
+      title: '30分探検クラブ',
+      problem: '習い事が長い',
+      target: '小学生',
+      value: '手軽な発見体験',
+      overview: '地域を30分探検する',
+    });
+    expect(url2).toBe('data:image/png;base64,WFla');
+  });
+
   it('発言の仕分け：話題なら言い直した文、雑談・聞き間違いは残さない', async () => {
     const { client, calls } = fakeClient([
-      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？' }),
-      JSON.stringify({ verdict: 'off_topic', summary: '' }),
-      JSON.stringify({ verdict: 'garbled', summary: '' }),
-      JSON.stringify({ verdict: 'on_topic', summary: '   ' }),
+      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？', target: 0 }),
+      JSON.stringify({ verdict: 'off_topic', summary: '', target: 0 }),
+      JSON.stringify({ verdict: 'garbled', summary: '', target: 0 }),
+      JSON.stringify({ verdict: 'on_topic', summary: '   ', target: 0 }),
     ]);
     const g = new GeminiGateway(client, config);
     const input = {
@@ -193,6 +255,27 @@ describe('GeminiGateway', () => {
     expect(calls[0]!.contents).toContain('MOMO：混雑予測ナビ');
     expect(calls[0]!.contents).toContain('審査員 A：「コストは低めがいい」');
     expect(calls[0]!.contents).toContain('発言：「えーと費用ってどれくらい？」');
+  });
+
+  it('発言の仕分け：名前を言わずに中身で話した案の番号を返す（範囲外の番号は捨てる）', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({ verdict: 'on_topic', summary: '余った食材を使う案の原価はいくらですか？', target: 2 }),
+      JSON.stringify({ verdict: 'on_topic', summary: '全体として学生向けがいい', target: 9 }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const input = {
+      theme: '学食',
+      stage: [
+        { characterName: 'MOMO', title: '混雑予測ナビ', summary: '行列が分かる', letter: 'A' },
+        { characterName: 'LUNA', title: '学食ガチャめし', summary: '余剰食材でランダム定食', letter: 'B' },
+      ],
+      recentRemarks: [],
+      text: '余った食材使うやつ、原価っていくら？',
+    };
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: '余った食材を使う案の原価はいくらですか？', targetIndex: 2 });
+    await expect(g.triageUtterance({ ...input, text: '全体として学生向けがいいね' })).resolves.toEqual({ keep: true, summary: '全体として学生向けがいい' });
+    // 番号と記号を付けて渡す
+    expect(calls[0]!.contents).toContain('2. B案・LUNA：学食ガチャめし');
   });
 
   it('発言の仕分け：呼び出しに失敗したら固定データの簡易な仕分けに切り替わる', async () => {

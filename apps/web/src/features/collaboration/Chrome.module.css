@@ -386,25 +386,176 @@
 }
 
 /* オフィシャル会議モード（#36）：ヘッダーと下のバーを白地に合わせる */
+/* ヘッダーは紺の帯に白の文字（会議ツールの見た目） */
 :global(:root[data-formality='official']) .header {
-  background: var(--bg-elev);
+  height: 58px;
+  gap: 18px;
+  padding: 0 24px;
+  color: #fff;
+  background: #1b2440;
+  border-bottom: 0;
 }
 :global(:root[data-formality='official']) .tag {
-  color: var(--ink-muted);
+  color: #c5cbe0;
+  font-size: 13px;
 }
 :global(:root[data-formality='official']) .right {
-  color: var(--ink-soft);
+  color: #e3e7f3;
 }
-:global(:root[data-formality='official']) .copy,
-:global(:root[data-formality='official']) .aiBadge,
+:global(:root[data-formality='official']) .header .copy,
+:global(:root[data-formality='official']) .header .aiBadge {
+  border: 1px solid #ffffff40;
+  background: #ffffff12;
+  color: #fff;
+}
+:global(:root[data-formality='official']) .header .divider {
+  background: #ffffff33;
+}
 :global(:root[data-formality='official']) .actions button {
   border: 1px solid var(--line-strong);
   background: var(--bg-elev);
   color: var(--ink);
 }
 :global(:root[data-formality='official']) .invite {
-  border-color: var(--purple);
-  background: var(--purple);
+  border-color: #ffffff40;
+  background: #ffffff12;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+
+.wordmark img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+/* 会議モードの切り替え（小さなスイッチ） */
+.modeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #ffffff14;
+  border: 1px solid #ffffff33;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.modeSwitch i {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  background: var(--blue);
+  border-radius: 999px;
+}
+
+.modeSwitch i::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+/* ---- オフィシャルの下のバー ---- */
+.officialFooter {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 24px 14px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.12);
+}
+
+.officialControls {
+  display: flex;
+  gap: 8px;
+}
+
+:global(:root[data-formality='official']) .officialControls > button[class] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  height: 44px;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: none;
+  animation: none;
+}
+
+:global(:root[data-formality='official']) .officialControls > button[data-state='off'] {
+  color: #c5221f;
+  background: #fce8e6;
+  border-color: #f6c7c3;
+}
+
+:global(:root[data-formality='official']) .officialControls > button[data-state='listening'],
+:global(:root[data-formality='official']) .officialControls > button[data-state='speaking'],
+:global(:root[data-formality='official']) .officialControls > button[data-state='starting'],
+:global(:root[data-formality='official']) .officialControls > button[data-on] {
+  color: var(--blue);
+  border-color: #aecbfa;
+  background: #e8f0fe;
+}
+
+.officialInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.minutesButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.officialIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--ink-soft);
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  cursor: pointer;
 }
 :global(:root[data-formality='official']) .actions b {
   background: var(--purple);
@@ -419,4 +570,16 @@
 :global(:root[data-formality='official']) .aiBadge[data-mode='gemini'] {
   border-color: var(--ok);
   color: var(--ok);
+}
+
+/* オフィシャル会議モードの知らせ：落ち着いた濃い灰色の帯（Meet の通知のように） */
+:global(:root[data-formality='official']) .toast,
+:global(:root[data-formality='official']) .toast[data-tone='gold'],
+:global(:root[data-formality='official']) .toast[data-tone='warn'] {
+  color: #fff;
+  background: #303134;
+  border: 0;
+  border-radius: 6px;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }

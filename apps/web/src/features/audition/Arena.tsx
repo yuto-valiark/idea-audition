@@ -7,6 +7,8 @@ import { PASS_CEREMONY_MS, PreliminaryStage } from '../../scene/PreliminaryStage
 import { finalistTarget } from '../../shared/selectors.ts';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import { ChatPanel } from '../chat/Chat.tsx';
+import { OfficialPrelim } from '../../scene/official/OfficialPrelim.tsx';
+import { OfficialFinal } from '../../scene/official/OfficialFinal.tsx';
 import styles from './Arena.module.css';
 
 const CURSOR_SEND_INTERVAL_MS = 66; // 約15Hz（仮説値。実測で調整する、ADR-0004）
@@ -33,6 +35,7 @@ export function Arena() {
   }, [upperLen]);
   const holdPrelim = fullAt.current !== null && Date.now() - fullAt.current < PASS_CEREMONY_MS + 100;
   const prelim = active && (upperLen < target || holdPrelim);
+  const official = useDisplay((s) => s.formality) === 1;
   // 予選は審査員の台に顔を出すので、フッターのワイプを隠す（Footer が読む）
   useEffect(() => {
     useDisplay.setState({ prelimStage: prelim });
@@ -62,8 +65,8 @@ export function Arena() {
 
   return (
     <>
-      {/* 予選はステージの囲いの中にテーマを出す */}
-      {!prelim && (
+      {/* 予選はステージの囲いの中にテーマを出す。オフィシャル会議モードは会議の画面の上の帯に議題を出す */}
+      {!prelim && !official && (
         <div className={styles.themeBar}>
           <span className={styles.live}>● LIVE</span>
           <span className={styles.themeLabel}>本日のテーマ</span>
@@ -71,7 +74,7 @@ export function Arena() {
         </div>
       )}
       <div className={styles.arena} ref={ref}>
-        {prelim ? <PreliminaryStage /> : <FinalStage />}
+        {official ? prelim ? <OfficialPrelim /> : <OfficialFinal /> : prelim ? <PreliminaryStage /> : <FinalStage />}
         <JudgeCursors />
         {/* ヘッダーとフッターの間（この領域）に収まるように、ここに置く */}
         <ChatPanel />

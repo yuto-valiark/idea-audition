@@ -7,6 +7,18 @@
   font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
   font-size: 12.5px;
   line-height: 1.75;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+/* 画面内ビューア表示時は親コンテナ幅に合わせて収める */
+.doc[data-preview='true'] {
+  width: 100%;
+  max-width: 794px;
+  margin: 0 auto;
+  padding: clamp(20px, 2.5vw, 36px) clamp(20px, 3vw, 44px);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(10, 4, 24, 0.35);
 }
 
 .brand {
@@ -35,6 +47,10 @@
   line-height: 1.35;
   margin: 6px 0 4px;
   color: #241336;
+  background: none;
+  letter-spacing: normal;
+  white-space: normal;
+  text-align: left;
 }
 
 .catch {
@@ -54,6 +70,24 @@
   width: 110px;
   flex-shrink: 0;
   filter: none;
+}
+
+.visual {
+  margin: 0 0 14px;
+  border: 1px solid #ddd3e8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #faf7fd;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.visualImg {
+  display: block;
+  width: 100%;
+  max-height: 250px;
+  object-fit: cover;
+  object-position: center;
 }
 
 .partHeader {
@@ -83,6 +117,7 @@
   padding-left: 8px;
   border-left: 4px solid #7a3fc8;
   color: #241336;
+  text-align: left;
 }
 
 .twoCol {
@@ -255,4 +290,14 @@
   gap: 12px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+  .doc[data-preview='true'] .twoCol,
+  .doc[data-preview='true'] .taste {
+    grid-template-columns: 1fr;
+  }
+  .doc[data-preview='true'] .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }

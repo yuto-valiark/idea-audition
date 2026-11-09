@@ -48,8 +48,9 @@ const shortLabel = (s: AuditionSession, judgeId: string) => {
   return `${name || judgeLabel(s, judgeId).replace('審査員 ', '')}さん`;
 };
 
+/** 好みの軸の短い言い方。断定しないよう「〜寄り」（画面の taste-summary.ts と同じ言い方） */
 function describeAxis(axis: number, value: number) {
-  return `${AXIS_LABEL[axis]}${value > 0 ? '高め' : '控えめ'}`;
+  return `${AXIS_LABEL[axis]}${value > 0 ? '' : '控えめ'}寄り`;
 }
 
 function confidentJudges(s: AuditionSession) {

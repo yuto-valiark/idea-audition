@@ -4,6 +4,8 @@ import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { judgeById, useMe } from '../../shared/selectors.ts';
 import { useVoice } from '../voice/voice-store.ts';
+import { useFormality } from '../../shared/formality.ts';
+import { proposalLabel } from '../../shared/proposal-label.ts';
 import styles from './Chat.module.css';
 
 /** 発言のテキスト入力（音声が使えないときの代わり、常に使える） */
@@ -19,8 +21,9 @@ export function UtteranceInput() {
   const [text, setText] = useState('');
   const composing = useRef(false);
   const sending = useRef(false);
+  const formality = useFormality();
   const spotId = snapshot?.spotlight?.instanceId ?? null;
-  const targetName = (selected ?? spotId) && snapshot ? snapshot.characters[(selected ?? spotId)!]?.name : null;
+  const targetName = (selected ?? spotId) && snapshot ? proposalLabel(snapshot, (selected ?? spotId)!, formality) || null : null;
   const listening = voiceState === 'listening' || voiceState === 'starting';
 
   return (
@@ -53,10 +56,14 @@ export function UtteranceInput() {
         onCompositionEnd={() => (composing.current = false)}
         placeholder={
           listening
-            ? '話してください…（キャラの名前を呼ぶと宛先になります）'
-            : targetName
-              ? `${targetName} に話しかける（質問・改善の指示）`
-              : '発言する（「ルナ、コストを下げて」のように名前で呼べます）'
+            ? formality === 1
+              ? '話してください…'
+              : '話してください…（キャラの名前を呼ぶと宛先になります）'
+            : formality === 1
+              ? `${targetName ? `${targetName}について` : 'この案について'}質問・意見を伝える…`
+              : targetName
+                ? `${targetName} に話しかける（質問・改善の指示）`
+                : '発言する（「ルナ、コストを下げて」のように名前で呼べます）'
         }
         aria-label="発言"
       />
@@ -96,13 +103,14 @@ function CaptionItem({ id }: { id: string }) {
   const caption = useDisplay((s) => s.captions.find((c) => c.id === id));
   const dismiss = useDisplay((s) => s.dismissCaption);
   const snapshot = useSession((s) => s.snapshot);
+  const formality = useFormality();
   useEffect(() => {
     const t = setTimeout(() => dismiss(id), 6000);
     return () => clearTimeout(t);
   }, [id, dismiss]);
   if (!caption || !snapshot) return null;
   const judge = judgeById(snapshot, caption.judgeId);
-  const target = caption.targetInstanceId ? snapshot.characters[caption.targetInstanceId]?.name : null;
+  const target = caption.targetInstanceId ? proposalLabel(snapshot, caption.targetInstanceId, formality) || null : null;
   return (
     <div className={styles.caption} style={{ ['--judge' as string]: judge?.color ?? '#c58cff' }}>
       <b>
@@ -123,6 +131,7 @@ export function ChatPanel() {
   const setOpen = useDisplay((s) => s.setChatOpen);
   const log = useDisplay((s) => s.chatLog);
   const snapshot = useSession((s) => s.snapshot);
+  const formality = useFormality();
   const listEnd = useRef<HTMLDivElement>(null);
   // Esc で閉じる
   useEffect(() => {
@@ -151,7 +160,7 @@ export function ChatPanel() {
         <ol className={styles.chatList}>
           {log.map((m) => {
             const judge = judgeById(snapshot, m.judgeId);
-            const target = m.targetInstanceId ? snapshot.characters[m.targetInstanceId]?.name : null;
+            const target = m.targetInstanceId ? proposalLabel(snapshot, m.targetInstanceId, formality) || null : null;
             return (
               <li key={m.id} style={{ ['--judge' as string]: judge?.color ?? '#c58cff' }}>
                 <div>

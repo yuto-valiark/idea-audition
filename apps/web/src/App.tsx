@@ -12,6 +12,7 @@ import { NameGate } from './features/audition/NameGate.tsx';
 import { useCall } from './features/call/call-store.ts';
 import { useDisplay } from './store/display-store.ts';
 import { JudgeWipeBand } from './features/call/CallControls.tsx';
+import { OfficialChampion } from './scene/official/OfficialChampion.tsx';
 import { finalistTarget, useMe } from './shared/selectors.ts';
 import styles from './App.module.css';
 
@@ -58,6 +59,8 @@ export function App() {
 
   // 優勝が決まった瞬間は、審査の画面のまま「結果発表」のカウントダウンを出してから、表彰へ切り替える
   const revealing = useResultReveal(status);
+  // オフィシャル会議モード：表彰ではなく決定事項の画面。結果発表の 3・2・1 も出さない
+  const official = useDisplay((s) => s.formality) === 1;
   const screen =
     status === 'audition_active' || status === 'champion_selection' || revealing
       ? 'arena'
@@ -76,13 +79,16 @@ export function App() {
           <Footer />
         </>
       )}
-      {screen === 'champion' && (
-        <>
-          <ChampionScreen />
-          <JudgeWipeBand floating />
-        </>
-      )}
-      <ResultReveal show={revealing} />
+      {screen === 'champion' &&
+        (official ? (
+          <OfficialChampion />
+        ) : (
+          <>
+            <ChampionScreen />
+            <JudgeWipeBand floating />
+          </>
+        ))}
+      <ResultReveal show={revealing && !official} />
       {screen === 'arena' && <DetailModal />}
       <IdeaBoxModal />
       <DragLayer />

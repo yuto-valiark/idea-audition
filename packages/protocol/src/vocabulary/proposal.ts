@@ -22,6 +22,8 @@ export const ProposalContent = z.object({
   nextActions: z.array(z.string()),
   /** 審査では確かめていない前提（要検証） */
   assumptions: z.array(z.string()),
+  /** 企画内容に基づき生成されたキービジュアル画像（data URL または URL）。省略・null 可 */
+  imageUrl: z.string().nullable().optional(),
 });
 export type ProposalContent = z.infer<typeof ProposalContent>;
 

@@ -715,6 +715,17 @@ export class AuditionSession {
     return [{ type: 'PROPOSAL_UPDATED', detail: { status: 'ready' } }];
   }
 
+  /** 生成されたイメージ画像を企画書に反映する */
+  attachProposalImage(imageUrl: string): DomainEvent[] {
+    if (!this.champion || !this.proposal?.content) return [];
+    if (this.proposal.content.imageUrl === imageUrl) return [];
+    this.proposal = {
+      ...this.proposal,
+      content: { ...this.proposal.content, imageUrl },
+    };
+    return [{ type: 'PROPOSAL_UPDATED', detail: { status: 'ready' } }];
+  }
+
   failProposal(): DomainEvent[] {
     if (!this.proposal) return [];
     this.proposal = { ...this.proposal, status: 'failed' };

@@ -5,6 +5,7 @@ import type {
   ConsensusOpDraft,
   ConsensusUpdateInput,
   IdeaGenerationPort,
+  ProposalImageInput,
   ProposalInput,
   RefineInput,
   RefineOutput,
@@ -24,14 +25,34 @@ import { ProposalContent, TASTE_AXES } from '@idea-audition/protocol';
  *   前半が同じになるため、Gemini の暗黙キャッシュが効きやすい（cachedContentTokenCount をログに出す）
  */
 
-/** @google/genai の models.generateContent と同じ形（テストで差し替えられるよう構造的に定義） */
+/** @google/genai の models.generateContent / generateImages と同じ形（テストで差し替えられるよう構造的に定義） */
 export interface GenerateContentClient {
   models: {
     generateContent(params: {
       model: string;
       contents: string;
       config: Record<string, unknown>;
-    }): Promise<{ text?: string | undefined; usageMetadata?: { cachedContentTokenCount?: number; promptTokenCount?: number } }>;
+    }): Promise<{
+      text?: string | undefined;
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string;
+            inlineData?: { mimeType?: string; data?: string };
+          }>;
+        };
+      }>;
+      usageMetadata?: { cachedContentTokenCount?: number; promptTokenCount?: number };
+    }>;
+    generateImages?(params: {
+      model: string;
+      prompt: string;
+      config?: Record<string, unknown>;
+    }): Promise<{
+      generatedImages?: Array<{
+        image?: { imageBytes?: string; mimeType?: string };
+      }>;
+    }>;
   };
 }
 
@@ -42,11 +63,18 @@ export interface ModelProfile {
   timeoutMs: number;
 }
 
+export interface ImageModelProfile {
+  model: string;
+  timeoutMs: number;
+}
+
 export interface GeminiConfig {
   /** 案の生成・回答・合意の抽出（速さ優先） */
   fast: ModelProfile;
   /** 上段の改良・相互批評（質優先） */
   refine: ModelProfile;
+  /** 企画書のイメージ画像生成（Imagen 3 または Gemini Image モデル） */
+  image?: ImageModelProfile;
 }
 
 const ICONS = ['♧', '♡', '☆', '✧', '◇', '◎', '⌁', '☾', '☀'] as const;
@@ -129,6 +157,7 @@ const AnswerSchema = z.object({ understood: z.boolean(), answer: z.string() });
 const TriageSchema = z.object({
   verdict: z.enum(['on_topic', 'off_topic', 'garbled']),
   summary: z.string(),
+  target: z.number().int(),
 });
 
 const ConsensusSchema = z.object({
@@ -232,6 +261,9 @@ function toInspiration(labels: string[], note: string, ctx: ConsensusContext | u
   return { claimLabels, note: clean(note, 28) || `${claimLabels.join('・')} を反映` };
 }
 
+/** 企画書の画像（base64）の上限。セッションの状態ごと Firestore の1文書（上限 1MB）に保存するため、ほかの中身の分を残す */
+const MAX_PROPOSAL_IMAGE_CHARS = 700_000;
+
 export class GeminiGateway implements IdeaGenerationPort {
   readonly name = 'gemini';
 
@@ -289,6 +321,79 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
     const out = await this.call('generateProposal', profile, prompt, ProposalContent);
     const final = revs.at(-1)!;
     return { ...out, title: final.title };
+  }
+
+  /**
+   * 企画書の内容（タイトル・課題・対象者・提供価値・概要）に基づき、
+   * 企画の世界観・利用シーンがひと目で伝わるキービジュアル画像を Imagen 3 / Gemini で生成する。
+   */
+  async generateProposalImage(input: ProposalImageInput): Promise<string | null> {
+    const profile = this.config.image ?? { model: 'gemini-3.1-flash-lite-image', timeoutMs: 25_000 };
+    if (!profile.model || profile.model === 'off') return null;
+    const prompt = [
+      'Create a warm, modern, flat-to-isometric editorial concept illustration (16:9 aspect ratio) representing the following project proposal.',
+      'Do NOT include any text, letters, numbers, logos, watermarks, or signage in the image.',
+      `Theme: ${input.theme}`,
+      `Project Title: ${input.title}`,
+      input.catchphrase ? `Tagline: ${input.catchphrase}` : '',
+      `Target Audience: ${input.target}`,
+      `Problem Solved: ${input.problem}`,
+      `Core Value: ${input.value}`,
+      `Overview: ${input.overview}`,
+      'Depict concrete people actively enjoying the experience in a bright, inviting scene with clear visual storytelling.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const started = Date.now();
+    try {
+      if (profile.model.startsWith('imagen-') && typeof this.client.models.generateImages === 'function') {
+        const res = await this.client.models.generateImages({
+          model: profile.model,
+          prompt,
+          config: {
+            numberOfImages: 1,
+            aspectRatio: '16:9',
+            outputMimeType: 'image/jpeg',
+            abortSignal: AbortSignal.timeout(profile.timeoutMs),
+          },
+        });
+        const img = res.generatedImages?.[0]?.image;
+        if (img?.imageBytes) {
+          const mime = img.mimeType || 'image/jpeg';
+          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms model=${profile.model}`);
+          return `data:${mime};base64,${img.imageBytes}`;
+        }
+        throw new Error('empty image response from generateImages');
+      }
+
+      const res = await this.client.models.generateContent({
+        model: profile.model,
+        contents: prompt,
+        config: {
+          responseModalities: ['IMAGE'],
+          imageConfig: { aspectRatio: '16:9' },
+          abortSignal: AbortSignal.timeout(profile.timeoutMs),
+        },
+      });
+      const parts = res.candidates?.[0]?.content?.parts ?? [];
+      for (const p of parts) {
+        if (p.inlineData?.data) {
+          const mime = p.inlineData.mimeType || 'image/png';
+          // 画像はセッションの状態（Firestore の1文書、上限 1MB）に入るので、大きすぎる画像は使わない
+          if (p.inlineData.data.length > MAX_PROPOSAL_IMAGE_CHARS) {
+            this.log(`[ai] generateProposalImage too large ${Math.round(p.inlineData.data.length / 1024)}KB model=${profile.model} (skip)`);
+            return null;
+          }
+          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms ${Math.round(p.inlineData.data.length / 1024)}KB model=${profile.model}`);
+          return `data:${mime};base64,${p.inlineData.data}`;
+        }
+      }
+      throw new Error('no inlineData image in generateContent response');
+    } catch (e) {
+      this.log(`[ai] generateProposalImage failed ${Date.now() - started}ms model=${profile.model}: ${String(e)}`);
+      throw e;
+    }
   }
 
   async generateIdeas(input: {
@@ -491,7 +596,9 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
    * 雑談・アプリや機材の話・聞き間違いは keep=false。迷うときは残す（本物の発言を落とさない）。
    */
   async triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage> {
-    const stage = input.stage.length ? input.stage.map((c) => `- ${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n') : '（なし）';
+    const stage = input.stage.length
+      ? input.stage.map((c, i) => `${i + 1}. ${c.letter ? `${c.letter}案・` : ''}${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n')
+      : '（なし）';
     const recent = input.recentRemarks.length ? input.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n') : '（なし）';
     const prompt = `# テーマ
 ${input.theme}
@@ -508,11 +615,13 @@ ${recent}
   - off_topic：雑談、アプリ・画面・マイク・通信の操作や不具合の話、審査と関係のない会話、独り言
   - garbled：聞き間違いや言葉の切れ端で、何を言いたいのか分からない
 - summary：on_topic のときだけ、その発言を言い直した1文（60文字以内）。言い淀み（えーと・あの）や繰り返しを除くだけで、言った内容は変えず、足さない。キャラの名前・企画名・数字はそのまま残す。企画の説明文は話題かどうかの判断にだけ使い、言い直しには足さない。質問は質問、頼みは頼み、否定は否定のままにする。off_topic と garbled のときは空文字
-- 迷って決められないときは on_topic にして、発言をそのまま summary に入れる`;
+- 迷って決められないときは on_topic にして、発言をそのまま summary に入れる
+- target：on_topic で、発言が舞台の企画のどれか1つについて話している（質問・頼み・感想・反応）なら、その企画の番号（上の一覧の 1 から）。キャラの名前や記号（A案など）を言っていなくても、企画の中身（仕組み・対象・特徴・説明文の言葉）から1つに決められれば、その番号にする。テーマ全体の話・複数の企画にまたがる話・どれか決められないときは 0`;
     const out = await this.call('triageUtterance', this.config.fast, prompt, TriageSchema);
     if (out.verdict !== 'on_topic') return { keep: false, reason: out.verdict };
     const summary = clean(out.summary, 80);
-    return { keep: true, summary: summary || null };
+    const target = out.target >= 1 && out.target <= input.stage.length ? out.target : 0;
+    return { keep: true, summary: summary || null, ...(target ? { targetIndex: target } : {}) };
   }
 
   /**

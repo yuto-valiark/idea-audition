@@ -1848,3 +1848,17 @@
 :root[data-formality='official'] .welcome-steps > i {
   background: var(--line-strong);
 }
+
+/* オフィシャル：会議の準備は白いカードのフォーム */
+:root[data-formality='official'] .welcome-screen[data-lobby] .welcome-setup {
+  width: min(600px, 92vw);
+  gap: 14px;
+  padding: 26px 28px 28px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15), 0 8px 24px rgba(60, 64, 67, 0.08);
+}
+:root[data-formality='official'] .welcome-screen[data-lobby] .welcome-copy h1 {
+  font-size: clamp(22px, 2.4vw, 30px);
+}

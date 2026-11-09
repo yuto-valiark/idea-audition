@@ -16,10 +16,11 @@ import {
   type SignalMessage,
 } from '@idea-audition/protocol';
 import { AuditionSession } from '../domain/session.ts';
-import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attention.ts';
+import { DEFAULT_ROTATION_POLICY, detectMention, type RotationPolicy } from '../domain/attention.ts';
+import { findProposalLetter } from '../domain/proposal-letter.ts';
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
 type GeneratedDraft = Awaited<ReturnType<IdeaGenerationPort['generateIdeas']>>[number];
-import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
+import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent, UtteranceTriage } from './ports.ts';
 import { chooseFromStock, filterContextForGeneration, newPlannerState, planSlots, tasteHint, type ContextFilterStrategy, type PlannerState } from './generation-planner.ts';
 import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
@@ -128,6 +129,8 @@ interface UtteranceContext {
   meta: { actorJudgeId: string; correlationId: string };
   /** AI が言い直した文。仕分けをしなかった・言い直さなかったときは null */
   summary: string | null;
+  /** 名前や記号を言わずに、中身で話した案（仕分けの AI が判断）。無ければ null */
+  aiTarget?: string | null;
 }
 
 type RefineTrigger =
@@ -742,27 +745,38 @@ export class SessionActor {
           this.deps.log?.(`[triage] dropped (${verdict.reason}) ${this.deps.clock.now() - started}ms`);
           return;
         }
-        this.deps.log?.(`[triage] kept ${this.deps.clock.now() - started}ms${verdict?.summary ? ' (summarized)' : ''}`);
-        this.processUtterance({ ...ctx, summary: verdict?.summary ?? null });
+        const aiTarget = verdict?.keep ? (verdict.target ?? null) : null;
+        this.deps.log?.(
+          `[triage] kept ${this.deps.clock.now() - started}ms${verdict?.summary ? ' (summarized)' : ''}${aiTarget ? ` target=${this.characterName(aiTarget)}` : ''}`,
+        );
+        this.processUtterance({ ...ctx, summary: verdict?.summary ?? null, aiTarget });
       })
       .catch((e) => this.deps.log?.('utterance failed', e));
     this.utteranceChain.set(ctx.judgeId, next);
   }
 
-  private triage(text: string) {
+  /**
+   * 仕分け。舞台の案は番号付きで渡し、発言が特定の案の話なら、その番号も返してもらう（名前を言わずに中身で話したときの宛先）。
+   * 決勝の案には記号（A案・B案…）も添える
+   */
+  private async triage(text: string): Promise<UtteranceTriage & { target?: string | null }> {
     const s = this.session;
     const onStage = [...s.lowerSlots.filter((x): x is string => x !== null), ...s.upper.map((f) => f.instanceId)];
     const spotlight = this.validTarget(s.spotlight?.instanceId);
     if (spotlight && !onStage.includes(spotlight)) onStage.push(spotlight);
-    return this.ai.triageUtterance({
+    const verdict = await this.ai.triageUtterance({
       theme: s.theme,
       stage: onStage.map((id) => {
         const rev = s.currentRevision(s.characters.get(id)!.ideaId);
-        return { characterName: this.characterName(id), title: rev.title, summary: rev.summary };
+        const letter = s.upper.findIndex((f) => f.instanceId === id);
+        return { characterName: this.characterName(id), title: rev.title, summary: rev.summary, ...(letter >= 0 ? { letter: 'ABCD'[letter] } : {}) };
       }),
       recentRemarks: buildConsensusContext(s).recentRemarks.slice(-3),
       text,
     });
+    if (!verdict.keep) return verdict;
+    const n = verdict.targetIndex ?? 0;
+    return { ...verdict, target: n >= 1 && n <= onStage.length ? onStage[n - 1]! : null };
   }
 
   /**
@@ -773,8 +787,11 @@ export class SessionActor {
     const s = this.session;
     const { judgeId, text, rawText, corrections, source, fallbackTargetId, replyToClaim, meta, summary } = u;
     const shown = summary ?? text;
-    // 宛先：名前を呼んだキャラ → 詳細を開いていたキャラ → （質問なら）いま見ているキャラ → スポットライトのキャラ／予選の挑戦者
-    const named = this.findAddressee(text) ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
+    // 中身で話した案（AI の判断）は、質問・頼み・反応のときだけ宛先にする（ただの感想で決勝の案の改良が走らないように）
+    const aiTarget =
+      u.aiTarget && s.characters.has(u.aiTarget) && (QUESTION_PATTERN.test(text) || REQUEST_PATTERN.test(text) || detectCue(text)) ? u.aiTarget : null;
+    // 宛先：名前・記号（A案）・企画名で呼んだ案 → 中身で話した案 → 詳細を開いていた案 → （質問なら）いま見ている案 → スポットライトの案／予選の挑戦者
+    const named = this.findAddressee(text) ?? aiTarget ?? (fallbackTargetId && s.characters.has(fallbackTargetId) ? fallbackTargetId : null);
     const stageTarget = this.validTarget(s.spotlight?.instanceId) ?? this.validTarget(s.lowerSlots[0]);
     const targetInstanceId = named ?? (QUESTION_PATTERN.test(text) ? (this.focusedTarget(judgeId) ?? stageTarget) : null);
     // 会話で取り上げられた案の注目度を上げる（名前・企画名）。宛先として話しかけた案も含める
@@ -875,9 +892,17 @@ export class SessionActor {
   }
 
   /** 発言の中にステージ上のキャラ名（英字名か読み）があれば、そのキャラを宛先にする */
+  /**
+   * 発言で呼びかけた案。
+   * 1. 記号（「A案」「案B」「エー案」）：決勝の並び順
+   * 2. キャラの名前（読みも）：いちばん先に出てきた名前
+   * 3. 企画名・呼び名の一部（「ガチャめし」「ひとり飯」）：1つの案にだけ当たるとき
+   */
   private findAddressee(text: string): string | null {
     const s = this.session;
     const onStage = [...s.lowerSlots.filter((x): x is string => x !== null), ...s.upper.map((f) => f.instanceId)];
+    const letter = findProposalLetter(text);
+    if (letter !== null && s.upper[letter]) return s.upper[letter]!.instanceId;
     let best: { id: string; index: number } | null = null;
     const lower = text.toLowerCase();
     for (const id of onStage) {
@@ -887,7 +912,12 @@ export class SessionActor {
         if (index >= 0 && (!best || index < best.index)) best = { id, index };
       }
     }
-    return best?.id ?? null;
+    if (best) return best.id;
+    const byTitle = onStage.filter((id) => {
+      const rev = s.currentRevision(s.characters.get(id)!.ideaId);
+      return [rev.title, ...(rev.aliases ?? [])].some((t) => detectMention(text, { name: '', readings: [], title: t }, s.theme) === 'title');
+    });
+    return byTitle.length === 1 ? byTitle[0]! : null;
   }
 
   isJudge(judgeId: string) {
@@ -959,7 +989,7 @@ export class SessionActor {
       const input = this.proposalInput(f.instanceId);
       if (!input) continue;
       const epoch = this.epoch;
-      const promise = this.ai.generateProposal(input);
+      const promise = this.generateProposalWithImage(input);
       const entry = { revisionId, promise };
       this.proposalDrafts.set(f.instanceId, entry);
       promise.then(
@@ -968,6 +998,28 @@ export class SessionActor {
           if (epoch === this.epoch && this.proposalDrafts.get(f.instanceId) === entry) this.proposalDrafts.delete(f.instanceId);
         },
       );
+    }
+  }
+
+  /** 企画書本文と、その内容に基づくイメージ画像を生成する（画像生成が失敗しても企画書本文はそのまま返す） */
+  private async generateProposalWithImage(input: ProposalInput): Promise<ProposalContent> {
+    const content = await this.ai.generateProposal(input);
+    if (content.imageUrl || !this.ai.generateProposalImage) return content;
+    try {
+      const imageUrl = await this.ai.generateProposalImage({
+        theme: input.theme,
+        title: content.title,
+        catchphrase: content.catchphrase,
+        problem: content.problem,
+        target: content.target,
+        value: content.value,
+        overview: content.overview,
+        characterName: input.champion.characterName,
+      });
+      return imageUrl ? { ...content, imageUrl } : content;
+    } catch (e) {
+      this.deps.log?.('generateProposalImage failed', e);
+      return content;
     }
   }
 
@@ -981,7 +1033,7 @@ export class SessionActor {
     const input = this.proposalInput(champion.instanceId);
     if (!input) return;
     const prepared = draft?.revisionId === revisionId;
-    const promise = prepared ? draft!.promise.catch(() => this.ai.generateProposal(input)) : this.ai.generateProposal(input);
+    const promise = prepared ? draft!.promise.catch(() => this.generateProposalWithImage(input)) : this.generateProposalWithImage(input);
     const epoch = this.epoch;
     const started = this.deps.clock.now();
     promise.then(

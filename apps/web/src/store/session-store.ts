@@ -163,6 +163,14 @@ function nameOf(snapshot: SessionSnapshot, instanceId: unknown) {
   return typeof instanceId === 'string' ? (snapshot.characters[instanceId]?.name ?? 'AI') : 'AI';
 }
 
+/** 案の企画名（オフィシャル会議モードの知らせはキャラの名前ではなく企画名で言う） */
+function titleOf(snapshot: SessionSnapshot, instanceId: unknown) {
+  if (typeof instanceId !== 'string') return '提案';
+  const c = snapshot.characters[instanceId];
+  const idea = c ? snapshot.ideas[c.ideaId] : undefined;
+  return idea?.revisions.at(-1)?.title ?? '提案';
+}
+
 /** 🤔 の一言を最低限見せる時間と、いつ出したか */
 const REACTION_MIN_MS = 2200;
 const reactedAt = new Map<string, number>();
@@ -194,14 +202,23 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
 
   if (e.type === 'CANDIDATE_ARCHIVED' && d.reason === 'rejected') {
     const by = typeof d.byJudgeId === 'string' ? e.snapshot.judges.find((j) => j.judgeId === d.byJudgeId)?.label : null;
-    display.toast(`${nameOf(e.snapshot, d.instanceId)} の案を見送りました${by ? `（${by}）` : ''}。次の人と交代します`);
+    display.toast({
+      casual: `${nameOf(e.snapshot, d.instanceId)} の案を見送りました${by ? `（${by}）` : ''}。次の人と交代します`,
+      official: `「${titleOf(e.snapshot, d.instanceId)}」を見送りました${by ? `（${by}）` : ''}`,
+    });
   }
 
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
       // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
       const full = e.snapshot.upper.length >= (e.snapshot.finalists ?? 3);
-      display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} 合格！最終オーディションへ` : `${nameOf(e.snapshot, d.instanceId)} 合格！`, 'gold');
+      display.toast(
+        {
+          casual: `${nameOf(e.snapshot, d.instanceId)} 合格！${full ? '最終オーディションへ' : ''}`,
+          official: `「${titleOf(e.snapshot, d.instanceId)}」を採択候補に追加しました${full ? '。最終審議に進みます' : ''}`,
+        },
+        'gold',
+      );
       break;
     }
     case 'FINALIST_CRITIQUE_POSTED':
@@ -299,7 +316,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       display.setMyVote(null);
       break;
     case 'TIE_DETECTED':
-      display.toast('同票です。ホストが優勝を決めます', 'gold');
+      display.toast({ casual: '同票です。ホストが優勝を決めます', official: '同票です。ホストが採択する案を決めます' }, 'gold');
       break;
     case 'HOST_CHANGED':
       if (d.judgeId === myJudgeId) display.toast('あなたがホストになりました');

@@ -1,10 +1,12 @@
-import { ArrowRight, Check, Copy, Crown, FileDown, Loader2, RotateCcw, Share2, Star, Trophy } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, Copy, Crown, FileDown, Loader2, RotateCcw, Share2, Star, Trophy, X } from 'lucide-react';
 import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { playSfx } from '../../shared/sfx.ts';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
+import { PROPOSAL_PAGES, ProposalDocument } from './ProposalDocument.tsx';
 import { useSession } from '../../store/session-store.ts';
 import { useDisplay } from '../../store/display-store.ts';
 import { pick, useFormality } from '../../shared/formality.ts';
@@ -24,6 +26,9 @@ export function ChampionScreen() {
   const formality = useFormality();
   const reduced = useReducedMotion();
   const champ = snapshot.champion!;
+  // 企画書を、ダウンロードしなくてもその場でめくって読む（#39）
+  const [viewerOpen, setViewerOpen] = useState(false);
+  useEffect(() => setViewerOpen(false), [champ.revisionId]);
   // 紙吹雪：表彰の最初の4秒ほど。「もう一度お祝い」で降らせ直す
   const [burst, setBurst] = useState(0);
   const [raining, setRaining] = useState(true);
@@ -197,6 +202,12 @@ export function ChampionScreen() {
           </div>
           <div className="plan-export">
             <ProposalButton />
+            {snapshot.proposal?.status === 'ready' && snapshot.proposal.content && (
+              <button className="plan-copy" onClick={() => setViewerOpen(true)}>
+                <BookOpen size={14} />
+                企画書を見る
+              </button>
+            )}
             <button
               className="plan-copy"
               onClick={() => {
@@ -240,6 +251,7 @@ export function ChampionScreen() {
         </motion.section>
         {formality === 0 && <CheeringCrowd />}
       </div>
+      {viewerOpen && <ProposalViewer onClose={() => setViewerOpen(false)} />}
     </section>
   );
 }
@@ -339,7 +351,7 @@ function CheeringCrowd() {
 }
 
 /** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする（決勝の間に作り置きしているので、ふつうはすぐ押せる） */
-function ProposalButton() {
+export function ProposalButton({ label = '企画書PDFをダウンロード' }: { label?: string } = {}) {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
@@ -379,7 +391,92 @@ function ProposalButton() {
       }}
     >
       {saving ? <Loader2 size={17} className={styles.spin} /> : <FileDown size={17} />}
-      {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
+      {saving ? 'PDFを作成中…' : label}
     </button>
+  );
+}
+
+/**
+ * 企画書をその場でめくって読む（#39）。画面の上に大きく開き、前へ・次へ・パートのタブで移る（←→ キーでも、Esc で閉じる）。
+ * 中身はダウンロードする PDF と同じ部品（ProposalDocument）で描く
+ */
+export function ProposalViewer({ onClose }: { onClose: () => void }) {
+  const snapshot = useSession((s) => s.snapshot)!;
+  const proposal = snapshot.proposal;
+  const [page, setPage] = useState(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const totalPages = PROPOSAL_PAGES.length;
+
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 });
+  }, [page]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') setPage((p) => Math.max(0, p - 1));
+      else if (e.key === 'ArrowRight') setPage((p) => Math.min(totalPages - 1, p + 1));
+      else if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [totalPages, onClose]);
+
+  if (proposal?.status !== 'ready' || !proposal.content) return null;
+  const current = PROPOSAL_PAGES[page] ?? PROPOSAL_PAGES[0]!;
+
+  // 表彰画面の中に置くと、画面の下に浮かせたワイプより奥に回るので、body の直下に出す
+  return createPortal(
+    <div className={styles.modalBackdrop} onClick={onClose}>
+      <section className={styles.modalViewer} role="dialog" aria-modal="true" aria-label="企画書" onClick={(e) => e.stopPropagation()}>
+        <div className={styles.viewerHeader}>
+          <div className={styles.viewerTitleGroup}>
+            <span className={styles.viewerBadge}>{current.part}</span>
+            <strong className={styles.viewerSectionTitle}>{current.label}</strong>
+          </div>
+          <div className={styles.viewerNav}>
+            <button type="button" className={styles.pageBtn} aria-label="前のページ" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+              <ChevronLeft size={16} /> 前へ
+            </button>
+            <span className={styles.pageCounter} aria-live="polite">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className={styles.pageBtn}
+              aria-label="次のページ"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            >
+              次へ <ChevronRight size={16} />
+            </button>
+            <button type="button" className={styles.closeViewerBtn} aria-label="企画書を閉じる" onClick={onClose}>
+              <X size={15} />
+              <span>閉じる</span>
+            </button>
+          </div>
+        </div>
+        <div className={styles.pageTabs} role="tablist" aria-label="企画書のパート">
+          {PROPOSAL_PAGES.map((p) => (
+            <button
+              key={p.index}
+              type="button"
+              role="tab"
+              aria-selected={page === p.index}
+              className={styles.pageTab}
+              data-active={page === p.index || undefined}
+              onClick={() => setPage(p.index)}
+            >
+              {p.shortLabel}
+            </button>
+          ))}
+        </div>
+        <div ref={viewportRef} className={styles.viewerViewport}>
+          <ProposalDocument snapshot={snapshot} content={proposal.content} page={page} preview />
+        </div>
+      </section>
+    </div>,
+    document.body,
   );
 }
