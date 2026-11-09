@@ -9,6 +9,7 @@ import { EMPTY, currentRevision, finalistTarget, useMe } from '../shared/selecto
 import { setHoverFocus } from './focus.ts';
 import { COUNTDOWN_CLIP, playCountdownClip, playSfx, preloadClip } from '../shared/sfx.ts';
 import { JudgeWipe } from '../features/call/CallControls.tsx';
+import { TasteCard } from '../features/taste/TasteCard.tsx';
 import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
@@ -45,6 +46,8 @@ export function PreliminaryStage() {
           <div className="stage-light light-three" />
           <div className="ambient-particles" />
           <WaitingRoom snapshot={snapshot} />
+          {/* 待機室のすぐ下に、いつも見える「みんなの好み」 */}
+          <TasteCard />
           <img className="ia-backdrop" src="/brand/logo-neon.webp" alt="" aria-hidden />
           <div className="ring-floor">
             <div />
@@ -217,8 +220,7 @@ function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSna
         onPointerLeave={() => setHoverFocus(null)}
         onClick={() => select(instanceId)}
         aria-label={`${character.name}の企画詳細`}
-        animate={reduced || promoting ? {} : { y: [0, -7, 0] }}
-        transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+        // 待機中のゆらゆらは ReactiveMascot の中（.ia-bob）で動かす。ここで動かすと足元の影まで一緒に浮く
       >
         {bubble && <span className="ia-bubble">{bubble.text}</span>}
         <ReactiveMascot snapshot={snapshot} instanceId={instanceId} designId={character.designId} promoting={promoting} />
@@ -278,11 +280,15 @@ function pressedCount(snapshot: SessionSnapshot, instanceId: string) {
  * - 登場：ぽんと弾んで、頭の上に 💡
  * - ブザーが押されるたび：うれしそうに跳ねる
  * - 合格：大きくジャンプ
- * - 待機中：ときどき、まばたきのように縦に縮む（CSS の ia-blink）
+ * - 待機中：ゆらゆら上下し（CSS の ia-bob）、ときどき、まばたきのように縦に縮む（CSS の ia-blink）
+ *
+ * 足元の影（.ia-foot-shadow）は床に置いたまま動かさず、体が浮くのに合わせて縮んで薄くなる。
+ * 体の動き（controls）と影の動き（shadow）は同じ長さ・同じタイミングで並べて動かす。
  */
 function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapshot: SessionSnapshot; instanceId: string; designId: number; promoting: boolean }) {
   const reduced = useReducedMotion();
   const controls = useAnimationControls();
+  const shadow = useAnimationControls();
   const presses = pressedCount(snapshot, instanceId);
   const prevPresses = useRef(presses);
   const [spark, setSpark] = useState(true);
@@ -290,21 +296,25 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
   useEffect(() => {
     if (reduced) return;
     void controls.start({ scale: [0.7, 1.08, 1], transition: { duration: 0.55, times: [0, 0.6, 1] } });
+    void shadow.start({ opacity: [0, 1], scale: [0.6, 1], transition: { duration: 0.55 } });
     const t = setTimeout(() => setSpark(false), 1_400);
     return () => clearTimeout(t);
-  }, [controls, reduced]);
+  }, [controls, shadow, reduced]);
 
   useEffect(() => {
     const increased = presses > prevPresses.current;
     prevPresses.current = presses;
     if (!increased || reduced || promoting) return;
+    const transition = { duration: 0.7, times: [0, 0.3, 0.55, 0.75, 1] };
     void controls.start({
       y: [0, -26, 0, -8, 0],
       scaleX: [1, 0.92, 1.06, 0.98, 1],
       scaleY: [1, 1.08, 0.94, 1.02, 1],
-      transition: { duration: 0.7, times: [0, 0.3, 0.55, 0.75, 1] },
+      transition,
     });
-  }, [presses, controls, reduced, promoting]);
+    // 跳ねて体が離れると影は小さく薄く、着地でつぶれると少し広がる
+    void shadow.start({ scaleX: [1, 0.7, 1.08, 0.9, 1], opacity: [1, 0.5, 1, 0.85, 1], transition });
+  }, [presses, controls, shadow, reduced, promoting]);
 
   const ref = useRef<HTMLSpanElement>(null);
   // 行き先の枠は飛ぶ瞬間に読む（演出の途中で snapshot が届いても、飛ぶのをやり直さない）
@@ -314,18 +324,23 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
     if (!promoting) return;
     if (reduced) {
       void controls.start({ opacity: 0, transition: { duration: 0.6 } });
+      void shadow.start({ opacity: 0, transition: { duration: 0.6 } });
       return;
     }
     let cancelled = false;
     void (async () => {
       // 合格：その場で大きくジャンプ → 待機室の自分の枠へ小さくなりながら飛んでいく
+      const jump = { duration: 0.55, ease: 'easeOut' } as const;
+      void shadow.start({ scale: [1, 0.55, 1], opacity: [1, 0.4, 1], transition: jump });
       await controls.start({
         y: [0, -60, 0],
         rotate: [0, -8, 8, 0],
         scale: [1, 1.12, 1],
-        transition: { duration: 0.55, ease: 'easeOut' },
+        transition: jump,
       });
       if (cancelled) return;
+      // 飛び立つと影は床に残らない
+      void shadow.start({ opacity: 0, transition: { duration: 0.2 } });
       const target = document.querySelector(`.ia-prelim [data-waiting-slot="${slotRef.current}"]`);
       if (!ref.current || !target) {
         // 行き先が分からないときは、その場で消える（舞台に残ったままにしない）
@@ -350,28 +365,36 @@ function ReactiveMascot({ snapshot, instanceId, designId, promoting }: { snapsho
     return () => {
       cancelled = true;
     };
-  }, [promoting, controls, reduced]);
+  }, [promoting, controls, shadow, reduced]);
 
   return (
-    <motion.span ref={ref} className="ia-mascot-react" animate={controls} style={{ originY: 1 }}>
-      <AnimatePresence>
-        {spark && !reduced && (
-          <motion.span
-            className="ia-spark"
-            aria-hidden
-            initial={{ opacity: 0, scale: 0.3, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 14 }}
-          >
-            💡
-          </motion.span>
-        )}
-      </AnimatePresence>
-      <span className="ia-blink">
-        <Mascot designId={designId} className="mascot" />
+    <span className="ia-stand" data-promoting={promoting || undefined}>
+      {/* 影は .ia-bob の外：ゆらゆらやジャンプで体が浮いても、影は床に残る */}
+      <span className="ia-foot-shadow" aria-hidden>
+        <motion.span className="ia-foot-shadow-core" animate={shadow} />
       </span>
-    </motion.span>
+      <span className="ia-bob">
+        <motion.span ref={ref} className="ia-mascot-react" animate={controls} style={{ originY: 1 }}>
+          <AnimatePresence>
+            {spark && !reduced && (
+              <motion.span
+                className="ia-spark"
+                aria-hidden
+                initial={{ opacity: 0, scale: 0.3, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 14 }}
+              >
+                💡
+              </motion.span>
+            )}
+          </AnimatePresence>
+          <span className="ia-blink">
+            <Mascot designId={designId} className="mascot" />
+          </span>
+        </motion.span>
+      </span>
+    </span>
   );
 }
 

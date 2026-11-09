@@ -129,6 +129,8 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 8px;
+  /* 右側の実際の幅でボタンの見せ方を変える（審査員が増えてワイプが広がると、ここが狭くなる） */
+  container: footer-side / inline-size;
 }
 
 
@@ -159,11 +161,27 @@
   height: 42%;
 }
 
+/* ボタンは縮めない（縮めると「合意メモ」などが縦に割れる）。狭いときは下の @container で名前を隠す */
 .actions {
   position: relative;
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-shrink: 0;
+}
+
+.actions button {
+  white-space: nowrap;
+}
+
+/* 右側が狭いとき（審査員4人の決勝など）：ボタンは記号と数だけにして、発言欄に幅をゆずる */
+@container footer-side (max-width: 720px) {
+  .btnLabel {
+    display: none;
+  }
+  .actions {
+    gap: 6px;
+  }
 }
 
 .hint {
@@ -324,19 +342,16 @@
   color: #e5d6f5;
 }
 
-/* 幅が狭いとき（ノート PC を半分にしたときなど）：下のボタンは記号と数だけにする */
+/*
+ * 幅が狭いとき（ノート PC を半分にしたときなど）：ワイプを小さくする。
+ * 右側には「記号だけのボタン（約250px）＋ 発言欄の最小幅（160px）」が入る幅を残す
+ */
 @media (max-width: 1100px) {
   .footer {
     --wipe-base: clamp(50px, 9vh, 72px);
-    --side-min: 360px;
+    --side-min: 440px;
     margin: 8px 12px 10px;
     gap: 8px;
-  }
-  .btnLabel {
-    display: none;
-  }
-  .actions button {
-    white-space: nowrap;
   }
 }
 

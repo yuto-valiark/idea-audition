@@ -1,7 +1,7 @@
 .input {
   flex: 1;
   /* ワイプと右のボタンのあいだを埋める（審査員が少ないほど広くなる） */
-  min-width: 120px;
+  min-width: 160px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -25,6 +25,8 @@
   color: white;
   font-size: 12px;
   min-width: 0;
+  /* 長い案内文（「ルナ、コストを下げて」…）は欄が狭いと「…」で切る */
+  text-overflow: ellipsis;
 }
 
 .input button {

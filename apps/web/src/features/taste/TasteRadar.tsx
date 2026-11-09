@@ -2,11 +2,14 @@ import { X } from 'lucide-react';
 import { TASTE_AXES, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
+import { activeTasteJudges } from './taste-summary.ts';
 import styles from './Taste.module.css';
 
 const SIZE = 220;
 const C = SIZE / 2;
 const R = 78;
+/** 小さい版の描く範囲：軸の名前（最大3文字・17px）が左右上下にはみ出す分を足す */
+const COMPACT_VIEWBOX = '-50 -8 320 236';
 
 /** 軸 i の値 v（-1〜+1）の座標。-1 が中心、+1 が外周 */
 function point(i: number, v: number) {
@@ -40,11 +43,23 @@ export function TastePanel() {
   );
 }
 
-export function TasteRadar({ snapshot, print = false }: { snapshot: SessionSnapshot; print?: boolean }) {
+/**
+ * compact：舞台の隅に常に出す小さい版。軸の名前を大きめにして、外に張り出す名前の分だけ描く範囲を広げる
+ * （小さく縮めても名前が読めるように）
+ */
+export function TasteRadar({ snapshot, print = false, compact = false }: { snapshot: SessionSnapshot; print?: boolean; compact?: boolean }) {
   const { taste, judges } = snapshot;
   const div = taste.divergence;
+  const active = new Set(activeTasteJudges(taste, judges).map((j) => j.judgeId));
+  const viewBox = compact ? COMPACT_VIEWBOX : `0 0 ${SIZE} ${SIZE}`;
+  const className = [styles.radar, print && styles.print, compact && styles.compact].filter(Boolean).join(' ');
   return (
-    <svg className={`${styles.radar} ${print ? styles.print : ''}`} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="好みのレーダー">
+    // 小さい版はボタンの中の飾り（中身は見出しと審査員名で読み上げる）
+    <svg
+      className={className}
+      viewBox={viewBox}
+      {...(compact ? { 'aria-hidden': true } : { role: 'img', 'aria-label': '好みのレーダー' })}
+    >
       {[-1, -0.5, 0, 0.5, 1].map((v) => (
         <polygon key={v} className={styles.grid} points={polygon(TASTE_AXES.map(() => v))} />
       ))}
@@ -69,7 +84,7 @@ export function TasteRadar({ snapshot, print = false }: { snapshot: SessionSnaps
       })}
       {judges.map((j) => {
         const v = taste.judges[j.judgeId];
-        if (!v || (taste.signals[j.judgeId] ?? 0) === 0) return null;
+        if (!v || !active.has(j.judgeId)) return null;
         return (
           <polygon
             key={j.judgeId}
@@ -89,7 +104,7 @@ export function TasteRadar({ snapshot, print = false }: { snapshot: SessionSnaps
 function TasteNotes({ snapshot }: { snapshot: SessionSnapshot }) {
   const { taste, judges } = snapshot;
   const label = (id: string) => judges.find((j) => j.judgeId === id)?.label ?? '審査員';
-  const active = judges.filter((j) => (taste.signals[j.judgeId] ?? 0) > 0);
+  const active = activeTasteJudges(taste, judges);
   if (active.length === 0) {
     return (
       <p className={styles.empty}>

@@ -1441,6 +1441,66 @@
   0%, 92%, 100% { transform: scale(1, 1); }
   95% { transform: scale(1.03, 0.95); }
 }
+/*
+ * 足元の影と、待機中のゆらゆら。
+ * ゆらゆら（.ia-bob）と影の伸び縮み（.ia-foot-shadow）は同じ 3.8 秒で動かし、体が浮くと影が少し小さく薄くなる。
+ * 跳ねる・合格のジャンプ・飛び立ちでの影の動きは ReactiveMascot が .ia-foot-shadow-core に付ける
+ */
+.ia-prelim .ia-stand {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.ia-prelim .ia-bob {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  animation: ia-bob 3.8s ease-in-out infinite;
+}
+/*
+ * キャラの絵は体の下まで描いてあるので、影は体の下端より少し下に落とす（体の後ろに隠れないように）。
+ * 中央は名前札の後ろに入り、左右が見える
+ */
+.ia-prelim .ia-foot-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(72%, 240px);
+  height: 9%;
+  max-height: 28px;
+  translate: -50% 65%;
+  pointer-events: none;
+  animation: ia-shadow-breathe 3.8s ease-in-out infinite;
+}
+.ia-prelim .ia-foot-shadow-core {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  /* 中央は名前札に隠れて左右だけが見えるので、外寄りまで濃さを保ってから消す */
+  background: radial-gradient(closest-side, #000000e0, #000000c0 62%, #00000055 85%, transparent);
+}
+@keyframes ia-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+@keyframes ia-shadow-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.92); opacity: 0.8; }
+}
+/* 合格の演出中はゆらゆらを止める（飛ぶ位置を、浮いていない体から計るため） */
+.ia-prelim .ia-stand[data-promoting] .ia-bob,
+.ia-prelim .ia-stand[data-promoting] .ia-foot-shadow {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ia-prelim .ia-bob,
+  .ia-prelim .ia-foot-shadow { animation: none; }
+}
+
 /* 登場したときに頭の上に出る 💡 */
 .ia-prelim .ia-spark {
   position: absolute;
