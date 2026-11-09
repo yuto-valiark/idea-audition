@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import type { SessionSnapshot } from '@idea-audition/protocol';
+import { CHARACTER_DESIGNS, type SessionSnapshot } from '@idea-audition/protocol';
 import { ProposalDocument } from './ProposalDocument.tsx';
 
 /**
@@ -14,27 +14,27 @@ export async function downloadProposalPdf(snapshot: SessionSnapshot) {
 
   const host = document.createElement('div');
   // 画面外に置いて描画する（display:none だと描けないため）
-  host.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1;';
+  host.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1;background:#ffffff;';
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
     flushSync(() => root.render(<ProposalDocument snapshot={snapshot} content={content} />));
-    await document.fonts.ready;
+    await document.fonts?.ready;
     await waitForImages(host);
     const { default: html2pdf } = await import('html2pdf.js');
     const filename = `IDEA_AUDITION_企画書_${sanitize(content.title)}.pdf`;
     // pagebreak は型定義に無いが html2pdf.js の正式なオプション
     const options: Record<string, unknown> = {
-        margin: [10, 0, 12, 0],
-        filename,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        // 行の途中でページが切れないよう、表の行・段落・2列の段・箇条書き・カード・数字の並びを、まとまりごとに次のページへ送る
-        pagebreak: {
-          mode: ['css', 'legacy'],
-          avoid: ['tr', 'li', 'h2', '[data-keep]', '.keep'],
-        },
+      margin: [8, 0, 10, 0],
+      filename,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      // 行の途中でページが切れないよう、表の行・段落・2列の段・箇条書き・カード・数字の並びを、まとまりごとに次のページへ送る
+      pagebreak: {
+        mode: ['css', 'legacy'],
+        avoid: ['tr', 'li', 'h2', '[data-keep]', '.keep'],
+      },
     };
     await html2pdf()
       .set(options as never)
@@ -47,24 +47,54 @@ export async function downloadProposalPdf(snapshot: SessionSnapshot) {
 }
 
 function sanitize(s: string) {
-  return s.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
+  return s.replace(/[\/:*?"<>|\s]+/g, '_').slice(0, 40);
+}
+
+async function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }
 
 async function waitForImages(el: HTMLElement) {
-  // マスコットは CSS の背景画像なので、同じ画像を読み込んで描画前にキャッシュに乗せる
+  // マスコットはスプライトシート背景画像なので、html2canvas でも位置ずれなく確実に描けるよう1体ずつ切り出した画像に差し替える
+  const mascotNodes = [...el.querySelectorAll<HTMLElement>('[data-mascot-design]')];
+  const sheetCache = new Map<string, HTMLImageElement | null>();
+  for (const node of mascotNodes) {
+    const id = Number(node.dataset.mascotDesign ?? '0');
+    const design = CHARACTER_DESIGNS[id] ?? CHARACTER_DESIGNS[0]!;
+    const { sheet, col, row, cols, rows } = design.sprite;
+    if (!sheetCache.has(sheet)) {
+      sheetCache.set(sheet, await loadImage(sheet));
+    }
+    const img = sheetCache.get(sheet);
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      const cellW = Math.floor(img.naturalWidth / cols);
+      const cellH = Math.floor(img.naturalHeight / rows);
+      const canvas = document.createElement('canvas');
+      canvas.width = cellW;
+      canvas.height = cellH;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
+        node.style.backgroundImage = `url(${canvas.toDataURL('image/png')})`;
+        node.style.backgroundSize = '100% 100%';
+        node.style.backgroundPosition = '0 0';
+      }
+    }
+  }
+
   const urls = new Set<string>();
   el.querySelectorAll<HTMLElement>('[style*="background-image"]').forEach((n) => {
     const m = n.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
-    if (m?.[1]) urls.add(m[1]);
+    if (m?.[1] && !m[1].startsWith('data:')) urls.add(m[1]);
   });
-  await Promise.all(
-    [...urls].map(
-      (src) =>
-        new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = img.onerror = () => resolve();
-          img.src = src;
-        }),
-    ),
-  );
+  el.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+    if (img.src && !img.src.startsWith('data:')) urls.add(img.src);
+  });
+  await Promise.all([...urls].map((src) => loadImage(src)));
 }

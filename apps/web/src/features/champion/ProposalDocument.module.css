@@ -1,25 +1,63 @@
-/* PDF 用の紙面（A4 縦・白地）。画面のテーマとは独立させる */
+/* PDF 用の紙面（A4 縦・白地）。html2pdf.js (html2canvas) でエラーになる color-mix 等の新構文は使わず、標準 HEX/RGB カラーのみで指定する */
 .doc {
   width: 794px; /* A4 幅（96dpi） */
-  padding: 40px 48px;
+  padding: 28px 42px;
   background: #ffffff;
   color: #1d1626;
   font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
-  font-size: 12.5px;
-  line-height: 1.75;
+  font-size: 12px;
+  line-height: 1.68;
+  box-sizing: border-box;
+}
+
+/* 画面内ビューア表示時は親コンテナ幅に合わせて収める */
+.doc[data-preview='true'] {
+  width: 100%;
+  max-width: 794px;
+  margin: 0 auto;
+  padding: clamp(14px, 2.2vw, 26px) clamp(14px, 2.6vw, 34px);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(10, 4, 24, 0.35);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .brand {
   font-size: 10px;
-  letter-spacing: 2px;
+  letter-spacing: 1.8px;
+  font-weight: 800;
+  color: #6b2fb8;
+}
+
+.pageBadge {
+  font-size: 10px;
   font-weight: 700;
-  color: #7a3fc8;
+  color: #5e3d82;
+  background: #f1e9fb;
+  border: 1px solid #d8c6f0;
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
 }
 
 .cover {
-  border-bottom: 3px solid #7a3fc8;
-  padding-bottom: 14px;
-  margin-bottom: 14px;
+  background: linear-gradient(135deg, #faf6ff 0%, #fffdf7 65%, #fff5e0 100%);
+  border: 2px solid #7a3fc8;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 12px;
 }
 
 .coverRow {
@@ -29,29 +67,257 @@
   gap: 16px;
 }
 
+.coverMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.themeBadge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #4a2378;
+  background: #ede2fb;
+  border: 1px solid #cdb2f0;
+  border-radius: 5px;
+  padding: 1px 8px;
+}
+
+.winBadge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7c4900;
+  background: #ffefc7;
+  border: 1px solid #ebb95e;
+  border-radius: 5px;
+  padding: 1px 8px;
+}
+
 .cover h1,
 .partHeader h1 {
-  font-size: 26px;
-  line-height: 1.35;
-  margin: 6px 0 4px;
+  font-size: 23px;
+  line-height: 1.32;
+  margin: 4px 0 4px;
   color: #241336;
 }
 
 .catch {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #9a4f00;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 .meta {
-  font-size: 11px;
+  font-size: 10.5px;
   color: #5d5068;
   margin: 0;
 }
 
+.mascotBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #e2d4f4;
+  border-radius: 10px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+}
+
+.mascotCrown {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #8a5200;
+  background: #ffe9b3;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-bottom: 2px;
+}
+
 .mascot {
-  width: 110px;
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+  filter: none;
+}
+
+.mascotCaption {
+  font-size: 10.5px;
+  color: #3d2459;
+  margin-top: 2px;
+}
+
+/* 1ページ目：誰の・課題・どう解く の3ステップ図解 */
+.conceptFlow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.conceptCard {
+  border: 1px solid #d9cbed;
+  background: #faf7fe;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.conceptCard[data-highlight='true'] {
+  border-color: #8ecfa8;
+  background: #f2fbf6;
+}
+
+.conceptHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #4b2b75;
+  margin-bottom: 4px;
+}
+
+.conceptCard[data-highlight='true'] .conceptHead {
+  color: #186240;
+}
+
+.conceptIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.conceptCard p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #241930;
+}
+
+.conceptArrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 15px;
+  color: #7a3fc8;
+}
+
+/* 1ページ目：なぜこの案が選ばれたか */
+.whyBox {
+  border: 1.5px solid #e0b354;
+  background: #fffaf0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.whyHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid #f0d799;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.whyTitle {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #6b3f00;
+}
+
+.whyChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.whyChips span {
+  font-size: 10px;
+  font-weight: 700;
+  color: #5c3800;
+  background: #ffecb8;
+  border: 1px solid #e3bd68;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.whyGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.whyCol {
+  min-width: 0;
+}
+
+.whyColTitle {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4d2e00;
+  margin-bottom: 4px;
+}
+
+.whyList {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: #2b1e08;
+}
+
+.whyList li {
+  margin: 2px 0;
+}
+
+.whyPitch {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  color: #6e4e16;
+}
+
+/* 2・4ページ目のサブヘッダー */
+.subHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid #7a3fc8;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.subHeaderTitle {
+  display: block;
+  font-size: 15px;
+  color: #241336;
+  margin-top: 2px;
+}
+
+.subHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.subMascot {
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   filter: none;
 }
@@ -59,11 +325,11 @@
 .partHeader {
   border-bottom: 3px solid #7a3fc8;
   padding-bottom: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .section {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .section p {
@@ -78,8 +344,8 @@
 }
 
 .h2 {
-  font-size: 13.5px;
-  margin: 14px 0 5px;
+  font-size: 13px;
+  margin: 10px 0 5px;
   padding-left: 8px;
   border-left: 4px solid #7a3fc8;
   color: #241336;
@@ -88,7 +354,58 @@
 .twoCol {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 14px;
+}
+
+/* 主な内容のビジュアルカード */
+.featureCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.featureCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #ddd3e8;
+  background: #faf7fd;
+  border-radius: 7px;
+  padding: 7px 10px;
+}
+
+.featureBadge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #7a3fc8;
+  border-radius: 5px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+
+.featureCard strong {
+  display: block;
+  font-size: 12px;
+  color: #241336;
+}
+
+.featureCard p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #463852;
+}
+
+.stepPill {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #5b289c;
+  background: #e9dcf9;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-right: 4px;
 }
 
 .table {
@@ -143,7 +460,7 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 8px;
-  margin: 4px 0 6px;
+  margin: 4px 0 8px;
 }
 
 .stats div {
@@ -156,7 +473,7 @@
 
 .stats b {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   color: #7a3fc8;
   line-height: 1.2;
 }
@@ -164,6 +481,74 @@
 .stats span {
   font-size: 10px;
   color: #5d5068;
+}
+
+/* 最終オーディション進出案のキャラクター比較カード */
+.finalistGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.finalistCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #ddd3e8;
+  background: #faf7fd;
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-width: 0;
+}
+
+.finalistCard[data-winner='true'] {
+  border: 1.5px solid #d99b26;
+  background: #fffaf0;
+}
+
+.finalistMascot {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  filter: none;
+}
+
+.finalistBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.finalistMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #5d5068;
+}
+
+.winnerTag {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #784500;
+  background: #ffe6a3;
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.finalistTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #241336;
+  margin: 1px 0;
+}
+
+.finalistSummary {
+  margin: 0;
+  font-size: 10.5px;
+  color: #5d5068;
+  line-height: 1.45;
 }
 
 .claim {
@@ -182,7 +567,7 @@
   margin-left: 6px;
   font-size: 10px;
   background: #1f7a52;
-  color: #fff;
+  color: #ffffff;
   border-radius: 3px;
   padding: 0 5px;
 }
@@ -197,7 +582,7 @@
 
 .rev {
   border-left: 3px solid #d7c6ef;
-  padding: 2px 0 2px 10px;
+  padding: 3px 0 3px 10px;
   margin-bottom: 8px;
 }
 
@@ -207,8 +592,8 @@
 
 .revHead {
   display: flex;
-  gap: 8px;
-  align-items: baseline;
+  gap: 6px;
+  align-items: center;
 }
 
 .revHead b {
@@ -221,17 +606,68 @@
   color: #8a7d96;
 }
 
+.tinyMascot {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  filter: none;
+}
+
+.critiqueList {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.critiqueList li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #faf7fd;
+  border: 1px solid #e5dcf0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+
 .qa {
   margin-bottom: 6px;
+  background: #faf7fd;
+  border: 1px solid #e5dcf0;
+  border-radius: 6px;
+  padding: 5px 10px;
 }
 
 .qa p {
-  margin: 0 0 0 1em;
+  margin: 3px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.archivedGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.archivedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #4f415b;
+  background: #f6f2fa;
+  border: 1px solid #dfd5ec;
+  border-radius: 999px;
+  padding: 2px 8px 2px 4px;
 }
 
 .muted {
   color: #5d5068;
-  font-size: 11.5px;
+  font-size: 11px;
   margin: 2px 0;
 }
 
@@ -241,18 +677,53 @@
 }
 
 .footer {
-  margin-top: 18px;
-  padding-top: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid #ddd3e8;
   font-size: 10px;
   color: #8a7d96;
 }
 
+.pageFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 6px;
+  border-top: 1px solid #e3d9ee;
+  font-size: 10px;
+  color: #7c6e88;
+}
+
 /* 好みの読み取りと効果（ADR-0009） */
 .taste {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 12px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+/* 狭い画面でのプレビュー表示時の折り返し対応 */
+@media (max-width: 640px) {
+  .doc[data-preview='true'] .coverRow {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+  }
+  .doc[data-preview='true'] .conceptFlow {
+    grid-template-columns: 1fr;
+  }
+  .doc[data-preview='true'] .conceptArrow {
+    display: none;
+  }
+  .doc[data-preview='true'] .whyGrid,
+  .doc[data-preview='true'] .twoCol,
+  .doc[data-preview='true'] .featureCards,
+  .doc[data-preview='true'] .taste {
+    grid-template-columns: 1fr;
+  }
+  .doc[data-preview='true'] .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }

@@ -1,9 +1,10 @@
-import { Check, Copy, Crown, FileDown, Loader2, RotateCcw, Share2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Crown, Expand, FileDown, Loader2, Minimize2, RotateCcw, Share2, X } from 'lucide-react';
 import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
+import { PROPOSAL_PAGES, ProposalDocument } from './ProposalDocument.tsx';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { useSession } from '../../store/session-store.ts';
 import { useDisplay } from '../../store/display-store.ts';
@@ -50,71 +51,78 @@ export function ChampionScreen() {
           />
         ))}
       </div>
-      <div className={styles.hero}>
-        <div className={styles.eyebrow}>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</div>
-        <Crown className={styles.crown} />
-        <h1>IDEA CHAMPION</h1>
-        <div className={styles.spot}>
-          <Mascot designId={character.designId} className={styles.mascot} />
+      <div className={styles.leftPane}>
+        <div className={styles.hero}>
+          <div className={styles.eyebrow}>THE WINNER OF SESSION {snapshot.sessionId.toUpperCase()}</div>
+          <div className={styles.heroBanner}>
+            <div className={styles.spot}>
+              <Mascot designId={character.designId} className={styles.mascot} />
+            </div>
+            <div className={styles.heroTitles}>
+              <Crown className={styles.crown} />
+              <h1>IDEA CHAMPION</h1>
+              <span className={styles.meta}>
+                {character.name} · Ver.{rev.version}（全{idea.revisions.length}版）
+                {tally ? ` · 得票 ${tally[champ.instanceId] ?? 0}` : ''}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className={styles.body}>
+          <h2>{rev.title}</h2>
+          <p className={styles.summary}>{rev.summary}</p>
+          {allPoints.length > 0 && (
+            <div className={styles.notes}>
+              {allPoints.map((t, i) => (
+                <p key={`${t}${i}`}>
+                  <Check size={15} /> {t}
+                </p>
+              ))}
+            </div>
+          )}
+          <ProposalDownloadBar />
+          <div className={styles.actions}>
+            {isHost || snapshot.mode === 'solo' ? (
+              <button className={styles.primary} onClick={() => void send('RESET_SESSION', {})}>
+                <RotateCcw size={17} /> 新しいオーディションへ
+              </button>
+            ) : (
+              <span className={styles.meta}>ホストが次のオーディションを始めます</span>
+            )}
+            <button
+              className={styles.secondary}
+              onClick={() => {
+                void copyText(shareText()).then((ok) =>
+                  ok
+                    ? toast(snapshot.proposal?.content ? '企画書の文章をコピーしました' : '優勝アイデアの文章をコピーしました', 'gold')
+                    : toast('コピーできませんでした。ブラウザのコピーの許可を確かめてください', 'warn'),
+                );
+              }}
+            >
+              <Copy size={16} /> 文章をコピー
+            </button>
+            {canShare && (
+              <button
+                className={styles.secondary}
+                onClick={() => {
+                  void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
+                    .share({ title: `IDEA AUDITION 優勝案：${rev.title}`, text: shareText() })
+                    .catch(() => {});
+                }}
+              >
+                <Share2 size={16} /> 共有
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      <div className={styles.body}>
-      <h2>{rev.title}</h2>
-      <p className={styles.summary}>{rev.summary}</p>
-      {allPoints.length > 0 && (
-        <div className={styles.notes}>
-          {allPoints.map((t, i) => (
-            <p key={`${t}${i}`}>
-              <Check size={15} /> {t}
-            </p>
-          ))}
-        </div>
-      )}
-      <span className={styles.meta}>
-        {character.name} · Ver.{rev.version}（全{idea.revisions.length}版）
-        {tally ? ` · 得票 ${tally[champ.instanceId] ?? 0}` : ''}
-      </span>
-      <ProposalButton />
-      <div className={styles.actions}>
-        {isHost || snapshot.mode === 'solo' ? (
-          <button className={styles.primary} onClick={() => void send('RESET_SESSION', {})}>
-            <RotateCcw size={17} /> 新しいオーディションへ
-          </button>
-        ) : (
-          <span className={styles.meta}>ホストが次のオーディションを始めます</span>
-        )}
-        <button
-          className={styles.secondary}
-          onClick={() => {
-            void copyText(shareText()).then((ok) =>
-              ok
-                ? toast(snapshot.proposal?.content ? '企画書の文章をコピーしました' : '優勝アイデアの文章をコピーしました', 'gold')
-                : toast('コピーできませんでした。ブラウザのコピーの許可を確かめてください', 'warn'),
-            );
-          }}
-        >
-          <Copy size={16} /> 文章をコピー
-        </button>
-        {canShare && (
-          <button
-            className={styles.secondary}
-            onClick={() => {
-              void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
-                .share({ title: `IDEA AUDITION 優勝案：${rev.title}`, text: shareText() })
-                .catch(() => {});
-            }}
-          >
-            <Share2 size={16} /> 共有
-          </button>
-        )}
-      </div>
-      </div>
+      <ProposalViewerPane />
     </section>
   );
 }
 
 /** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする */
-function ProposalButton() {
+function ProposalDownloadBar() {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
@@ -165,5 +173,171 @@ function ProposalButton() {
         {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
       </button>
     </motion.div>
+  );
+}
+
+/** ダウンロードしなくても、優勝画面のその場で企画書PDFの中身をページごとにめくって読めるビューア */
+function ProposalViewerPane() {
+  const snapshot = useSession((s) => s.snapshot)!;
+  const send = useSession((s) => s.send);
+  const proposal = snapshot.proposal;
+  const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const modalViewportRef = useRef<HTMLDivElement>(null);
+  const totalPages = PROPOSAL_PAGES.length;
+
+  useEffect(() => {
+    setPage(0);
+    setExpanded(false);
+  }, [snapshot.sessionId, snapshot.champion?.instanceId]);
+
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 });
+    modalViewportRef.current?.scrollTo({ top: 0 });
+  }, [page, expanded]);
+
+  useEffect(() => {
+    if (proposal?.status !== 'ready' || !proposal.content) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') {
+        setPage((p) => Math.max(0, p - 1));
+      } else if (e.key === 'ArrowRight') {
+        setPage((p) => Math.min(totalPages - 1, p + 1));
+      } else if (e.key === 'Escape' && expanded) {
+        setExpanded(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [proposal?.status, proposal?.content, totalPages, expanded]);
+
+  if (!proposal) return null;
+
+  if (proposal.status === 'generating') {
+    return (
+      <aside className={styles.viewerPane} aria-label="企画書プレビュー">
+        <div className={styles.viewerPlaceholder} role="status">
+          <Loader2 size={28} className={styles.spin} />
+          <strong>企画書と審査レポートを作成しています…</strong>
+          <p>できあがると、この場所で1ページずつめくって読めます。</p>
+        </div>
+      </aside>
+    );
+  }
+
+  if (proposal.status === 'failed' || !proposal.content) {
+    return (
+      <aside className={styles.viewerPane} aria-label="企画書プレビュー">
+        <div className={styles.viewerPlaceholder}>
+          <strong>企画書を作れませんでした</strong>
+          <button className={styles.retryBtn} onClick={() => void send('REGENERATE_PROPOSAL', {})}>
+            もう一度作る
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  const currentMeta = PROPOSAL_PAGES[page] ?? PROPOSAL_PAGES[0]!;
+
+  const renderControls = (isModal: boolean) => (
+    <div className={styles.viewerHeader}>
+      <div className={styles.viewerTitleGroup}>
+        <span className={styles.viewerBadge}>{currentMeta.part}</span>
+        <strong className={styles.viewerSectionTitle}>{currentMeta.label}</strong>
+      </div>
+      <div className={styles.viewerNav}>
+        <button
+          type="button"
+          className={styles.pageBtn}
+          aria-label="前のページ"
+          disabled={page === 0}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+        >
+          <ChevronLeft size={16} /> 前へ
+        </button>
+        <span className={styles.pageCounter} aria-live="polite">
+          {page + 1} / {totalPages}
+        </span>
+        <button
+          type="button"
+          className={styles.pageBtn}
+          aria-label="次のページ"
+          disabled={page >= totalPages - 1}
+          onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        >
+          次へ <ChevronRight size={16} />
+        </button>
+        <button
+          type="button"
+          className={styles.expandBtn}
+          aria-label={isModal ? '拡大表示を閉じる' : '企画書を拡大して表示'}
+          title={isModal ? '閉じる' : '大きく表示'}
+          onClick={() => setExpanded(!isModal)}
+        >
+          {isModal ? <Minimize2 size={15} /> : <Expand size={15} />}
+          <span>{isModal ? '閉じる' : '拡大'}</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderTabs = () => (
+    <div className={styles.pageTabs} role="tablist" aria-label="企画書のページ一覧">
+      {PROPOSAL_PAGES.map((p) => (
+        <button
+          key={p.index}
+          type="button"
+          role="tab"
+          aria-selected={page === p.index}
+          className={styles.pageTab}
+          data-active={page === p.index || undefined}
+          onClick={() => setPage(p.index)}
+        >
+          {p.shortLabel}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <>
+      <aside className={styles.viewerPane} aria-label="企画書ビューア">
+        {renderControls(false)}
+        {renderTabs()}
+        <div ref={viewportRef} className={styles.viewerViewport}>
+          <ProposalDocument snapshot={snapshot} content={proposal.content} page={page} preview />
+        </div>
+      </aside>
+
+      {expanded && (
+        <div className={styles.modalBackdrop} onClick={() => setExpanded(false)}>
+          <section
+            className={styles.modalViewer}
+            role="dialog"
+            aria-modal="true"
+            aria-label="企画書ビューア（拡大表示）"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.modalCloseIcon}
+              aria-label="閉じる"
+              onClick={() => setExpanded(false)}
+            >
+              <X size={18} />
+            </button>
+            {renderControls(true)}
+            {renderTabs()}
+            <div ref={modalViewportRef} className={styles.viewerViewport}>
+              <ProposalDocument snapshot={snapshot} content={proposal.content} page={page} preview />
+            </div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

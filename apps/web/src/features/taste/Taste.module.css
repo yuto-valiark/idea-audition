@@ -61,7 +61,8 @@
 }
 
 .judgeShape {
-  fill: color-mix(in srgb, var(--judge) 22%, transparent);
+  fill: var(--judge);
+  fill-opacity: 0.22;
   stroke: var(--judge);
   stroke-width: 1.6;
   transition: all 600ms ease;
@@ -128,4 +129,4 @@
 .print .axisLabel { fill: #4d3f5c; }
 .print .axisLabel[data-split] { fill: #b07800; }
 .print .splitMark { stroke: #d49a00; }
-.print .judgeShape { fill: color-mix(in srgb, var(--judge) 18%, transparent); }
+.print .judgeShape { fill: var(--judge); fill-opacity: 0.18; }

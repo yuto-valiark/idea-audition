@@ -44,21 +44,38 @@ export function TasteRadar({ snapshot, print = false }: { snapshot: SessionSnaps
   const { taste, judges } = snapshot;
   const div = taste.divergence;
   return (
-    <svg className={`${styles.radar} ${print ? styles.print : ''}`} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="好みのレーダー">
+    <svg
+      className={`${styles.radar} ${print ? styles.print : ''}`}
+      width={print ? SIZE : undefined}
+      height={print ? SIZE : undefined}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      role="img"
+      aria-label="好みのレーダー"
+    >
       {[-1, -0.5, 0, 0.5, 1].map((v) => (
-        <polygon key={v} className={styles.grid} points={polygon(TASTE_AXES.map(() => v))} />
+        <polygon
+          key={v}
+          className={styles.grid}
+          points={polygon(TASTE_AXES.map(() => v))}
+          fill="none"
+          stroke={print ? '#e2d9ec' : undefined}
+        />
       ))}
       {TASTE_AXES.map((a, i) => {
         const [x, y] = point(i, 1);
         const [lx, ly] = point(i, 1.32);
+        const isSplit = div?.axis === i;
         return (
           <g key={a.key}>
-            <line className={styles.spoke} x1={C} y1={C} x2={x} y2={y} />
+            <line className={styles.spoke} x1={C} y1={C} x2={x} y2={y} stroke={print ? '#ece5f3' : undefined} />
             <text
               className={styles.axisLabel}
-              data-split={div?.axis === i || undefined}
+              data-split={isSplit || undefined}
               x={lx}
               y={ly}
+              fill={print ? (isSplit ? '#b07800' : '#4d3f5c') : undefined}
+              fontSize={print ? 10 : undefined}
+              fontWeight={print ? 600 : undefined}
               textAnchor={Math.abs(lx - C) < 6 ? 'middle' : lx > C ? 'start' : 'end'}
               dominantBaseline="middle"
             >
@@ -75,12 +92,24 @@ export function TasteRadar({ snapshot, print = false }: { snapshot: SessionSnaps
             key={j.judgeId}
             className={styles.judgeShape}
             points={polygon(v)}
+            fill={j.color}
+            fillOpacity={print ? 0.18 : 0.22}
+            stroke={j.color}
+            strokeWidth={1.6}
             style={{ ['--judge' as string]: j.color }}
           />
         );
       })}
       {div && (
-        <circle className={styles.splitMark} cx={point(div.axis, 1)[0]} cy={point(div.axis, 1)[1]} r={5} />
+        <circle
+          className={styles.splitMark}
+          cx={point(div.axis, 1)[0]}
+          cy={point(div.axis, 1)[1]}
+          r={5}
+          fill="none"
+          stroke={print ? '#d49a00' : undefined}
+          strokeWidth={2}
+        />
       )}
     </svg>
   );
