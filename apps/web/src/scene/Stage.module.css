@@ -1364,3 +1364,22 @@
   --mascot-col: clamp(90px, 8vw, 170px);
   width: 24%;
 }
+
+/* 決勝の吹き出しは、見出し・注目の帯・ほかのキャラのフリップより手前に出す（重なっても隠れない） */
+.finalStage .finalLineup {
+  z-index: 9;
+  /* 手前に出しても、空いている所で見出しのボタン（優勝を決める）を押せなくしない */
+  pointer-events: none;
+}
+.finalStage .finalLineup > * {
+  pointer-events: auto;
+}
+.finalStage .finalPerformer {
+  position: relative;
+}
+.finalStage .finalPerformer:has(> .speech) {
+  z-index: 30;
+}
+.finalStage .speech {
+  z-index: 31;
+}
