@@ -24,7 +24,7 @@ export function ChampionScreen() {
   const formality = useFormality();
   const reduced = useReducedMotion();
   const champ = snapshot.champion!;
-  // 紙吹雪：表彰の最初の4秒ほど。「{pick(formality, 'もう一度お祝い', '結果を再表示')}」で降らせ直す
+  // 紙吹雪：表彰の最初の4秒ほど。「もう一度お祝い」で降らせ直す
   const [burst, setBurst] = useState(0);
   const [raining, setRaining] = useState(true);
   useEffect(() => {
