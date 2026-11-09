@@ -1,227 +1,322 @@
-import { AnimatePresence, motion } from 'motion/react';
-import { Crown, SkipForward, Sparkles } from 'lucide-react';
-import { useEffect, useState, type CSSProperties } from 'react';
-import { UPPER_CAPACITY, type JudgeView } from '@idea-audition/protocol';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ArrowRight, Check, ChevronRight, Crown, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { PITCH_ROLE_ICON, UPPER_CAPACITY, type JudgeView, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../store/display-store.ts';
 import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
-import { InspiredBy } from '../features/consensus/ConsensusMemo.tsx';
-import { MentionBadge } from './LowerStage.tsx';
-import styles from './Prelim.module.css';
-import stage from './Stage.module.css';
+import './prelim-gpt.css';
 
 /**
  * 予選（#5）：新しいアイデアは1人ずつ登場する。
  * 審査員全員がゴールデンブザーを押したら合格して「合格者待機室」へ。3人そろったら最終オーディションに切り替わる。
+ * 見た目は ChatGPT が作ったモック（IDEA_AUDITION 2）のものを使う。データはサーバーの snapshot。
  */
 export function PreliminaryStage() {
-  const challenger = useSession((s) => s.snapshot?.lowerSlots[0] ?? null);
-  return (
-    <section className={styles.prelim} aria-label="新規アイデア発表ステージ">
-      <WaitingRoom />
-      <SkipButton instanceId={challenger} />
-      <div className={styles.center}>
-        <AnimatePresence mode="popLayout">
-          {challenger ? <Challenger key={challenger} instanceId={challenger} /> : <Preparing key="prep" />}
-        </AnimatePresence>
-        <div className={`${stage.ring} ${styles.floor}`} />
-      </div>
-      <Buzzers instanceId={challenger} />
-      <History current={challenger} />
-    </section>
-  );
-}
-
-function WaitingRoom() {
   const snapshot = useSession((s) => s.snapshot)!;
-  const select = useDisplay((s) => s.select);
+  const passed = usePassCeremony(snapshot);
+  const challenger = snapshot.lowerSlots[0] ?? null;
+  const shown = passed?.instanceId ?? challenger;
+  const celebrating = !!passed;
   return (
-    <div className={styles.waiting} aria-label="合格者待機室">
-      <div className={styles.waitingHead}>
-        <Crown size={16} /> 合格者待機室
-        <span className={styles.badge}>
-          {snapshot.upper.length} / {UPPER_CAPACITY}
-        </span>
-      </div>
-      <div className={styles.seats}>
-        {Array.from({ length: UPPER_CAPACITY }, (_, i) => {
-          const f = snapshot.upper[i];
-          const c = f ? snapshot.characters[f.instanceId] : null;
-          const rev = f ? currentRevision(snapshot, f.instanceId) : null;
-          return c && rev ? (
-            <button key={f!.instanceId} className={styles.seat} onClick={() => select(f!.instanceId)} title={rev.title}>
-              <span className={styles.face} style={{ '--accent': c.accent } as CSSProperties}>
-                <Mascot designId={c.designId} />
-              </span>
-              <span className={styles.seatTitle}>{rev.title}</span>
-            </button>
-          ) : (
-            <div key={`empty-${i}`} className={styles.seat} aria-label="空席">
-              <span className={`${styles.face} ${styles.emptyFace}`}>
-                <Crown size={18} />
-              </span>
-              <span className={styles.seatTitle}>&nbsp;</span>
-            </div>
-          );
-        })}
+    <div className="ia-prelim">
+      <div className="workspace">
+        <section className={'stage ' + (celebrating ? 'gold-stage' : '')} aria-label="オーディションステージ">
+          <div className="stage-topline">
+            <span className="stage-kicker">
+              <span />
+              PRELIMINARY AUDITION
+            </span>
+            <span className="phase-label">予選 · 全員一致で合格</span>
+          </div>
+          <div className="stage-light light-one" />
+          <div className="stage-light light-two" />
+          <div className="stage-light light-three" />
+          <div className="ambient-particles" />
+          <WaitingRoom snapshot={snapshot} />
+          <div className="stage-brand">IDEA AUDITION</div>
+          <div className="ring-floor">
+            <div />
+            <i />
+          </div>
+          <AnimatePresence mode="wait">
+            {shown ? (
+              <Performance key={shown} snapshot={snapshot} instanceId={shown} promoting={celebrating} />
+            ) : (
+              <motion.div key="prep" className="solo-performance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <p className="ia-preparing">次の挑戦者が準備中…</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <BuzzerZone snapshot={snapshot} instanceId={celebrating ? null : challenger} celebrating={celebrating} />
+          {celebrating && <PassEffect seed={passed!.seed} />}
+        </section>
+        <History snapshot={snapshot} current={shown} />
       </div>
     </div>
   );
 }
 
-function Challenger({ instanceId }: { instanceId: string }) {
-  const snapshot = useSession((s) => s.snapshot)!;
+/** 合格の演出（約2.6秒）。そのあいだは合格したキャラを舞台に残す */
+function usePassCeremony(snapshot: SessionSnapshot) {
+  const [passed, setPassed] = useState<{ instanceId: string; seed: number } | null>(null);
+  const prev = useRef(snapshot.upper.length);
+  useEffect(() => {
+    const n = snapshot.upper.length;
+    if (n > prev.current) {
+      const id = snapshot.upper[n - 1]!.instanceId;
+      setPassed({ instanceId: id, seed: Date.now() });
+      const t = setTimeout(() => setPassed(null), 2600);
+      prev.current = n;
+      return () => clearTimeout(t);
+    }
+    prev.current = n;
+  }, [snapshot.upper]);
+  return passed;
+}
+
+function WaitingRoom({ snapshot }: { snapshot: SessionSnapshot }) {
+  const select = useDisplay((s) => s.select);
+  return (
+    <aside className="waiting-room">
+      <div className="waiting-heading">
+        <Crown size={17} />
+        <h2>合格者待機室</h2>
+        <b>
+          {snapshot.upper.length} / {UPPER_CAPACITY}
+        </b>
+      </div>
+      <div className="waiting-slots">
+        {Array.from({ length: UPPER_CAPACITY }, (_, n) => {
+          const f = snapshot.upper[n];
+          const c = f ? snapshot.characters[f.instanceId] : null;
+          const rev = f ? currentRevision(snapshot, f.instanceId) : null;
+          return (
+            <div className={'waiting-slot ' + (c ? 'filled' : '')} key={n}>
+              {c && rev ? (
+                <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={() => select(c.instanceId)}>
+                  <Mascot designId={c.designId} className="mascot" />
+                  <span>{rev.title}</span>
+                </motion.div>
+              ) : (
+                <div className="empty-crown">
+                  <Crown size={23} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function Performance({ snapshot, instanceId, promoting }: { snapshot: SessionSnapshot; instanceId: string; promoting: boolean }) {
+  const reduced = useReducedMotion();
   const select = useDisplay((s) => s.select);
   const bubble = useDisplay((s) => s.bubbles[instanceId]);
   const character = snapshot.characters[instanceId];
   const revision = currentRevision(snapshot, instanceId);
   if (!character || !revision) return null;
+  const pitch = snapshot.ideas[character.ideaId]?.pitch;
   return (
     <motion.div
-      className={styles.challenger}
-      style={{ '--accent': character.accent } as CSSProperties}
+      className="solo-performance"
       onPointerEnter={() => setHoverFocus(instanceId)}
       onPointerLeave={() => setHoverFocus(null)}
-      initial={{ opacity: 0, y: 30, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, x: -60, scale: 0.85, transition: { duration: 0.3 } }}
-      transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+      initial={{ opacity: 0, y: reduced ? 0 : 45 }}
+      animate={{ opacity: promoting ? 0 : 1, y: promoting ? (reduced ? 0 : -220) : 0, scale: promoting ? 0.7 : 1 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={promoting ? { duration: 2.2, ease: 'easeIn' } : { type: 'spring', stiffness: 110, damping: 17 }}
     >
-      <div className={styles.beam} aria-hidden />
-      <div className={styles.performer}>
-        {bubble && <div className={stage.speech}>{bubble.text}</div>}
-        <button className={styles.mascotButton} onClick={() => select(instanceId)} aria-label={`${character.name}の詳細を開く`}>
-          <Mascot designId={character.designId} className={styles.mascot} />
-        </button>
-        <div className={stage.name}>
-          <span /> {character.name}
-          <MentionBadge count={character.mentions} />
+      <motion.button
+        className="hero-character"
+        onClick={() => select(instanceId)}
+        aria-label={`${character.name}の企画詳細`}
+        animate={reduced || promoting ? {} : { y: [0, -7, 0] }}
+        transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        {bubble && <span className="ia-bubble">{bubble.text}</span>}
+        <Mascot designId={character.designId} className="mascot" />
+        <span className="character-label">
+          <span />
+          {character.name}
+          <small>AI CREATOR</small>
+        </span>
+      </motion.button>
+      <motion.button
+        className="idea-flip"
+        initial={{ opacity: 0, x: reduced ? 0 : 35 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.2 }}
+        onClick={() => select(instanceId)}
+      >
+        <div className="flip-eyebrow">
+          {pitch ? `${PITCH_ROLE_ICON[pitch.role]} ${pitch.reason}` : `${revision.icon} IDEA`}
+          <Sparkles size={15} />
         </div>
-      </div>
-      <div className={styles.cardColumn}>
-        <button className={`${stage.flip} ${styles.flip}`} onClick={() => select(instanceId)}>
-          <div className={stage.flipTitle}>{revision.title}</div>
-          <div className={stage.flipIcon}>{revision.icon}</div>
-          <p>{revision.summary}</p>
-          {revision.inspiredBy && <InspiredBy note={revision.inspiredBy.note} labels={revision.inspiredBy.claimLabels} />}
-        </button>
-        <TimeBar leavingAt={character.leavingAt} />
-      </div>
+        <h1>{revision.title}</h1>
+        <div className="flip-rule" />
+        <p>{revision.summary}</p>
+        <span className="flip-more">
+          アイデアを詳しく見る <ArrowRight size={13} />
+        </span>
+      </motion.button>
     </motion.div>
   );
 }
 
-/** 持ち時間：細い線が減っていく（大きな数字は出さない） */
-function TimeBar({ leavingAt }: { leavingAt: string | null }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!leavingAt) return;
-    const t = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(t);
-  }, [leavingAt]);
-  const total = 15_000;
-  const left = leavingAt ? Math.max(0, Date.parse(leavingAt) - now) : total;
+function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSnapshot; instanceId: string | null; celebrating: boolean }) {
+  const send = useSession((s) => s.send);
+  const { judgeId, isSpectator } = useMe();
+  const judges = snapshot.judges.filter((j) => j.connected);
+  const pressed = (snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]);
+  const leavingAt = instanceId ? snapshot.characters[instanceId]?.leavingAt ?? null : null;
+  const left = useSecondsLeft(leavingAt);
   return (
-    <div className={styles.timeBar} role="timer" aria-label={`あと${Math.ceil(left / 1000)}秒で次の人と交代`}>
-      <i style={{ width: `${Math.min(100, (left / total) * 100)}%` }} />
+    <div className="buzzer-zone">
+      <div className="vote-status">
+        <span className="status-dot" />
+        {celebrating
+          ? '全員の「いいね」が、ひとつに。'
+          : !instanceId
+            ? '次のアイデアが登壇中…'
+            : 'おもろいかも、と思ったら自分のブザーを。'}
+        <b>
+          {celebrating ? judges.length : pressed.length}
+          <small> / {judges.length} APPROVED</small>
+        </b>
+      </div>
+      <div className="buzzers" style={{ '--count': judges.length } as CSSProperties}>
+        {judges.map((j) => (
+          <Buzzer
+            key={j.judgeId}
+            judge={j}
+            pressed={celebrating || pressed.includes(j.judgeId)}
+            disabled={celebrating || !instanceId || j.judgeId !== judgeId}
+            onClick={() => instanceId && void send('PRESS_BUZZER', { instanceId, on: !pressed.includes(j.judgeId) })}
+          />
+        ))}
+      </div>
+      <div className="stage-bottom">
+        <span>{instanceId && leavingAt ? `あと ${left} 秒で次のアイデアへ · 押せるのは自分のブザーだけ` : '押せるのは自分のブザーだけ'}</span>
+        {!isSpectator && instanceId && (
+          <button onClick={() => void send('REJECT_CANDIDATE', { instanceId })}>
+            この案を見送る · 次のアイデア <ArrowRight size={13} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function Preparing() {
+function Buzzer({ judge, pressed, disabled, onClick }: { judge: JudgeView; pressed: boolean; disabled: boolean; onClick(): void }) {
   return (
-    <motion.div className={styles.preparing} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <span className={stage.spinner} />
-      <p>次の挑戦者が準備中…</p>
-    </motion.div>
-  );
-}
-
-function SkipButton({ instanceId }: { instanceId: string | null }) {
-  const send = useSession((s) => s.send);
-  const { isSpectator } = useMe();
-  if (isSpectator || !instanceId) return null;
-  return (
-    <button className={styles.skip} onClick={() => void send('REJECT_CANDIDATE', { instanceId })} title="この案は見送って、次の人と交代する">
-      <SkipForward size={13} /> 次の人へ
-    </button>
-  );
-}
-
-/** ゴールデンブザー：審査員ごとに1つ。押せるのは自分のぶんだけ。全員が押したら合格 */
-function Buzzers({ instanceId }: { instanceId: string | null }) {
-  const judges = useSession((s) => s.snapshot?.judges ?? EMPTY);
-  const pressed = useSession((s) => (s.snapshot?.buzzer?.instanceId === instanceId ? s.snapshot?.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]));
-  const send = useSession((s) => s.send);
-  const { judgeId } = useMe();
-  const active = judges.filter((j) => j.connected);
-  return (
-    <div className={styles.buzzers} aria-label={`ゴールデンブザー ${pressed.length} / ${active.length}`}>
-      {active.map((j) => (
-        <Buzzer
-          key={j.judgeId}
-          judge={j}
-          on={pressed.includes(j.judgeId)}
-          mine={j.judgeId === judgeId}
-          disabled={!instanceId || j.judgeId !== judgeId}
-          onPress={(on) => instanceId && void send('PRESS_BUZZER', { instanceId, on })}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Buzzer(props: { judge: JudgeView; on: boolean; mine: boolean; disabled: boolean; onPress(on: boolean): void }) {
-  const { judge, on, mine } = props;
-  return (
-    <button
-      className={styles.buzzer}
-      data-on={on || undefined}
-      data-mine={mine || undefined}
-      disabled={props.disabled}
-      onClick={() => props.onPress(!on)}
-      aria-pressed={on}
-      aria-label={mine ? (on ? 'ゴールデンブザーを取り消す' : 'ゴールデンブザーを押す') : `${judge.label}のブザー${on ? '（押した）' : ''}`}
-      style={{ '--judge': judge.color } as CSSProperties}
+    <motion.button
+      whileTap={disabled ? {} : { scale: 0.97 }}
+      className={'buzzer ' + (pressed ? 'pressed' : '')}
+      style={{ '--person': judge.color } as CSSProperties}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={`${judge.name ?? judge.label}のブザー`}
+      aria-pressed={pressed}
     >
-      {on && <Sparkles className={styles.burst} size={22} />}
-      <span className={styles.dome} />
-      <span className={styles.base}>
-        <span className={styles.letter}>{judge.letter ?? judge.label.slice(-1)}</span>
-        {judge.name ?? judge.label}
-        {judge.isHost && <Crown size={14} className={styles.host} />}
+      <span className="buzzer-rays">
+        <i />
+        <i />
+        <i />
       </span>
-    </button>
+      <span className="buzzer-dome">
+        <span />
+        {pressed && <Check size={26} />}
+      </span>
+      <span className="buzzer-collar" />
+      <span className="buzzer-base">
+        <span className="person-initial">{judge.letter ?? judge.label.slice(-1)}</span>
+        <strong>{judge.name ?? judge.label}</strong>
+        {judge.isHost && <Crown size={13} />}
+      </span>
+      <span className="buzzer-shadow" />
+    </motion.button>
+  );
+}
+
+function PassEffect({ seed }: { seed: number }) {
+  const reduce = useReducedMotion();
+  return (
+    <>
+      <div className="confetti" key={`c${seed}`} aria-hidden="true">
+        {Array.from({ length: reduce ? 10 : 68 }, (_, n) => (
+          <i
+            key={n}
+            style={
+              {
+                left: `${(n * 43) % 100}%`,
+                top: `${(n * 23) % 70}%`,
+                '--dx': `${(n % 2 ? 1 : -1) * (40 + ((n * 7) % 250))}px`,
+                '--dy': `${90 + ((n * 17) % 350)}px`,
+                animationDelay: `${(n % 11) * 0.045}s`,
+                transform: `rotate(${n * 37}deg)`,
+              } as CSSProperties
+            }
+          />
+        ))}
+      </div>
+      <div className="pass-effect ascending" key={`p${seed}`}>
+        <div className="light-pillar" />
+        <div className="gold-orbit orbit1" />
+        <div className="gold-orbit orbit2" />
+        <motion.div className="pass-title" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+          <Crown />
+          <strong>合格！</strong>
+          <span>UNANIMOUS APPROVAL</span>
+        </motion.div>
+      </div>
+    </>
   );
 }
 
 /** これまでの挑戦者：参考程度に、小さく下に並べる */
-function History({ current }: { current: string | null }) {
-  const snapshot = useSession((s) => s.snapshot)!;
+function History({ snapshot, current }: { snapshot: SessionSnapshot; current: string | null }) {
   const select = useDisplay((s) => s.select);
   const past = Object.values(snapshot.characters)
     .filter((c) => c.instanceId !== current && (c.location === 'archived' || c.location === 'upper'))
-    .sort((a, b) => Date.parse(b.spawnedAt ?? '') - Date.parse(a.spawnedAt ?? ''))
-    .slice(0, 6);
+    .sort((a, b) => Date.parse(a.spawnedAt ?? '') - Date.parse(b.spawnedAt ?? ''));
   return (
-    <div className={styles.history} aria-label="これまでの挑戦者">
-      <span className={styles.historyLabel}>▸ これまでの挑戦者</span>
-      {past.length === 0 && <span className={styles.historyEmpty}>まだいません</span>}
-      {past.map((c) => {
-        const rev = currentRevision(snapshot, c.instanceId);
-        const passed = c.location === 'upper';
-        return (
-          <button key={c.instanceId} className={styles.past} onClick={() => select(c.instanceId)}>
-            <Mascot designId={c.designId} className={styles.pastFace} />
-            <span className={styles.pastTitle}>{rev?.title}</span>
-            <span className={styles.result} data-passed={passed || undefined}>
-              {passed ? '合格' : '見送り'}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <section className="history" aria-label="これまでの挑戦者">
+      <h2>
+        <ChevronRight size={12} />
+        これまでの挑戦者
+      </h2>
+      <div className="history-items">
+        {past.length ? (
+          past.map((c) => {
+            const passed = c.location === 'upper';
+            return (
+              <button key={c.instanceId} onClick={() => select(c.instanceId)}>
+                <Mascot designId={c.designId} className="mascot" />
+                <span>{currentRevision(snapshot, c.instanceId)?.title}</span>
+                <b className={passed ? 'passed' : 'skipped'}>{passed ? '合格' : '見送り'}</b>
+              </button>
+            );
+          })
+        ) : (
+          <span className="empty-history">最初の挑戦者を、あなたのセンスで審査しよう。</span>
+        )}
+      </div>
+      <span className="history-count">{past.length} IDEAS</span>
+    </section>
   );
+}
+
+function useSecondsLeft(leavingAt: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!leavingAt) return;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [leavingAt]);
+  return leavingAt ? Math.max(0, Math.ceil((Date.parse(leavingAt) - now) / 1000)) : 0;
 }

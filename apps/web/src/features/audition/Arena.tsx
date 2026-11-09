@@ -1,5 +1,5 @@
 import { MousePointer2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { FinalStage } from '../../scene/FinalStage.tsx';
@@ -15,7 +15,21 @@ export function Arena() {
   const theme = useSession((s) => s.snapshot?.theme);
   const client = useSession((s) => s.client);
   // 予選（1人ずつ）：合格者が3人そろうまで。そろったら最終オーディションに切り替わる（#5）
-  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < UPPER_CAPACITY);
+  const upperLen = useSession((s) => s.snapshot?.upper.length ?? 0);
+  const active = useSession((s) => s.snapshot?.status === 'audition_active');
+  // 3人目の合格の演出（約2.6秒）を見せてから最終オーディションに切り替える
+  const [holdPrelim, setHoldPrelim] = useState(false);
+  const prevLen = useRef(upperLen);
+  useEffect(() => {
+    if (upperLen >= UPPER_CAPACITY && prevLen.current < UPPER_CAPACITY) {
+      setHoldPrelim(true);
+      const t = setTimeout(() => setHoldPrelim(false), 2700);
+      prevLen.current = upperLen;
+      return () => clearTimeout(t);
+    }
+    prevLen.current = upperLen;
+  }, [upperLen]);
+  const prelim = active && (upperLen < UPPER_CAPACITY || holdPrelim);
 
   useEffect(() => {
     const el = ref.current;
