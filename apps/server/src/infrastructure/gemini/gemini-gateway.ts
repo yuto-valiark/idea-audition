@@ -146,6 +146,10 @@ const ConsensusSchema = z.object({
       byLabel: z.string(),
       /** 根拠にした発言の seq。無ければ 0 */
       seq: z.number().int(),
+      /** add_claim：テーマとどう関係するか（20文字以内）。他の操作では空文字 */
+      themeNote: z.string(),
+      /** add_claim：テーマの範囲内の方針・条件なら true、離れている・関係が薄いなら false。他の操作では true */
+      onTheme: z.boolean(),
     }),
   ),
 });
@@ -538,28 +542,47 @@ ${input.decisions.map((d) => `- ${d.judge ?? '自動'}：${DECISION_LABEL[d.kind
 - add_claim：新しい方針・条件（例「実現コストは低く」「留学生も対象に」）。text は30文字以内の言い切り。言い出した人を judge、その人の賛否を stance に
 - set_stance：既存の論点への賛成・反対（「いいね」「それは微妙」など、前の発言・論点への反応も含む）。label と judge と stance を入れる
 - supersede：新しい論点が古い論点を置き換える場合（方針が変わった）。label に古い方、byLabel に新しい方（同じ回で add_claim した論点は C${nextLabelNumber(input)} から順に番号が振られる）
+- テーマとの照合：add_claim は、上の「テーマ」の企画の方針・条件（対象・場面・提供する価値・仕組み・費用・進め方など）として成り立つものだけにする。テーマと関係のない話題（別の分野の企画、雑談、テーマの対象外への変更）は論点にしない。add_claim ごとに、themeNote にテーマとの関係を20文字以内で書き、テーマの範囲内なら onTheme を true、離れている・関係が薄いなら false にする（false の論点は記録されない）
 - 根拠は審査員（人間）の発言と行動だけ。AI キャラの答えや企画の中身、自分の推測から論点を作らない
 - add_claim の text は、審査員が実際に言った内容の言い換えにとどめる。seq にその発言の番号を入れる（行動から作る場合は 0）
 - 行動から論点を作ってよいのは、同じ審査員が同じ方向の案を2回以上選んだときだけ（judge はその人、stance は support）
 - 反対（oppose）は、審査員がはっきり否定した（「それは微妙」「やめよう」など）か、案を見送った（不合格にした）ときだけ。選ばれなかった案があるだけでは反対にしない
 - 単なる質問・雑談・個別の企画への感想や改良の頼みだけなら何も出さない（ops は空配列）
-- 使わない項目は空文字、stance が無ければ none、seq が無ければ 0`;
+- 使わない項目は空文字、stance が無ければ none、seq が無ければ 0。add_claim 以外では themeNote は空文字、onTheme は true`;
     const out = await this.call('updateConsensus', this.config.fast, prompt, ConsensusSchema);
     const drafts: ConsensusOpDraft[] = [];
     const judges = new Set(input.judges);
     const spoke = new Set(input.utterances.map((u) => u.seq));
     const acted = new Set(input.decisions.map((d) => d.judge).filter((j): j is string => !!j));
+    // 新しい論点の番号は、モデルは「自分が出した add_claim の順」で数える（C{next} から）。
+    // 捨てた論点があると実際の番号とずれるので、同じ回の論点を指す label・byLabel は実際の番号に直し、
+    // 捨てた論点を指す操作は捨てる
+    let assumed = input.nextClaimNumber;
+    let actual = input.nextClaimNumber;
+    const relabel = new Map<string, string | null>();
+    const resolve = (label: string) => (relabel.has(label) ? relabel.get(label)! : label);
     for (const o of out.ops) {
       const seq = o.seq > 0 && spoke.has(o.seq) ? o.seq : null;
       const judge = judges.has(o.judge.trim()) ? o.judge.trim() : null;
-      if (o.op === 'add_claim' && o.text.trim()) {
-        // 人の発言か行動に結び付かない論点は捨てる（AI の推測で合意・却下が増えないように）
-        if (!judge || (seq === null && !acted.has(judge))) continue;
+      if (o.op === 'add_claim') {
+        const modelLabel = `C${assumed++}`;
+        // 人の発言か行動に結び付かない論点は捨てる（AI の推測で合意・却下が増えないように）。
+        // テーマから離れた論点も捨てる（議論の軸がずれないように）
+        const offTheme = !o.onTheme;
+        if (!o.text.trim() || !judge || (seq === null && !acted.has(judge)) || offTheme) {
+          if (offTheme && o.text.trim()) this.log(`[consensus] dropped off-theme claim「${clean(o.text, 40)}」(${clean(o.themeNote, 30)})`);
+          relabel.set(modelLabel, null);
+          continue;
+        }
+        relabel.set(modelLabel, `C${actual++}`);
         drafts.push({ op: 'add_claim', text: clean(o.text, 40), judge, stance: o.stance === 'none' ? null : o.stance, seq });
       } else if (o.op === 'set_stance' && judge && o.stance !== 'none' && o.label.trim()) {
-        drafts.push({ op: 'set_stance', label: o.label.trim(), judge, stance: o.stance, seq });
+        const label = resolve(o.label.trim());
+        if (label) drafts.push({ op: 'set_stance', label, judge, stance: o.stance, seq });
       } else if (o.op === 'supersede' && o.label.trim() && o.byLabel.trim()) {
-        drafts.push({ op: 'supersede', label: o.label.trim(), byLabel: o.byLabel.trim() });
+        const label = resolve(o.label.trim());
+        const byLabel = resolve(o.byLabel.trim());
+        if (label && byLabel) drafts.push({ op: 'supersede', label, byLabel });
       }
     }
     return drafts;
