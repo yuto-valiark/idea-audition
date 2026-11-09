@@ -248,17 +248,16 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
       }
       break;
     case 'JUDGE_UTTERANCE_RECEIVED':
-      if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
+      // 声の発言は、聞こえたままも AI が言い直したものも画面に出さない（issue #2・#3）。テキストで打った発言だけ字幕に出す
+      if (d.source === 'text' && typeof d.judgeId === 'string' && typeof d.text === 'string') {
         display.addCaption({
           judgeId: d.judgeId,
           text: d.text,
-          source: d.source === 'live' ? 'live' : 'text',
           intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
           targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
-          corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
         });
-        // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       }
+      // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
       break;
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
@@ -285,6 +284,7 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'SESSION_STARTED':
     case 'SESSION_RESET':
       display.clearBubbles();
+      if (e.type === 'SESSION_RESET') display.clearChatLog();
       display.select(null);
       break;
   }

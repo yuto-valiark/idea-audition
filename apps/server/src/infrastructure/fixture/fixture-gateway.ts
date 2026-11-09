@@ -9,6 +9,8 @@ import type {
   RefineInput,
   RefineOutput,
   TasteHint,
+  UtteranceTriage,
+  UtteranceTriageInput,
   VaryInput,
 } from '../../application/ports.ts';
 import type { ProposalContent } from '@idea-audition/protocol';
@@ -72,6 +74,8 @@ const SUMMARY_SUFFIX = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 固定データ用の簡易な仕分け：アプリ・機材の話だけ落とす（言い直しはしない） */
+const APP_TALK = /マイク|音声|聞こえ|画面|ボタン|アプリ|バグ|重い|固まっ|接続|通信|ログイン/;
 const AGREE = /賛成|いいね|それで(いこう|行こう)|同意|わかる|確かに|それな|ありだね|アリ/;
 const DISAGREE = /反対|微妙|違う|それは(ない|ちょっと)|いや[、,]|ナシ|やめよう/;
 const WISH = /したい|がいい|にして|べき|ほしい|欲しい|低め|安く|重視|優先|絞ろう|にしよう/;
@@ -196,6 +200,13 @@ export class FixtureGateway implements IdeaGenerationPort {
       }
     }
     return ops;
+  }
+
+  async triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage> {
+    const t = input.text.replace(/\s/g, '');
+    if (t.length < 3) return { keep: false, reason: 'garbled' };
+    if (APP_TALK.test(t)) return { keep: false, reason: 'off_topic' };
+    return { keep: true, summary: null };
   }
 
   async refine(input: RefineInput): Promise<RefineOutput> {

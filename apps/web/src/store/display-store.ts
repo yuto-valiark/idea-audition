@@ -39,16 +39,22 @@ export interface Bubble {
   critiqueId: string;
 }
 
+/** テキストで打った発言の字幕（声の発言は、言い直したものも出さない、issue #2・#3） */
 export interface Caption {
   id: string;
   judgeId: string;
   text: string;
-  source: 'live' | 'text';
   intent: 'question' | 'instruction' | 'reject' | 'hesitation' | 'positive' | 'comment';
   targetInstanceId: string | null;
-  /** 会議の語彙に寄せて直した言葉（音声のみ） */
-  corrections?: { from: string; to: string }[];
 }
+
+/** チャット履歴の1件（テキストで打った発言。字幕と違って消えない） */
+export interface ChatEntry extends Omit<Caption, 'id'> {
+  id: string;
+  at: number;
+}
+
+const CHAT_LOG_MAX = 200;
 
 export interface Toast {
   id: string;
@@ -77,10 +83,15 @@ interface DisplayState {
   /** 他の審査員のマイク状態（Ephemeral） */
   micOn: Record<string, boolean>;
   setMic(judgeId: string, on: boolean): void;
-  /** 審査員の発言（直近のもの） */
+  /** テキストで打った発言（直近のもの） */
   captions: Caption[];
   addCaption(c: Omit<Caption, 'id'>): void;
   dismissCaption(id: string): void;
+  /** チャット履歴（このブラウザが部屋にいる間に届いたテキストの発言） */
+  chatLog: ChatEntry[];
+  chatOpen: boolean;
+  setChatOpen(open: boolean): void;
+  clearChatLog(): void;
   /** 自分の投票先（サーバーは締め切りまで投票先を公開しないため手元で持つ） */
   myVote: string | null;
   setMyVote(instanceId: string | null): void;
@@ -114,14 +125,26 @@ export const useDisplay = create<DisplayState>((set) => ({
   ideaBoxOpen: false,
   consensusOpen: false,
   tasteOpen: false,
-  setTasteOpen: (tasteOpen) => set({ tasteOpen, ...(tasteOpen ? { consensusOpen: false } : {}) }),
-  setConsensusOpen: (consensusOpen) => set({ consensusOpen }),
+  // 右側に出るパネルどうしが重ならないよう、1つ開いたらほかは閉じる
+  setTasteOpen: (tasteOpen) => set({ tasteOpen, ...(tasteOpen ? { consensusOpen: false, chatOpen: false } : {}) }),
+  setConsensusOpen: (consensusOpen) => set({ consensusOpen, ...(consensusOpen ? { chatOpen: false } : {}) }),
   justUpdated: {},
   micOn: {},
   setMic: (judgeId, on) => set((s) => ({ micOn: { ...s.micOn, [judgeId]: on } })),
   captions: [],
-  addCaption: (c) => set((s) => ({ captions: [...s.captions.slice(-2), { ...c, id: `c${++n}` }] })),
+  addCaption: (c) =>
+    set((s) => {
+      const id = `c${++n}`;
+      return {
+        captions: [...s.captions.slice(-2), { ...c, id }],
+        chatLog: [...s.chatLog.slice(-(CHAT_LOG_MAX - 1)), { ...c, id, at: Date.now() }],
+      };
+    }),
   dismissCaption: (id) => set((s) => ({ captions: s.captions.filter((c) => c.id !== id) })),
+  chatLog: [],
+  chatOpen: false,
+  setChatOpen: (chatOpen) => set({ chatOpen, ...(chatOpen ? { consensusOpen: false, tasteOpen: false } : {}) }),
+  clearChatLog: () => set({ chatLog: [] }),
   myVote: null,
   setMyVote: (myVote) => set({ myVote }),
 

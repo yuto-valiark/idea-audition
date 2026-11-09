@@ -79,6 +79,8 @@ const transcriber = createTranscriber();
 const store = createStore();
 const config = {
   ...DEFAULT_ACTOR_CONFIG,
+  // 声の発言を AI で仕分け・言い直しする（UTTERANCE_TRIAGE=off で無効。雑談・アプリの話・聞き間違いを捨てる、issue #3）
+  triage: env('UTTERANCE_TRIAGE', 'on') !== 'off',
   // 下段の入れ替え（ROTATION=off で無効）。数値はすべてミリ秒
   rotation:
     env('ROTATION', 'on') === 'off'
