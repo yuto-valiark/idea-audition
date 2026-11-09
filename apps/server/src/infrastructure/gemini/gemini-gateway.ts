@@ -157,6 +157,7 @@ const AnswerSchema = z.object({ understood: z.boolean(), answer: z.string() });
 const TriageSchema = z.object({
   verdict: z.enum(['on_topic', 'off_topic', 'garbled']),
   summary: z.string(),
+  target: z.number().int(),
 });
 
 const ConsensusSchema = z.object({
@@ -595,7 +596,9 @@ ${input.instruction ? `審査員からの指示：「${input.instruction}」を�
    * 雑談・アプリや機材の話・聞き間違いは keep=false。迷うときは残す（本物の発言を落とさない）。
    */
   async triageUtterance(input: UtteranceTriageInput): Promise<UtteranceTriage> {
-    const stage = input.stage.length ? input.stage.map((c) => `- ${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n') : '（なし）';
+    const stage = input.stage.length
+      ? input.stage.map((c, i) => `${i + 1}. ${c.letter ? `${c.letter}案・` : ''}${c.characterName}：${c.title}（${c.summary.replace(/\n/g, ' ')}）`).join('\n')
+      : '（なし）';
     const recent = input.recentRemarks.length ? input.recentRemarks.map((r) => `- ${r.judge}：「${r.text}」`).join('\n') : '（なし）';
     const prompt = `# テーマ
 ${input.theme}
@@ -612,11 +615,13 @@ ${recent}
   - off_topic：雑談、アプリ・画面・マイク・通信の操作や不具合の話、審査と関係のない会話、独り言
   - garbled：聞き間違いや言葉の切れ端で、何を言いたいのか分からない
 - summary：on_topic のときだけ、その発言を言い直した1文（60文字以内）。言い淀み（えーと・あの）や繰り返しを除くだけで、言った内容は変えず、足さない。キャラの名前・企画名・数字はそのまま残す。企画の説明文は話題かどうかの判断にだけ使い、言い直しには足さない。質問は質問、頼みは頼み、否定は否定のままにする。off_topic と garbled のときは空文字
-- 迷って決められないときは on_topic にして、発言をそのまま summary に入れる`;
+- 迷って決められないときは on_topic にして、発言をそのまま summary に入れる
+- target：on_topic で、発言が舞台の企画のどれか1つについて話している（質問・頼み・感想・反応）なら、その企画の番号（上の一覧の 1 から）。キャラの名前や記号（A案など）を言っていなくても、企画の中身（仕組み・対象・特徴・説明文の言葉）から1つに決められれば、その番号にする。テーマ全体の話・複数の企画にまたがる話・どれか決められないときは 0`;
     const out = await this.call('triageUtterance', this.config.fast, prompt, TriageSchema);
     if (out.verdict !== 'on_topic') return { keep: false, reason: out.verdict };
     const summary = clean(out.summary, 80);
-    return { keep: true, summary: summary || null };
+    const target = out.target >= 1 && out.target <= input.stage.length ? out.target : 0;
+    return { keep: true, summary: summary || null, ...(target ? { targetIndex: target } : {}) };
   }
 
   /**

@@ -98,7 +98,7 @@ export interface EmbeddingPort {
 export interface UtteranceTriageInput {
   theme: string;
   /** 舞台にいるキャラと、その企画名・説明文（「ルナが言っていた案」のような言及や、企画の中身への質問の判断に使う） */
-  stage: { characterName: string; title: string; summary: string }[];
+  stage: { characterName: string; title: string; summary: string; letter?: string }[];
   /** 直前の発言（「それは微妙」のような、前の話を受けた発言を落とさないため） */
   recentRemarks: { judge: string; text: string }[];
   /** 会議の語彙で聞き間違いを直したあとの文字起こし */
@@ -111,7 +111,12 @@ export interface UtteranceTriageInput {
  * - keep=true：summary は言い直した1文。AI が言い直さなかったとき（固定データなど）は null で、元の文をそのまま使う
  */
 export type UtteranceTriage =
-  | { keep: true; summary: string | null }
+  | {
+      keep: true;
+      summary: string | null;
+      /** 発言が特定の案の話なら、stage の番号（1 始まり）。全体の話・決められないときは 0 か無し */
+      targetIndex?: number;
+    }
   | { keep: false; reason: 'off_topic' | 'garbled' };
 
 /** AI 生成のポート（ADR-0005 §1）。GeminiGateway と FixtureGateway が実装する。 */

@@ -56,6 +56,18 @@ describe('発言の宛先と意図（AC-14）', () => {
     expect(ai.refineCalls.at(-1)!.instruction).toContain('コストを下げて');
   });
 
+  it('記号（A案・エー案）で呼んだ決勝の案が宛先になる', async () => {
+    const { actor, ai, judgeId, finalistId, utterances, advance } = await setup();
+    const before = ai.refineCalls.length;
+    actor.receiveUtterance(judgeId, 'エー案の費用はどれくらい？', 'live', null);
+    await advance(100);
+    expect(utterances().at(-1)!.detail).toMatchObject({ targetInstanceId: finalistId, intent: 'question' });
+    expect(ai.refineCalls.length).toBe(before);
+    actor.receiveUtterance(judgeId, 'A案、もう少しコストを下げて', 'text', null);
+    await advance(100);
+    expect(utterances().at(-1)!.detail).toMatchObject({ targetInstanceId: finalistId, intent: 'instruction' });
+  });
+
   it('質問は回答だけで、案は変えない', async () => {
     const { actor, ai, judgeId, finalistId, utterances, advance } = await setup();
     const before = ai.refineCalls.length;

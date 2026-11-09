@@ -233,10 +233,10 @@ describe('GeminiGateway', () => {
 
   it('発言の仕分け：話題なら言い直した文、雑談・聞き間違いは残さない', async () => {
     const { client, calls } = fakeClient([
-      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？' }),
-      JSON.stringify({ verdict: 'off_topic', summary: '' }),
-      JSON.stringify({ verdict: 'garbled', summary: '' }),
-      JSON.stringify({ verdict: 'on_topic', summary: '   ' }),
+      JSON.stringify({ verdict: 'on_topic', summary: '費用はいくらかかりますか？', target: 0 }),
+      JSON.stringify({ verdict: 'off_topic', summary: '', target: 0 }),
+      JSON.stringify({ verdict: 'garbled', summary: '', target: 0 }),
+      JSON.stringify({ verdict: 'on_topic', summary: '   ', target: 0 }),
     ]);
     const g = new GeminiGateway(client, config);
     const input = {
@@ -255,6 +255,27 @@ describe('GeminiGateway', () => {
     expect(calls[0]!.contents).toContain('MOMO：混雑予測ナビ');
     expect(calls[0]!.contents).toContain('審査員 A：「コストは低めがいい」');
     expect(calls[0]!.contents).toContain('発言：「えーと費用ってどれくらい？」');
+  });
+
+  it('発言の仕分け：名前を言わずに中身で話した案の番号を返す（範囲外の番号は捨てる）', async () => {
+    const { client, calls } = fakeClient([
+      JSON.stringify({ verdict: 'on_topic', summary: '余った食材を使う案の原価はいくらですか？', target: 2 }),
+      JSON.stringify({ verdict: 'on_topic', summary: '全体として学生向けがいい', target: 9 }),
+    ]);
+    const g = new GeminiGateway(client, config);
+    const input = {
+      theme: '学食',
+      stage: [
+        { characterName: 'MOMO', title: '混雑予測ナビ', summary: '行列が分かる', letter: 'A' },
+        { characterName: 'LUNA', title: '学食ガチャめし', summary: '余剰食材でランダム定食', letter: 'B' },
+      ],
+      recentRemarks: [],
+      text: '余った食材使うやつ、原価っていくら？',
+    };
+    await expect(g.triageUtterance(input)).resolves.toEqual({ keep: true, summary: '余った食材を使う案の原価はいくらですか？', targetIndex: 2 });
+    await expect(g.triageUtterance({ ...input, text: '全体として学生向けがいいね' })).resolves.toEqual({ keep: true, summary: '全体として学生向けがいい' });
+    // 番号と記号を付けて渡す
+    expect(calls[0]!.contents).toContain('2. B案・LUNA：学食ガチャめし');
   });
 
   it('発言の仕分け：呼び出しに失敗したら固定データの簡易な仕分けに切り替わる', async () => {
