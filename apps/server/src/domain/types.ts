@@ -136,6 +136,8 @@ export interface Idea {
   revisions: Revision[];
   pitch?: Pitch | null;
   persona?: string | null;
+  /** 案のイメージ画像の URL（決勝の案だけ。画像そのものはアクターがメモリに持つ） */
+  imageUrl?: string | null;
 }
 
 export interface CharacterInstance {

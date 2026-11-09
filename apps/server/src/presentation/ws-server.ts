@@ -9,6 +9,8 @@ import type { IceServerProvider } from '../infrastructure/turn.ts';
 /** 部屋（セッション）の管理。SessionActor が CAMP の RoomEndpoint を実装する。作られていない部屋は null */
 export interface ActorRegistry extends RoomRegistry<typeof vocabulary> {
   get(sessionId: string): Promise<SessionActor | null>;
+  /** いまメモリにある部屋だけを返す（保存先から開かない）。画像を返すときに使う */
+  peek?(sessionId: string): Promise<SessionActor | null>;
 }
 
 /** 部屋を作る窓口（POST /api/rooms）。clientKey は送り手の目印（回数の上限に使う） */
@@ -47,6 +49,19 @@ export function startServer(opts: {
       res
         .writeHead(r.ok ? 201 : r.status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
         .end(JSON.stringify(r.ok ? { roomId: r.roomId } : { error: r.reason }));
+      return;
+    }
+    // 決勝の案のイメージ画像（/api/images/<部屋 ID>/<案 ID>）。部屋のリンクを知っている人だけが URL を知る
+    const image = req.method === 'GET' ? /^\/api\/images\/([a-z0-9-]{1,40})\/([A-Za-z0-9_-]{1,64})$/.exec(req.url ?? '') : null;
+    if (image) {
+      const actor = opts.registry.peek ? await opts.registry.peek(image[1]!) : null;
+      const found = actor?.ideaImage(image[2]!) ?? null;
+      if (!found) {
+        res.writeHead(404, { 'cache-control': 'no-store' }).end();
+        return;
+      }
+      // 案ごとに1回しか作らないので、同じ URL は同じ画像。ブラウザに持たせておく
+      res.writeHead(200, { 'content-type': found.mime, 'cache-control': 'private, max-age=86400' }).end(found.data);
       return;
     }
     if (req.url === '/api/ice' && req.method === 'GET' && opts.ice) {

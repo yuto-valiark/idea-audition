@@ -1547,3 +1547,34 @@
 :global(:root[data-formality='official']) .flip {
   color: #f6efff;
 }
+
+/* 決勝の案のイメージ画像（フリップの上。できたらふわっと出す） */
+.flipImage {
+  display: block;
+  width: 100%;
+  height: clamp(56px, 10vh, 120px);
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  border: 1px solid var(--gold-line);
+  animation: flipImageIn 0.5s ease-out;
+}
+
+@keyframes flipImageIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 高さの低い画面（1280×720 など）では、フリップが見出しにかぶらないよう画像を細くする */
+@media (max-height: 780px) {
+  .flipImage {
+    height: 38px;
+    margin-bottom: 4px;
+  }
+}

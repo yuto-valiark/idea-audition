@@ -180,6 +180,11 @@ export class SessionActor {
   /** 決勝の案ごとに作っておいた企画書（どの版で作ったか） */
   private proposalDrafts = new Map<string, { revisionId: string; promise: Promise<ProposalContent> }>();
   private draftTimer: (() => void) | null = null;
+  /**
+   * 決勝の案のイメージ画像（案ごとに1枚だけ作り、決勝のフリップと企画書で使い回す）。
+   * 画像は大きい（約270KB）ので状態には入れず、状態には /api/images/... の URL だけを入れる
+   */
+  private ideaImages = new Map<string, { promise: Promise<IdeaImage | null>; image: IdeaImage | null }>();
   private refining = false;
   private stopRotation: (() => void) | null = null;
   private pendingTimers = new Set<() => void>();
@@ -984,12 +989,13 @@ export class SessionActor {
     if (!worth) return;
     for (const f of s.upper) {
       if (f.status !== 'ready') continue;
+      this.ensureIdeaImage(f.instanceId);
       const revisionId = s.currentRevision(s.characters.get(f.instanceId)!.ideaId).revisionId;
       if (this.proposalDrafts.get(f.instanceId)?.revisionId === revisionId) continue;
       const input = this.proposalInput(f.instanceId);
       if (!input) continue;
       const epoch = this.epoch;
-      const promise = this.generateProposalWithImage(input);
+      const promise = this.generateProposalWithImage(f.instanceId, input);
       const entry = { revisionId, promise };
       this.proposalDrafts.set(f.instanceId, entry);
       promise.then(
@@ -1001,26 +1007,56 @@ export class SessionActor {
     }
   }
 
-  /** 企画書本文と、その内容に基づくイメージ画像を生成する（画像生成が失敗しても企画書本文はそのまま返す） */
-  private async generateProposalWithImage(input: ProposalInput): Promise<ProposalContent> {
-    const content = await this.ai.generateProposal(input);
-    if (content.imageUrl || !this.ai.generateProposalImage) return content;
-    try {
-      const imageUrl = await this.ai.generateProposalImage({
-        theme: input.theme,
-        title: content.title,
-        catchphrase: content.catchphrase,
-        problem: content.problem,
-        target: content.target,
-        value: content.value,
-        overview: content.overview,
-        characterName: input.champion.characterName,
+  /** 企画書本文を作り、案のイメージ画像（決勝のフリップと同じもの）を添える。画像が無くても本文は返す */
+  private async generateProposalWithImage(instanceId: string, input: ProposalInput): Promise<ProposalContent> {
+    const [content, image] = await Promise.all([this.ai.generateProposal(input), this.ensureIdeaImage(instanceId)]);
+    if (content.imageUrl || !image) return content;
+    return { ...content, imageUrl: `data:${image.mime};base64,${image.data.toString('base64')}` };
+  }
+
+  /**
+   * 決勝の案のイメージ画像を、案ごとに1回だけ作る（改良されても作り直さない。費用を抑える）。
+   * できたら状態に URL を入れて全員に知らせる。失敗したら null（フリップは文字だけのまま）
+   */
+  private ensureIdeaImage(instanceId: string): Promise<IdeaImage | null> {
+    const s = this.session;
+    const c = s.characters.get(instanceId);
+    if (!c || !this.ai.generateProposalImage) return Promise.resolve(null);
+    const ideaId = c.ideaId;
+    const existing = this.ideaImages.get(ideaId);
+    if (existing) return existing.promise;
+    const r = s.currentRevision(ideaId);
+    const epoch = this.epoch;
+    const entry: { promise: Promise<IdeaImage | null>; image: IdeaImage | null } = { promise: Promise.resolve(null), image: null };
+    entry.promise = this.ai
+      .generateProposalImage({
+        theme: s.theme,
+        title: r.title,
+        catchphrase: r.summary,
+        problem: r.outline?.pain ?? r.summary,
+        target: r.outline?.who ?? '',
+        value: r.keepStrengths?.join('・') || r.summary,
+        overview: r.outline?.how ?? r.summary,
+        characterName: CHARACTER_DESIGNS[c.designId]?.name ?? 'AI',
+      })
+      .then((url) => {
+        const image = url ? parseDataUrl(url) : null;
+        if (!image || epoch !== this.epoch || this.ideaImages.get(ideaId) !== entry) return null;
+        entry.image = image;
+        this.emit(s.setIdeaImage(ideaId, `/api/images/${s.sessionId}/${ideaId}`), { actorJudgeId: null });
+        return image;
+      })
+      .catch((e) => {
+        this.deps.log?.('generateIdeaImage failed', e);
+        return null;
       });
-      return imageUrl ? { ...content, imageUrl } : content;
-    } catch (e) {
-      this.deps.log?.('generateProposalImage failed', e);
-      return content;
-    }
+    this.ideaImages.set(ideaId, entry);
+    return entry.promise;
+  }
+
+  /** /api/images/<部屋>/<案> で返す画像（まだ無ければ null） */
+  ideaImage(ideaId: string): IdeaImage | null {
+    return this.ideaImages.get(ideaId)?.image ?? null;
   }
 
   /** 優勝案の企画書を出す。作っておいた分があればそれを使い、無ければ作る */
@@ -1033,7 +1069,9 @@ export class SessionActor {
     const input = this.proposalInput(champion.instanceId);
     if (!input) return;
     const prepared = draft?.revisionId === revisionId;
-    const promise = prepared ? draft!.promise.catch(() => this.generateProposalWithImage(input)) : this.generateProposalWithImage(input);
+    const promise = prepared
+      ? draft!.promise.catch(() => this.generateProposalWithImage(champion.instanceId, input))
+      : this.generateProposalWithImage(champion.instanceId, input);
     const epoch = this.epoch;
     const started = this.deps.clock.now();
     promise.then(
@@ -1107,6 +1145,7 @@ export class SessionActor {
     this.engagedUntil.clear();
     this.refineQueue = [];
     this.proposalDrafts.clear();
+    this.ideaImages.clear();
     this.refining = false;
     this.usePrefetch();
     this.ensureStock();
@@ -1604,5 +1643,23 @@ export class SessionActor {
       if (failed) this.later(() => void this.persist(), PERSIST_RETRY_MS);
       else if (this.unsaved.length > 0) this.schedulePersist();
     }
+  }
+}
+
+/** 案のイメージ画像（バイト列のまま持ち、HTTP で返す） */
+export interface IdeaImage {
+  mime: string;
+  data: Buffer;
+}
+
+/** data:image/jpeg;base64,...（または base64 でない data:image/svg+xml;utf8,...）→ 画像の種類とバイト列。画像でなければ null */
+export function parseDataUrl(url: string): IdeaImage | null {
+  const m = /^data:(image\/[a-z0-9.+-]+)((?:;[a-z0-9=-]+)*),(.*)$/is.exec(url);
+  if (!m) return null;
+  const base64 = /;base64/i.test(m[2]!);
+  try {
+    return { mime: m[1]!.toLowerCase(), data: base64 ? Buffer.from(m[3]!, 'base64') : Buffer.from(decodeURIComponent(m[3]!), 'utf8') };
+  } catch {
+    return null;
   }
 }

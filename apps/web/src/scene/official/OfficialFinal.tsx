@@ -11,6 +11,7 @@ import { People } from './People.tsx';
 import { PhaseDots } from './PhaseDots.tsx';
 import { QA } from './QA.tsx';
 import styles from './Official.module.css';
+import { IdeaImage } from '../../shared/IdeaImage.tsx';
 
 /**
  * オフィシャル会議モードの決勝（比較・改良と採決）。左に参加者、中に採択候補の比較（A案・B案…の列）と改良の方向性、右に議論の要約。
@@ -256,6 +257,7 @@ function CandidateHead({ snapshot, instanceId }: { snapshot: SessionSnapshot; in
           )}
         </span>
       </div>
+      <IdeaImage ideaId={snapshot.characters[instanceId]?.ideaId} className={styles.candImage} />
       <div className={styles.candTitle}>{revision.title}</div>
       <div className={styles.candActions}>
         <button className={styles.linkButton} onClick={() => select(instanceId)}>

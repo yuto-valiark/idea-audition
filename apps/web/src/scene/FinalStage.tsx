@@ -9,6 +9,7 @@ import { EMPTY, currentRevision, finalistTarget, originalRevision, useMe } from 
 import { onDropHover, registerDropZone } from './drag.ts';
 import { MentionBadge } from './LowerStage.tsx';
 import styles from './Stage.module.css';
+import { IdeaImage } from '../shared/IdeaImage.tsx';
 
 export function FinalStage() {
   const ref = useRef<HTMLElement>(null);
@@ -194,6 +195,8 @@ function FinalistCard({ instanceId, spotlight }: { instanceId: string; spotlight
         </AnimatePresence>
       </button>
       <button className={`${styles.flip} ${styles.finalFlip}`} onClick={() => select(instanceId)}>
+        {/* 案のイメージ画像（できたら出す。改良で版が変わっても同じ絵のまま） */}
+        <IdeaImage ideaId={character.ideaId} className={styles.flipImage} />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={revision.revisionId}

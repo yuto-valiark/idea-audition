@@ -715,6 +715,14 @@ export class AuditionSession {
     return [{ type: 'PROPOSAL_UPDATED', detail: { status: 'ready' } }];
   }
 
+  /** 案のイメージ画像ができたことを全員に知らせる（決勝のフリップに出す） */
+  setIdeaImage(ideaId: string, imageUrl: string): DomainEvent[] {
+    const idea = this.ideas.get(ideaId);
+    if (!idea || idea.imageUrl === imageUrl) return [];
+    idea.imageUrl = imageUrl;
+    return [{ type: 'IDEA_IMAGE_READY', detail: { ideaId } }];
+  }
+
   /** 生成されたイメージ画像を企画書に反映する */
   attachProposalImage(imageUrl: string): DomainEvent[] {
     if (!this.champion || !this.proposal?.content) return [];

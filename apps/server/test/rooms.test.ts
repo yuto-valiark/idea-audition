@@ -116,3 +116,28 @@ describe('オーディションの部屋（リンクで入る）', () => {
     expect((await create(port)).status).toBe(201);
   });
 });
+
+describe('案のイメージ画像（GET /api/images）', () => {
+  it('メモリにある部屋の画像だけを返し、無ければ 404', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const actor = { ideaImage: (id: string) => (id === 'idea_1' ? { mime: 'image/png', data: png } : null) };
+    const registry = {
+      get: async () => null,
+      peek: async (room: string) => (room === 'abc-defg-hij' ? actor : null),
+    } as unknown as Parameters<typeof startServer>[0]['registry'];
+    const s = startServer({ port: 0, registry, voice: null, createRoom: null, staticDir: null, log: () => {} });
+    const base = `http://localhost:${await s.port}`;
+    try {
+      const ok = await fetch(`${base}/api/images/abc-defg-hij/idea_1`);
+      expect(ok.status).toBe(200);
+      expect(ok.headers.get('content-type')).toBe('image/png');
+      expect(Buffer.from(await ok.arrayBuffer())).toEqual(png);
+      expect((await fetch(`${base}/api/images/abc-defg-hij/idea_2`)).status).toBe(404);
+      expect((await fetch(`${base}/api/images/zzz-zzzz-zzz/idea_1`)).status).toBe(404);
+      expect((await fetch(`${base}/api/images/abc-defg-hij/..%2F..%2Fetc`)).status).toBe(404);
+    } finally {
+      await s.close();
+    }
+  });
+});
+

@@ -141,6 +141,7 @@ export type SignalType = keyof typeof SignalPayloads;
 
 export const EVENT_TYPES = [
   'JUDGE_RENAMED',
+  'IDEA_IMAGE_READY',
   'SESSION_STARTED',
   'SESSION_RESET',
   'JUDGE_JOINED',

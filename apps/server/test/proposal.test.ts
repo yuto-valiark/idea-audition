@@ -62,6 +62,39 @@ describe('企画書', () => {
     expect(actor.session.proposal?.content?.imageUrl).toContain('data:image/svg+xml');
   });
 
+  it('決勝の案のイメージ画像は案ごとに1枚だけ作り、URL を状態に入れ、企画書でも同じ画像を使う', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const ai = new StubAi();
+    const actor = await SessionActor.open('img', {
+      ai,
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: fakeClock(),
+      ids: seqIds(),
+      config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'img' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '大学の学食をもっと楽しくする企画', mode: 'solo' }));
+    await advance(0);
+    const id = actor.session.lowerSlots[0]!;
+    const ideaId = actor.session.characters.get(id)!.ideaId;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+    await advance(5_000);
+    const events = a.received.filter((m): m is EventMessage => m.kind === 'event');
+    const ready = events.find((e) => e.type === 'IDEA_IMAGE_READY');
+    expect(ready?.snapshot.ideas[ideaId]?.imageUrl).toBe(`/api/images/img/${ideaId}`);
+    // 状態には URL だけ。画像そのものは入れない
+    expect(JSON.stringify(ready!.snapshot)).not.toContain('data:image');
+    expect(actor.ideaImage(ideaId)?.mime).toBe('image/svg+xml');
+    expect(ai.proposalImageCalls).toHaveLength(1);
+    // 企画書も同じ画像を使い、作り直さない
+    actor.receiveCommand(a.conn, cmd('SELECT_CHAMPION', { instanceId: id }));
+    await advance(0);
+    expect(ai.proposalImageCalls).toHaveLength(1);
+    expect(actor.session.proposal?.content?.imageUrl).toContain('data:image/svg+xml');
+  });
+
   it('優勝が決まると自動で作り始め、できたら全員に配られる', async () => {
     const { ai, advance, events } = await crowned();
     const selected = events().find((e) => e.type === 'CHAMPION_SELECTED')!;

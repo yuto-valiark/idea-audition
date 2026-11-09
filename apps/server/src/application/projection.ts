@@ -65,6 +65,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
           })),
           pitch: i.pitch ?? null,
           persona: i.persona ?? null,
+          imageUrl: i.imageUrl ?? null,
         },
       ]),
     ),

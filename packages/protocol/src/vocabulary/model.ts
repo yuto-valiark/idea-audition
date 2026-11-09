@@ -84,6 +84,8 @@ export const IdeaView = z.object({
   pitch: PitchView.nullable(),
   /** 発想の型（例：逆転の発想） */
   persona: z.string().nullable(),
+  /** 案のイメージ画像（決勝の案だけ。サーバーの /api/images/... を指す。まだ無ければ null） */
+  imageUrl: z.string().nullable().optional(),
 });
 export type IdeaView = z.infer<typeof IdeaView>;
 

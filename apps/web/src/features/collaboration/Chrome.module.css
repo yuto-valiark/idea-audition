@@ -40,6 +40,18 @@
   color: #9a8ba9;
   border-left: 1px solid #564163;
   padding-left: 24px;
+  /* ヘッダーのボタンが多いときは縦に折り返さず、入らない分は「…」で切る */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+@media (max-width: 1360px) {
+  .tag {
+    display: none;
+  }
 }
 
 .right {

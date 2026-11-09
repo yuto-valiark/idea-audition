@@ -42,6 +42,11 @@ export class RoomDirectory implements RoomRegistry<typeof vocabulary> {
     return { ok: true, roomId };
   }
 
+  /** いまメモリにある部屋だけを返す（保存先から開かない） */
+  peek(roomId: string): Promise<SessionActor | null> {
+    return this.rooms.get(roomId)?.actor ?? Promise.resolve(null);
+  }
+
   get(roomId: string): Promise<SessionActor | null> {
     let entry = this.rooms.get(roomId);
     if (!entry) {
