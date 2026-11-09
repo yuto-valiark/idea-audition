@@ -270,3 +270,43 @@ describe('発言の二重送信', () => {
     expect(events(a.received).filter((e) => e.type === 'JUDGE_UTTERANCE_RECEIVED')).toHaveLength(1);
   });
 });
+
+describe('リビジョンの巻き戻し（Issue #8 [B4]）', () => {
+  it('REVERT_IDEA_REVISION コマンドで指定版に巻き戻され CHARACTER_REVISED が配信される', async () => {
+    const { actor, a, b, advance } = await setup();
+    const id = actor.session.lowerSlots[0]!;
+    actor.receiveCommand(a.conn, cmd('REQUEST_PROMOTION', { instanceId: id }));
+    await advance(0);
+    const idea = actor.session.ideaOf(id)!;
+    const v1Title = idea.revisions[0]!.title;
+
+    // v2 に改良
+    actor.session.publishRevision(id, idea.revisions[0]!.revisionId, {
+      title: `${v1Title} 改`,
+      summary: '改良後サマリー',
+      keepStrengths: ['強み'],
+      improvementPoints: ['改善'],
+      reason: 'ユーザー要望',
+    });
+    expect(actor.session.ideaOf(id)!.revisions).toHaveLength(2);
+
+    // REVERT_IDEA_REVISION コマンド送信
+    actor.receiveCommand(a.conn, cmd('REVERT_IDEA_REVISION', { characterId: id, targetVersion: 1 }));
+    await advance(0);
+
+    const res = results(a.received).at(-1)!;
+    expect(res).toMatchObject({ ok: true });
+
+    // CANDIDATE_REVISED イベントが両方に配信されている
+    const revisedA = events(a.received).filter((e) => e.type === 'CANDIDATE_REVISED');
+    const revisedB = events(b.received).filter((e) => e.type === 'CANDIDATE_REVISED');
+    expect(revisedA.length).toBeGreaterThan(0);
+    expect(revisedB.length).toBeGreaterThan(0);
+
+    // v3 が作られ、内容は v1 のタイトルと「v1 に巻き戻し」の reason を持つ
+    const latest = actor.session.ideaOf(id)!.revisions.at(-1)!;
+    expect(latest.version).toBe(3);
+    expect(latest.title).toBe(v1Title);
+    expect(latest.reason).toBe('v1 に巻き戻し');
+  });
+});

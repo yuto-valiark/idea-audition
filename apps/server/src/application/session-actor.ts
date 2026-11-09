@@ -20,7 +20,7 @@ import { DEFAULT_ROTATION_POLICY, type RotationPolicy } from '../domain/attentio
 import type { Clock, DomainEvent, DomainResult, IdProvider, SessionState } from '../domain/types.ts';
 type GeneratedDraft = Awaited<ReturnType<IdeaGenerationPort['generateIdeas']>>[number];
 import type { EmbeddingPort, IdeaGenerationPort, ProposalInput, RefineOutput, Scheduler, SessionStorePort, StoredEvent } from './ports.ts';
-import { chooseFromStock, newPlannerState, planSlots, tasteHint, type PlannerState } from './generation-planner.ts';
+import { chooseFromStock, filterContextForGeneration, newPlannerState, planSlots, tasteHint, type ContextFilterStrategy, type PlannerState } from './generation-planner.ts';
 import { HesitationGate, detectCue } from './hesitation.ts';
 import { SIGNAL_WEIGHTS, dwellWeight, type SignalKind } from '../domain/signals.ts';
 import { HESITATION_REVISION_REASON } from '../domain/metrics.ts';
@@ -49,6 +49,8 @@ export interface ActorConfig {
   consensus: { afterUtteranceMs: number; afterDecisionMs: number; flushAfterUtterances: number } | null;
   /** 下段の枠の数。省略すると1人ずつ（#5）。古いテストは5 */
   lowerSlotCount?: number;
+  /** 合格者が出たあとの文脈フィルタ戦略（B2）。未指定時は 'reset_with_summary' */
+  contextFilterStrategy?: ContextFilterStrategy;
   /**
    * 声の発言を AI で仕分け・言い直しする（issue #3）。審査の話題だけ残し、雑談・アプリの話・聞き間違いは捨てる。
    * 省略・false なら、声の発言もそのまま扱う（テスト用）
@@ -636,6 +638,8 @@ export class SessionActor {
         if (r.ok) this.runProposal();
         return r;
       }
+      case 'REVERT_IDEA_REVISION':
+        return apply(s.revertRevision(cmd.payload.characterId, cmd.payload.targetVersion));
       case 'START_CHAMPION_VOTE':
         return apply(s.startVote(judgeId));
       case 'CAST_VOTE':
@@ -1235,7 +1239,10 @@ export class SessionActor {
     this.generating = true;
     const epoch = this.epoch;
     const avoidTitles = [...s.ideas.values()].map((i) => i.revisions[0]!.title).concat(s.stock.map((d) => d.title));
-    const context = buildConsensusContext(s);
+    const rawContext = buildConsensusContext(s);
+    const context = filterContextForGeneration(s, rawContext, {
+      strategy: this.deps.config.contextFilterStrategy ?? 'reset_with_summary',
+    });
     const now = this.deps.clock.now();
     // 枠ごとに役割（好み・両立・探索・ワイルド）と発想の型を決めて頼む（ADR-0009）
     const slots = planSlots(s, this.planner, Math.min(need, s.lowerSize + 3), now);
