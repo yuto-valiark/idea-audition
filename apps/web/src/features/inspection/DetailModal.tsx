@@ -1,4 +1,4 @@
-import { Crown, MessageCircle, Send, Sparkles, Trophy, X } from 'lucide-react';
+import { Crown, MessageCircle, RotateCcw, Send, Sparkles, Trophy, X } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { PITCH_ROLE_ICON, UPPER_CAPACITY } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
@@ -15,12 +15,12 @@ export function DetailModal() {
   const send = useSession((s) => s.send);
   const { judgeId, isHost, isSpectator } = useMe();
   const [message, setMessage] = useState('');
-  const [showBefore, setShowBefore] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setMessage('');
-    setShowBefore(false);
+    setSelectedVersion(null);
   }, [selected]);
 
   useEffect(() => {
@@ -45,7 +45,8 @@ export function DetailModal() {
   const revisions = idea.revisions;
   const current = revisions[revisions.length - 1]!;
   const original = revisions[0]!;
-  const shown = showBefore ? original : current;
+  const shown = (selectedVersion !== null ? revisions.find((r) => r.version === selectedVersion) : undefined) ?? current;
+  const isLatest = shown.version === current.version;
   const finalist = snapshot.upper.find((f) => f.instanceId === selected);
   const where = finalist ? '最終オーディション' : character.location === 'lower' ? '新規アイデア' : 'アイデアBOX';
   const answers = snapshot.answers.filter((a) => a.instanceId === selected).slice(-3).reverse();
@@ -87,10 +88,10 @@ export function DetailModal() {
               {character.name} / {where}
             </div>
             <h2>{shown.title}</h2>
-            {!showBefore && current.title !== original.title && <div className={styles.origin}>元の案：{original.title}</div>}
+            {isLatest && current.title !== original.title && <div className={styles.origin}>元の案：{original.title}</div>}
             <span className={styles.version}>
               Ver.{shown.version}
-              {showBefore ? '（元の案）' : revisions.length > 1 ? `（全${revisions.length}版）` : ''}
+              {shown.version === 1 ? '（初版）' : !isLatest ? '（過去の版）' : revisions.length > 1 ? `（全${revisions.length}版・最新）` : ''}
             </span>
           </div>
         </div>
@@ -119,27 +120,63 @@ export function DetailModal() {
 
         {revisions.length > 1 && (
           <div className={styles.evolution}>
-            <button onClick={() => setShowBefore(!showBefore)}>
-              {showBefore ? '改良版を見る →' : '← Before / After'}
-            </button>
-            {!showBefore && (
-              <>
-                {current.reason && <p className={styles.reason}>{current.reason}</p>}
-                <div className={styles.evoGrid}>
+            <div className={styles.versionSelector}>
+              <small style={{ color: '#c9a466', marginRight: 4 }}>版切り替え:</small>
+              {revisions.map((rev) => (
+                <button
+                  key={rev.version}
+                  type="button"
+                  className={`${styles.versionTab} ${rev.version === shown.version ? styles.versionTabActive : ''}`}
+                  onClick={() => setSelectedVersion(rev.version)}
+                >
+                  v{rev.version}{rev.version === current.version ? ' (最新)' : ''}
+                </button>
+              ))}
+            </div>
+            {shown.reason && <p className={styles.reason}>{shown.reason}</p>}
+            {(shown.keepStrengths?.length > 0 || shown.improvementPoints?.length > 0) && (
+              <div className={styles.evoGrid}>
+                {shown.keepStrengths?.length > 0 && (
                   <div>
                     <small>残す強み</small>
-                    {current.keepStrengths.map((t) => (
+                    {shown.keepStrengths.map((t) => (
                       <p key={t}>・{t}</p>
                     ))}
                   </div>
+                )}
+                {shown.improvementPoints?.length > 0 && (
                   <div>
                     <small>今回の改善ポイント</small>
-                    {current.improvementPoints.map((t) => (
+                    {shown.improvementPoints.map((t) => (
                       <p key={t}>✓ {t}</p>
                     ))}
                   </div>
-                </div>
-              </>
+                )}
+              </div>
+            )}
+            {!isLatest && (
+              <div>
+                <button
+                  type="button"
+                  className={styles.revertButton}
+                  disabled={busy || isSpectator || !active}
+                  onClick={() => {
+                    void run(() =>
+                      send('REVERT_IDEA_REVISION', {
+                        characterId: selected,
+                        targetVersion: shown.version,
+                      }),
+                    ).then((r) => {
+                      if (r.ok) {
+                        setSelectedVersion(null);
+                        useDisplay.getState().toast(`v${shown.version} に巻き戻しました`, 'gold');
+                      }
+                    });
+                  }}
+                >
+                  <RotateCcw size={12} /> この版（v{shown.version}）に戻す
+                </button>
+              </div>
             )}
           </div>
         )}

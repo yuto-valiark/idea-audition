@@ -833,6 +833,44 @@ export class AuditionSession {
     ]);
   }
 
+  /**
+   * 改良履歴の版を巻き戻す（B4）。
+   * 対象の targetVersion のリビジョン内容を復元し、新しい版として追加して current を更新する。
+   */
+  revertRevision(characterId: string, targetVersion: number): DomainResult {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const character = this.characters.get(characterId);
+    if (!character) return reject('UNKNOWN_CHARACTER');
+    const idea = this.ideas.get(character.ideaId);
+    if (!idea) return reject('UNKNOWN_CHARACTER');
+    const target = idea.revisions.find((r) => r.version === targetVersion);
+    if (!target) return reject('STALE_VERSION');
+    const current = idea.revisions.at(-1)!;
+    const now = this.deps.clock.now();
+    const nextVersion = idea.revisions.length + 1;
+    const revision: Revision = {
+      ...target,
+      revisionId: this.deps.ids.next('rev'),
+      version: nextVersion,
+      basedOnRevisionId: current.revisionId,
+      reason: `v${targetVersion} に巻き戻し`,
+      createdAt: now,
+    };
+    idea.revisions.push(revision);
+    character.reaction = { kind: 'revised', judgeId: null, text: `v${targetVersion} に戻しました`, at: now };
+    return ok([
+      {
+        type: 'CANDIDATE_REVISED',
+        detail: {
+          instanceId: characterId,
+          ideaId: idea.ideaId,
+          revisionId: revision.revisionId,
+          version: revision.version,
+        },
+      },
+    ]);
+  }
+
   /* ------------------------------ 深掘り ------------------------------ */
 
   ask(judgeId: string, instanceId: string, question: string): DomainResult<{ answerId: string }> {
@@ -945,4 +983,47 @@ export class AuditionSession {
     ];
     return [{ type: 'CHAMPION_SELECTED', detail: { instanceId, how, tally: this.vote?.tally ?? null } }];
   }
+}
+
+/**
+ * 改良履歴を前の版に巻き戻す純粋関数（B4）。
+ * 対象の targetVersion のリビジョン内容を復元し、新しい版（version = revisions.length + 1、reason: `v${targetVersion} に巻き戻し`）
+ * として追加した新しい SessionState を返す。
+ */
+export function revertIdeaRevision(
+  session: SessionState,
+  characterId: string,
+  targetVersion: number,
+  now?: number,
+): SessionState {
+  const character = session.characters.find((c) => c.instanceId === characterId);
+  if (!character) return session;
+  const ideaIndex = session.ideas.findIndex((i) => i.ideaId === character.ideaId);
+  if (ideaIndex === -1) return session;
+  const idea = session.ideas[ideaIndex]!;
+  const target = idea.revisions.find((r) => r.version === targetVersion);
+  if (!target) return session;
+
+  const current = idea.revisions.at(-1)!;
+  const nextVersion = idea.revisions.length + 1;
+  const currentTime = now ?? Date.now();
+  const newRevision: Revision = {
+    ...target,
+    revisionId: `rev_${nextVersion}_revert_${currentTime}`,
+    version: nextVersion,
+    basedOnRevisionId: current.revisionId,
+    reason: `v${targetVersion} に巻き戻し`,
+    createdAt: currentTime,
+  };
+
+  const nextIdeas = [...session.ideas];
+  nextIdeas[ideaIndex] = {
+    ...idea,
+    revisions: [...idea.revisions, newRevision],
+  };
+
+  return {
+    ...session,
+    ideas: nextIdeas,
+  };
 }

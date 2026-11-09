@@ -48,6 +48,8 @@ export const CommandPayloads = {
   RESOLVE_TIE: z.object({ instanceId: id }),
   SELECT_CHAMPION: z.object({ instanceId: id }),
   RESET_SESSION: z.object({}),
+  /** 改良の履歴から前の版に戻す（B4） */
+  REVERT_IDEA_REVISION: z.object({ characterId: id, targetVersion: z.number().int().min(1) }),
   /** 企画書の作成に失敗したときの作り直し */
   REGENERATE_PROPOSAL: z.object({}),
 } as const;

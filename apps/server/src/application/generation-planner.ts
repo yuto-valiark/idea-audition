@@ -12,7 +12,7 @@ import {
   type Vec,
 } from '../domain/taste.ts';
 import { PERSONAS } from './personas.ts';
-import type { GenerationSlot, TasteHint } from './ports.ts';
+import type { ConsensusContext, GenerationSlot, TasteHint } from './ports.ts';
 
 /**
  * 生成計画と選抜（ADR-0009 §2-2）。
@@ -90,22 +90,35 @@ export function planSlots(s: AuditionSession, state: PlannerState, n: number, no
 }
 
 function directionFor(s: AuditionSession, role: PitchRole, judgeIds: string[], now: number): string {
+  let base: string;
   if (role === 'fit' && judgeIds[0]) {
     const top = strongestAxes(normalized(s.taste.judges[judgeIds[0]], now));
     const want = top.map((a) => describeAxis(a.axis, a.value)).join('・');
-    return `${judgeLabel(s, judgeIds[0])}が好む方向（${want || 'これまで選んだ案に近いもの'}）に寄せた案`;
-  }
-  if (role === 'bridge' && judgeIds.length === 2) {
+    base = `${judgeLabel(s, judgeIds[0])}が好む方向（${want || 'これまで選んだ案に近いもの'}）に寄せた案`;
+  } else if (role === 'bridge' && judgeIds.length === 2) {
     const div = divergence(s.taste, judgeIds, now);
     const axis = div ? AXIS_LABEL[div.axis] : '方向性';
-    return `${judgeLabel(s, judgeIds[0]!)}は「${axis}」が高い案、${judgeLabel(s, judgeIds[1]!)}は低い案を好む。両方が「それならいい」と言える、両立・折衷の案`;
+    base = `${judgeLabel(s, judgeIds[0]!)}は「${axis}」が高い案、${judgeLabel(s, judgeIds[1]!)}は低い案を好む。両方が「それならいい」と言える、両立・折衷の案`;
+  } else if (role === 'wildcard') {
+    base = '常識を外した、意外で大胆な案（好みは気にしなくてよい）';
+  } else {
+    const shownMean = meanProfile(shownIdeas(s).map((x) => x.profile));
+    const top = strongestAxes(shownMean, 1, 0.15)[0];
+    base = top
+      ? `これまでの案は「${describeAxis(top.axis, top.value)}」に偏っている。その逆の方向の案`
+      : 'まだ出ていない方向の案';
   }
-  if (role === 'wildcard') return '常識を外した、意外で大胆な案（好みは気にしなくてよい）';
-  const shownMean = meanProfile(shownIdeas(s).map((x) => x.profile));
-  const top = strongestAxes(shownMean, 1, 0.15)[0];
-  return top
-    ? `これまでの案は「${describeAxis(top.axis, top.value)}」に偏っている。その逆の方向の案`
-    : 'まだ出ていない方向の案';
+
+  // 決勝進出者（合格者）がいる場合、既存合格案との重複を避ける指示を追加（B2）
+  if (s.upper.length > 0) {
+    const finalistTitles = s.upper
+      .map((f) => s.characters.get(f.instanceId))
+      .map((c) => (c ? s.currentRevision(c.ideaId).title : null))
+      .filter((t): t is string => !!t);
+    const titlesStr = finalistTitles.length > 0 ? `（${finalistTitles.join('、')}）` : '';
+    return `${base}。既存の合格案${titlesStr}とはターゲット・価値提案・アプローチが重複しない新規性のある案`;
+  }
+  return base;
 }
 
 /** 生成に渡す好みの要約 */
@@ -132,7 +145,7 @@ export function tasteHint(s: AuditionSession, slots: GenerationSlot[], now: numb
 /* ------------------------------ 選抜 ------------------------------ */
 
 /** 決勝の案とこれ以上近ければ「ほぼ同じ案」とみなす（埋め込みとプロフィールの近さ） */
-const NEAR_DUPLICATE = 0.9;
+const NEAR_DUPLICATE = 0.85;
 
 /** 表記ゆれを無視した企画名（漢字の「段」とカタカナの「ダン」など、よくあるものだけ） */
 function looseTitle(t: string) {
@@ -233,4 +246,77 @@ function pitchFor(s: AuditionSession, role: PitchRole, judgeIds: string[], draft
   }
   if (role === 'explore') return { role, judgeIds: [], reason: 'まだ出ていない方向' };
   return { role, judgeIds: [], reason: 'ワイルドカード' };
+}
+
+/* --------------------- 合格後の文脈フィルタ（B2） --------------------- */
+
+export type ContextFilterStrategy = 'reset_with_summary' | 'drop_all' | 'keep_recent_only';
+
+export interface ContextFilterOptions {
+  strategy?: ContextFilterStrategy;
+  recentCount?: number;
+}
+
+/**
+ * 1人目以降が合格（決勝進出）した際にAI生成プランナーに渡す会話文脈を制御する（B2）。
+ * 実験・比較可能な3つの戦略を提供する:
+ * - 'reset_with_summary' (推奨デフォルト): 直近合格者の評価理由・概要（[合格済み案] タイトル: キャッチコピー）のみを残し、合格前のログはクリア
+ * - 'drop_all': 会話履歴・合意台帳を完全リセット
+ * - 'keep_recent_only': 直近N件（デフォルト2件）の発言のみ渡す
+ */
+export function filterContextForGeneration(
+  s: AuditionSession,
+  rawContext: ConsensusContext,
+  options?: ContextFilterOptions,
+): ConsensusContext {
+  const strategy = options?.strategy ?? 'reset_with_summary';
+  if (s.upper.length === 0) return rawContext;
+
+  const finalists = s.upper
+    .map((f) => s.characters.get(f.instanceId))
+    .map((c) => (c ? s.ideas.get(c.ideaId) : undefined))
+    .filter((i): i is NonNullable<typeof i> => !!i);
+
+  switch (strategy) {
+    case 'drop_all':
+      return {
+        version: rawContext.version,
+        agreed: [],
+        proposed: [],
+        rejected: [],
+        favoredIdeas: [],
+        rejectedIdeas: [],
+        recentRemarks: [],
+      };
+    case 'keep_recent_only': {
+      const count = options?.recentCount ?? 2;
+      return {
+        ...rawContext,
+        agreed: [],
+        proposed: [],
+        rejected: [],
+        recentRemarks: rawContext.recentRemarks.slice(-count),
+      };
+    }
+    case 'reset_with_summary':
+    default: {
+      const summaries = finalists.map((idea) => {
+        const rev = idea.revisions.at(-1)!;
+        const catchphrase = rev.summary.split('\n')[0] ?? rev.summary;
+        return `[合格済み案] ${rev.title}: ${catchphrase}`;
+      });
+      return {
+        version: rawContext.version,
+        agreed: [],
+        proposed: [],
+        rejected: [],
+        favoredIdeas: finalists.map((i) => i.revisions.at(-1)!.title),
+        rejectedIdeas: [],
+        recentRemarks: summaries.map((text) => ({
+          judge: '合格決定',
+          text,
+        })),
+      };
+    }
+  }
 }
