@@ -42,10 +42,12 @@ gcloud builds submit --project idea-audition --region asia-northeast1 --tag asia
 2. そのイメージを Cloud Run に出す：
 
 ```bash
-gcloud run deploy idea-audition --image asia-northeast1-docker.pkg.dev/idea-audition/cloud-run-source-deploy/idea-audition:$(git rev-parse --short HEAD) --project idea-audition --region asia-northeast1 --service-account idea-audition-run@idea-audition.iam.gserviceaccount.com --allow-unauthenticated --max-instances 1 --min-instances 0 --timeout 3600 --session-affinity --cpu 1 --memory 1Gi --cpu-boost --set-env-vars "AI_GATEWAY=gemini,GOOGLE_CLOUD_PROJECT=idea-audition,GOOGLE_CLOUD_LOCATION=global,PERSISTENCE=firestore" --quiet
+gcloud run deploy idea-audition --image asia-northeast1-docker.pkg.dev/idea-audition/cloud-run-source-deploy/idea-audition:$(git rev-parse --short HEAD) --project idea-audition --region asia-northeast1 --service-account idea-audition-run@idea-audition.iam.gserviceaccount.com --allow-unauthenticated --max-instances 1 --min-instances 0 --timeout 3600 --session-affinity --cpu 1 --memory 1Gi --cpu-boost --set-env-vars "AI_GATEWAY=gemini,GOOGLE_CLOUD_PROJECT=idea-audition,GOOGLE_CLOUD_LOCATION=global,PERSISTENCE=firestore" --update-secrets "TURN_KEY_ID=turn-key-id:latest,TURN_KEY_API_TOKEN=turn-key-api-token:latest" --quiet
 ```
 
-3. 確認：`/health` が `ok` を返すこと、ログに `AI modes: gemini ..., fixture` と `persistence: firestore (database (default))` が出ること。トップで「オーディションを作る」とリンクができること。
+   - `--update-secrets` は通話の中継（Cloudflare の TURN）のキー。Secret Manager の `turn-key-id`・`turn-key-api-token` から渡す（サービスアカウントに読む権限を付けてある）。付け忘れると、通話は Google の STUN だけになり、テザリングや大学の Wi-Fi どうしで声が届かなくなる
+
+3. 確認：`/health` が `ok` を返すこと、ログに `AI modes: gemini ..., fixture` と `persistence: firestore (database (default))`、`call relay: cloudflare turn` が出ること。トップで「オーディションを作る」とリンクができること。
 
 ```bash
 curl -s https://idea-audition-852280753109.asia-northeast1.run.app/health
