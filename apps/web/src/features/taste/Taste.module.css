@@ -219,3 +219,8 @@
 .print .axisLabel[data-split] { fill: #b07800; }
 .print .splitMark { stroke: #d49a00; }
 .print .judgeShape { fill: color-mix(in srgb, var(--judge) 18%, transparent); }
+
+/* オフィシャル会議モード（#36）：詳しいパネルは暗いままなので、見出しの文字は明るい色に固定する（ページの文字色が濃くなっても埋もれないように） */
+:global(:root[data-formality='official']) .panel {
+  color: #f6efff;
+}

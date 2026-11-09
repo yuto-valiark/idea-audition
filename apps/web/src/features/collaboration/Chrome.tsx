@@ -1,4 +1,4 @@
-import { Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { Compass, Handshake, Layers, RotateCcw, Users, ChevronRight, Wifi, WifiOff, Share2, Copy, Volume2, VolumeX, LogOut } from 'lucide-react';
 import { useCall } from '../call/call-store.ts';
 import { setMuted, useMuted } from '../../shared/sfx.ts';
 import { canShareInvite, copyInvite, shareInvite } from '../../shared/invite.ts';
@@ -152,7 +152,8 @@ export function Footer() {
       <div className={styles.actions}>
         <TastePanel />
         <button onClick={() => setTasteOpen(!tasteOpen)} aria-expanded={tasteOpen} title={pick(formality, '反応から読み取ったみんなの好み', '反応から読み取った参加者の評価の傾向')}>
-          {formality === 1 ? null : '🧭 '}<span className={styles.btnLabel}>{pick(formality, '好み', '評価の傾向')}</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
+          {/* オフィシャルは絵文字の代わりに線のアイコン（狭い画面で文字を隠しても、何のボタンか分かるように） */}
+          {formality === 1 ? <Compass size={16} aria-hidden /> : '🧭 '}<span className={styles.btnLabel}>{pick(formality, '好み', '評価の傾向')}</span> {snapshot.taste.divergence ? <b>割れ</b> : null}
         </button>
         <ConsensusMemo />
         <button
@@ -162,7 +163,7 @@ export function Footer() {
           }}
           aria-expanded={consensusOpen}
         >
-          {formality === 1 ? null : '🤝 '}<span className={styles.btnLabel}>{pick(formality, '合意メモ', '合意事項メモ')}</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
+          {formality === 1 ? <Handshake size={16} aria-hidden /> : '🤝 '}<span className={styles.btnLabel}>{pick(formality, '合意メモ', '合意事項メモ')}</span> <b>{snapshot.consensus.claims.filter((c) => c.status === 'agreed').length}</b>
         </button>
         <button onClick={() => openBox(true)} data-anchor="ideabox">
           <Layers size={16} /> <span className={styles.btnLabel}>{pick(formality, 'アイデアBOX', '提案一覧')}</span> <b>{snapshot.ideaBox.length}</b>
