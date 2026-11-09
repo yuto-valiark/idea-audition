@@ -7,7 +7,7 @@ import { MemorySessionStore } from '../src/infrastructure/persistence/memory-sto
 import { StubAi, fakeClock, fakeConnection, manualScheduler, seqIds } from './helpers.ts';
 
 describe('音声認識の語彙', () => {
-  it('キャラ名（英字とカタカナ）・テーマ・ステージ上の企画名が入る', async () => {
+  it('キャラ名（英字とカタカナ）・テーマの根幹の語・ステージ上の企画名が入る', async () => {
     const { scheduler, advance } = manualScheduler();
     const actor = new SessionActor('v', {
       ai: new StubAi(), store: new MemorySessionStore(), scheduler, clock: fakeClock(), ids: seqIds(),
@@ -18,7 +18,8 @@ describe('音声認識の語彙', () => {
     actor.receiveCommand(a.conn, { camp: CAMP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme: 'DevFest ハッカソン作品', mode: 'team' } } as CommandMessage);
     await advance(0);
     const vocab = actor.speechVocabulary();
-    expect(vocab).toEqual(expect.arrayContaining(['LUNA', 'ルナ', 'SPROUT', 'スプラウト', 'DevFest ハッカソン作品']));
+    expect(vocab).toEqual(expect.arrayContaining(['LUNA', 'ルナ', 'SPROUT', 'スプラウト', 'DevFest', 'ハッカソン', '作品']));
+    expect(vocab).not.toContain('DevFest ハッカソン作品'); // テーマの文は丸ごとは持たない
     const title = actor.session.ideaOf(actor.session.lowerSlots[0]!)!.revisions[0]!.title;
     expect(vocab).toContain(title);
     expect(vocab.length).toBeLessThanOrEqual(60);
@@ -46,6 +47,25 @@ describe('音声認識の語彙', () => {
       expect.objectContaining({ surface: 'ひとり飯', reading: null }),
       expect.objectContaining({ surface: 'ラウンジ', reading: 'ラウンジ' }),
     ]));
+  });
+
+  it('テーマ：長い文は持たず、根幹の語（漢字・カタカナ）を拾う。短いテーマはそのまま持つ', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const vocabFor = async (theme: string) => {
+      const actor = new SessionActor('v', {
+        ai: new StubAi(), store: new MemorySessionStore(), scheduler, clock: fakeClock(), ids: seqIds(),
+        config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+      });
+      const a = fakeConnection('a');
+      actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'v' });
+      actor.receiveCommand(a.conn, { camp: CAMP_VERSION, kind: 'command', type: 'START_AUDITION', commandId: 'c1', sentAt: '', payload: { theme, mode: 'team' } } as CommandMessage);
+      await advance(0);
+      return actor.speechVocabulary();
+    };
+    const long = await vocabFor('大学の学食をもっと使いやすくするアプリ');
+    expect(long).toEqual(expect.arrayContaining(['学食', '大学', 'アプリ']));
+    expect(long).not.toContain('大学の学食をもっと使いやすくするアプリ');
+    expect(await vocabFor('学食')).toContain('学食');
   });
 
   it('語彙は大事なものから詰める（上限を超えてもキャラ名・舞台の企画名は残る）', async () => {

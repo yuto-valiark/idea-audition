@@ -3,7 +3,7 @@ import type { AuditionSession } from '../domain/session.ts';
 
 /**
  * 音声認識に渡す語彙（Gemini Live の customVocabulary）。
- * キャラ名・テーマ・いま出ている企画名とその説明文の固有語・前に出た企画名を渡すと、聞き間違いが減る
+ * キャラ名・テーマの根幹の語・いま出ている企画名とその説明文の固有語・前に出た企画名を渡すと、聞き間違いが減る
  * （合成音声での比較：「ルナ」→「のの」、「スプラウト」→「ブラウト」が正しくなった）。
  *
  * Live の語彙は接続時にしか渡せない（接続中の差し替えはできない）。上限があるので、
@@ -16,12 +16,21 @@ const MAX_PHRASES = 60;
 const RECENT_ARCHIVED = 5;
 const FAVORED_ARCHIVED = 2;
 const MAX_PHRASE_CHARS = 30;
+/** テーマが短ければそのまま語として持つ（「学食」）。長い文は丸ごと言われないので持たず、根幹の語だけ拾う */
+const SHORT_THEME_CHARS = 10;
+const MAX_THEME_WORDS = 6;
 /** 固有語として拾う：カタカナ語（3〜14字）と英数字の語（2〜20字）。一般的な漢字語・ひらがなは認識できるので拾わない */
 const KEYWORD = /[ァ-ヶー]{3,14}|[A-Za-z][A-Za-z0-9.+#-]{1,19}/g;
 
-/** 文章から固有語を取り出す（企画の説明文・テーマ用） */
+/** 文章から固有語を取り出す（企画の説明文用）。カタカナ語・英数字の語だけ */
 export function keywordsOf(text: string): string[] {
   return text.match(KEYWORD) ?? [];
+}
+
+/** テーマの根幹の語：固有語に加えて、漢字の語（2〜6字。「学食」「大学」）も拾う。テーマは短く、語が少ないため */
+function themeWords(theme: string): string[] {
+  const kanji = theme.match(/[一-龥々]{2,6}/g) ?? [];
+  return [...new Set([...keywordsOf(theme), ...kanji])].slice(0, MAX_THEME_WORDS);
 }
 
 function onStageIds(s: AuditionSession): string[] {
@@ -64,7 +73,7 @@ export function speechVocabulary(s: AuditionSession): string[] {
     .filter((r): r is NonNullable<typeof r> => !!r);
   const titles = revisions.flatMap(titlePhrases);
   const stageWords = revisions.flatMap((r) => keywordsOf(`${r.title} ${r.summary}`));
-  const theme = s.theme ? [s.theme.slice(0, MAX_PHRASE_CHARS), ...keywordsOf(s.theme)] : [];
+  const theme = s.theme.trim() ? [...(s.theme.trim().length <= SHORT_THEME_CHARS ? [s.theme.trim()] : []), ...themeWords(s.theme)] : [];
   const claims = s.ledger.claims.filter((c) => c.status !== 'superseded').map((c) => c.text);
   const all = [...names, ...titles, ...stageWords, ...theme, ...archivedTitles(s), ...claims]
     .map((p) => p.trim())
