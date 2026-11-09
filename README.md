@@ -41,3 +41,11 @@ pnpm test
 pnpm typecheck
 pnpm build
 ```
+
+## 素材のクレジット
+
+| 素材 | 使っている場所 | 出典・ライセンス |
+|---|---|---|
+| 効果音「タイマー02」（Timbre1・10秒版の最後の3.4秒を切り出し、終わりにフェードアウトを加えたもの） | 予選の残り3秒のカウントダウン（`apps/web/public/sfx/countdown-last3.mp3`） | [OtoLogic](https://otologic.jp/free/se/countdown01.html)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja)） |
+
+そのほかの効果音（ブザー・合格・見送り・優勝）は、音のファイルを使わず、ブラウザでその場で作っている（`apps/web/src/shared/sfx.ts`）。
