@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ProposalContent, SessionSnapshot } from '@idea-audition/protocol';
@@ -167,5 +170,16 @@ describe('ProposalDocument', () => {
         }
       }
     }
+  });
+
+  it('keeps ProposalDocument heading and alignment styles isolated from ChampionScreen dark-theme rules', () => {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const championCss = readFileSync(resolve(dir, 'Champion.module.css'), 'utf8');
+    const docCss = readFileSync(resolve(dir, 'ProposalDocument.module.css'), 'utf8');
+
+    expect(championCss).not.toMatch(/\.champion(?:\[[^\]]+\])?\s+h[12]\b/);
+    expect(championCss).toMatch(/\.hero\s+h1\b/);
+    expect(championCss).toMatch(/\.body\s+h2\b/);
+    expect(docCss).toMatch(/\.doc\s*\{[^}]*text-align:\s*left/);
   });
 });

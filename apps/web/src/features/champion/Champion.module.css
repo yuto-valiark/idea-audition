@@ -49,7 +49,7 @@
   animation: crown 1s var(--ease-pop) both;
 }
 
-.champion h1 {
+.hero h1 {
   white-space: nowrap;
   font-size: clamp(22px, min(3.4vw, 6.5vh), 60px);
   letter-spacing: 5px;
@@ -78,7 +78,7 @@
   animation: bounce 1.4s ease-in-out infinite;
 }
 
-.champion h2 {
+.body h2 {
   font-size: clamp(22px, min(2.4vw, 4.4vh), 40px);
   color: #fff1c7;
   margin: 0;
@@ -302,7 +302,7 @@
   margin: 4px auto 0;
 }
 
-.champion[data-viewer-open='true'] h1 {
+.champion[data-viewer-open='true'] .hero h1 {
   font-size: clamp(20px, min(2.6vw, 4.8vh), 42px);
   letter-spacing: 3px;
 }
@@ -311,7 +311,7 @@
   width: clamp(80px, min(11vw, 15vh), 136px);
 }
 
-.champion[data-viewer-open='true'] h2 {
+.champion[data-viewer-open='true'] .body h2 {
   font-size: clamp(18px, min(2vw, 3.4vh), 28px);
 }
 
@@ -356,6 +356,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  text-align: left;
   background: #140b24e6;
   border: 1px solid #8a5bc288;
   border-radius: 12px;
@@ -535,6 +536,7 @@
   height: min(90svh, 880px);
   display: flex;
   flex-direction: column;
+  text-align: left;
   background: #160c28;
   border: 1px solid #b47ef0;
   border-radius: 14px;
@@ -577,7 +579,8 @@
   .mascot {
     width: clamp(90px, 16vh, 180px);
   }
-  .champion h1 {
+  .hero h1,
+  .champion[data-viewer-open='true'] .hero h1 {
     font-size: clamp(20px, 7vw, 40px);
   }
   .crown {
