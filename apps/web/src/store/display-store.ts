@@ -77,6 +77,10 @@ interface DisplayState {
   ideaBoxOpen: boolean;
   consensusOpen: boolean;
   tasteOpen: boolean;
+    /** 表示のかしこまり度（#36、表示専用でサーバーの状態には影響しない）。0=カジュアル、1=オフィシャル */
+    formality: 0 | 1;
+    setFormality(f: 0 | 1): void;
+
   setTasteOpen(open: boolean): void;
   setConsensusOpen(open: boolean): void;
   justUpdated: Record<string, number>; // instanceId → 改良版が公開された時刻
@@ -125,6 +129,8 @@ export const useDisplay = create<DisplayState>((set) => ({
   ideaBoxOpen: false,
   consensusOpen: false,
   tasteOpen: false,
+    formality: 0,
+    setFormality: (formality) => set({ formality }),
   // 右側に出るパネルどうしが重ならないよう、1つ開いたらほかは閉じる
   setTasteOpen: (tasteOpen) => set({ tasteOpen, ...(tasteOpen ? { consensusOpen: false, chatOpen: false } : {}) }),
   setConsensusOpen: (consensusOpen) => set({ consensusOpen, ...(consensusOpen ? { chatOpen: false } : {}) }),
