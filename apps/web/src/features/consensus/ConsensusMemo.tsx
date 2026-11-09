@@ -1,4 +1,4 @@
-import { Pin, PinOff, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { useEffect } from 'react';
 import type { ClaimView, SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
@@ -77,10 +77,8 @@ function ClaimRow({ claim, snapshot }: { claim: ClaimView; snapshot: SessionSnap
       replyToClaim: claim.label,
     });
   return (
-    <div className={styles.claim} data-status={claim.status} data-pinned={claim.pinned || undefined}>
+    <div className={styles.claim} data-status={claim.status}>
       <div className={styles.claimHead}>
-        {/* 状態は見出し（合意・提案中など）で分かるので、札は「確定」のときだけ */}
-        {claim.pinned && <span className={styles.badge}>確定</span>}
         <p>{claim.text}</p>
       </div>
       {replacement && <p className={styles.replaced}>→ {replacement.text}</p>}
@@ -114,12 +112,6 @@ function ClaimRow({ claim, snapshot }: { claim: ClaimView; snapshot: SessionSnap
             </button>
             <button title="反対" aria-pressed={myStance === 'oppose'} data-on={myStance === 'oppose' || undefined} onClick={() => say('oppose')}>
               <ThumbsDown size={14} />
-            </button>
-            <button
-              title={claim.pinned ? '確定を取り消す' : 'これで決まり（確定）'}
-              onClick={() => void send(claim.pinned ? 'UNPIN_CLAIM' : 'PIN_CLAIM', { label: claim.label })}
-            >
-              {claim.pinned ? <PinOff size={14} /> : <Pin size={14} />}
             </button>
           </div>
         )}
