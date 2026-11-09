@@ -260,6 +260,9 @@ function toInspiration(labels: string[], note: string, ctx: ConsensusContext | u
   return { claimLabels, note: clean(note, 28) || `${claimLabels.join('・')} を反映` };
 }
 
+/** 企画書の画像（base64）の上限。セッションの状態ごと Firestore の1文書（上限 1MB）に保存するため、ほかの中身の分を残す */
+const MAX_PROPOSAL_IMAGE_CHARS = 700_000;
+
 export class GeminiGateway implements IdeaGenerationPort {
   readonly name = 'gemini';
 
@@ -324,7 +327,7 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
    * 企画の世界観・利用シーンがひと目で伝わるキービジュアル画像を Imagen 3 / Gemini で生成する。
    */
   async generateProposalImage(input: ProposalImageInput): Promise<string | null> {
-    const profile = this.config.image ?? { model: 'imagen-3.0-generate-002', timeoutMs: 25_000 };
+    const profile = this.config.image ?? { model: 'gemini-3.1-flash-lite-image', timeoutMs: 25_000 };
     if (!profile.model || profile.model === 'off') return null;
     const prompt = [
       'Create a warm, modern, flat-to-isometric editorial concept illustration (16:9 aspect ratio) representing the following project proposal.',
@@ -376,7 +379,12 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
       for (const p of parts) {
         if (p.inlineData?.data) {
           const mime = p.inlineData.mimeType || 'image/png';
-          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms model=${profile.model}`);
+          // 画像はセッションの状態（Firestore の1文書、上限 1MB）に入るので、大きすぎる画像は使わない
+          if (p.inlineData.data.length > MAX_PROPOSAL_IMAGE_CHARS) {
+            this.log(`[ai] generateProposalImage too large ${Math.round(p.inlineData.data.length / 1024)}KB model=${profile.model} (skip)`);
+            return null;
+          }
+          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms ${Math.round(p.inlineData.data.length / 1024)}KB model=${profile.model}`);
           return `data:${mime};base64,${p.inlineData.data}`;
         }
       }

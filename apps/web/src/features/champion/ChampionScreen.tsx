@@ -3,6 +3,7 @@ import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { playSfx } from '../../shared/sfx.ts';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
 import { PROPOSAL_PAGES, ProposalDocument } from './ProposalDocument.tsx';
@@ -425,12 +426,10 @@ function ProposalViewer({ onClose }: { onClose: () => void }) {
   if (proposal?.status !== 'ready' || !proposal.content) return null;
   const current = PROPOSAL_PAGES[page] ?? PROPOSAL_PAGES[0]!;
 
-  return (
+  // 表彰画面の中に置くと、画面の下に浮かせたワイプより奥に回るので、body の直下に出す
+  return createPortal(
     <div className={styles.modalBackdrop} onClick={onClose}>
       <section className={styles.modalViewer} role="dialog" aria-modal="true" aria-label="企画書" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className={styles.modalCloseIcon} aria-label="閉じる" onClick={onClose}>
-          <X size={18} />
-        </button>
         <div className={styles.viewerHeader}>
           <div className={styles.viewerTitleGroup}>
             <span className={styles.viewerBadge}>{current.part}</span>
@@ -451,6 +450,10 @@ function ProposalViewer({ onClose }: { onClose: () => void }) {
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             >
               次へ <ChevronRight size={16} />
+            </button>
+            <button type="button" className={styles.closeViewerBtn} aria-label="企画書を閉じる" onClick={onClose}>
+              <X size={15} />
+              <span>閉じる</span>
             </button>
           </div>
         </div>
@@ -473,6 +476,7 @@ function ProposalViewer({ onClose }: { onClose: () => void }) {
           <ProposalDocument snapshot={snapshot} content={proposal.content} page={page} preview />
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

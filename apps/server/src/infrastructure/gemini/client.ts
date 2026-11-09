@@ -31,7 +31,8 @@ export function geminiConfigFromEnv(env: NodeJS.ProcessEnv): GeminiConfig {
       timeoutMs: Number(env.GEMINI_TIMEOUT_REFINE_MS ?? 25_000),
     },
     image: {
-      model: env.GEMINI_MODEL_IMAGE ?? 'imagen-3.0-generate-002',
+      // Imagen は Vertex で提供が終わっている（3.0・4.0 とも見つからない）。Gemini の画像モデルの軽い版（約5秒・約270KB の JPEG）
+      model: env.GEMINI_MODEL_IMAGE ?? 'gemini-3.1-flash-lite-image',
       timeoutMs: Number(env.GEMINI_TIMEOUT_IMAGE_MS ?? 25_000),
     },
   };
