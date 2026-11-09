@@ -39,17 +39,6 @@ export interface Bubble {
   critiqueId: string;
 }
 
-export interface Caption {
-  id: string;
-  judgeId: string;
-  text: string;
-  source: 'live' | 'text';
-  intent: 'question' | 'instruction' | 'reject' | 'hesitation' | 'positive' | 'comment';
-  targetInstanceId: string | null;
-  /** 会議の語彙に寄せて直した言葉（音声のみ） */
-  corrections?: { from: string; to: string }[];
-}
-
 export interface Toast {
   id: string;
   text: string;
@@ -77,10 +66,6 @@ interface DisplayState {
   /** 他の審査員のマイク状態（Ephemeral） */
   micOn: Record<string, boolean>;
   setMic(judgeId: string, on: boolean): void;
-  /** 審査員の発言（直近のもの） */
-  captions: Caption[];
-  addCaption(c: Omit<Caption, 'id'>): void;
-  dismissCaption(id: string): void;
   /** 自分の投票先（サーバーは締め切りまで投票先を公開しないため手元で持つ） */
   myVote: string | null;
   setMyVote(instanceId: string | null): void;
@@ -119,9 +104,6 @@ export const useDisplay = create<DisplayState>((set) => ({
   justUpdated: {},
   micOn: {},
   setMic: (judgeId, on) => set((s) => ({ micOn: { ...s.micOn, [judgeId]: on } })),
-  captions: [],
-  addCaption: (c) => set((s) => ({ captions: [...s.captions.slice(-2), { ...c, id: `c${++n}` }] })),
-  dismissCaption: (id) => set((s) => ({ captions: s.captions.filter((c) => c.id !== id) })),
   myVote: null,
   setMyVote: (myVote) => set({ myVote }),
 

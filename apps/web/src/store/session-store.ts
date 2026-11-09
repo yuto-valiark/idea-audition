@@ -247,19 +247,8 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
         }, wait);
       }
       break;
-    case 'JUDGE_UTTERANCE_RECEIVED':
-      if (typeof d.judgeId === 'string' && typeof d.text === 'string') {
-        display.addCaption({
-          judgeId: d.judgeId,
-          text: d.text,
-          source: d.source === 'live' ? 'live' : 'text',
-          intent: (['instruction', 'question', 'reject', 'hesitation', 'positive'] as const).find((x) => x === d.intent) ?? 'comment',
-          targetInstanceId: typeof d.targetInstanceId === 'string' ? d.targetInstanceId : null,
-          corrections: Array.isArray(d.corrections) ? (d.corrections as { from: string; to: string }[]) : undefined,
-        });
-        // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
-      }
-      break;
+    // JUDGE_UTTERANCE_RECEIVED：発言そのものは画面に出さない（issue #2）。
+    // 声やテキストで質問しても詳細は開かない（開くのは本人のクリックだけ）。答えはキャラの吹き出しで出す
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
       for (const c of changes) {
