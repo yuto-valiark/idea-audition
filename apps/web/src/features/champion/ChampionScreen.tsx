@@ -2,7 +2,8 @@ import { Check, Copy, Crown, FileDown, Loader2, RotateCcw, Share2 } from 'lucide
 import { championText } from './share-text.ts';
 import { copyText } from '../../shared/copy-text.ts';
 import { motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { playSfx } from '../../shared/sfx.ts';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
 import { CHARACTER_DESIGNS } from '@idea-audition/protocol';
 import { useSession } from '../../store/session-store.ts';
@@ -11,12 +12,21 @@ import { Mascot } from '../../shared/Mascot.tsx';
 import { useMe } from '../../shared/selectors.ts';
 import styles from './Champion.module.css';
 
+/** 最後にファンファーレを鳴らした優勝（版の ID） */
+let lastFanfare: string | null = null;
+
 export function ChampionScreen() {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
   const { isHost } = useMe();
   const champ = snapshot.champion!;
+  // 優勝が決まった瞬間にファンファーレ。同じ優勝では1回だけ（再接続や開発時の二重実行で重ねて鳴らさない）
+  useEffect(() => {
+    if (lastFanfare === champ.revisionId) return;
+    lastFanfare = champ.revisionId;
+    playSfx('champion');
+  }, [champ.revisionId]);
   const character = snapshot.characters[champ.instanceId];
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
