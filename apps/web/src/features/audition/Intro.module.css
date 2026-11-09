@@ -460,3 +460,48 @@
 .intro[data-lobby] .steps {
   display: none;
 }
+
+/* 立体の舞台：上面の楕円の下に側面（厚み）と、床に落ちる影 */
+.ring::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 50%;
+  height: 160%;
+  z-index: -1;
+  border-radius: 0 0 50% 50% / 0 0 46% 46%;
+  background:
+    linear-gradient(90deg, #000b, transparent 15%, transparent 85%, #000b),
+    linear-gradient(180deg, #5a2391, #2a0f4a 50%, #120620);
+  border: 2px solid #c27bff77;
+  border-top: 0;
+  box-shadow:
+    inset 0 -10px 22px #d48bff33,
+    0 22px 0 -8px #1a0a2b;
+}
+.ring::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 190%;
+  height: 70%;
+  z-index: -2;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #000d, transparent 70%);
+  filter: blur(8px);
+}
+.ring {
+  bottom: 22%;
+  box-shadow:
+    0 0 12px #ef9cff,
+    0 0 40px #a835f4,
+    inset 0 0 30px #e7a6ff55;
+}
+.mascots {
+  inset: 0 0 30% 0;
+}
+.stage {
+  margin-bottom: 1.5vh;
+}

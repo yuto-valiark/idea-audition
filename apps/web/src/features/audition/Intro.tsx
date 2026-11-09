@@ -19,10 +19,11 @@ export function Intro() {
   const themeDraft = useSession((s) => s.themeDraft);
   const judgeCount = useSession((s) => s.snapshot?.judges.length ?? 0);
   const [theme, setTheme] = useState(DEMO_THEME);
-  const [mode, setMode] = useState<'team' | 'solo'>('team');
-  const aiAvailable = useSession((s) => s.snapshot?.ai.available ?? EMPTY);
-  const [aiMode, setAiMode] = useState<'gemini' | 'fixture' | null>(null);
-  const chosenAi = aiMode ?? aiAvailable[0] ?? 'fixture';
+  // 審査は「みんなで審査」、AI は Gemini で固定（選ぶ欄は出さない）。開発版だけ ?ai=fixture で固定データにできる
+  const mode = 'team' as const;
+  const aiAvailable: readonly ('gemini' | 'fixture')[] = useSession((s) => s.snapshot?.ai.available ?? EMPTY);
+  const devFixture = import.meta.env.DEV && new URLSearchParams(location.search).get('ai') === 'fixture';
+  const chosenAi = devFixture && aiAvailable.includes('fixture') ? 'fixture' : aiAvailable.includes('gemini') ? 'gemini' : (aiAvailable[0] ?? 'fixture');
   const [busy, setBusy] = useState(false);
   // ホストが入れているテーマと設定を、ほかの人の画面にもそのまま見せる（人が増えたときも送り直す）
   useEffect(() => {
@@ -35,8 +36,6 @@ export function Intro() {
   }, [isHost, room, connection, theme, mode, chosenAi, judgeCount]);
   const guest = room === 'active' && !isHost;
   const shownTheme = guest ? (themeDraft?.theme ?? '') : theme;
-  const shownMode = guest ? (themeDraft?.mode ?? 'team') : mode;
-  const shownAi = guest ? (themeDraft?.aiMode ?? chosenAi) : chosenAi;
 
   async function start() {
     if (!theme.trim() || busy || !isHost) return;
@@ -98,19 +97,6 @@ export function Intro() {
               placeholder={guest ? 'ホストがテーマを入力しています…' : undefined}
               onChange={(e) => setTheme(e.target.value)}
             />
-          </div>
-          <div className={styles.actions}>
-            <select value={shownMode} disabled={guest} onChange={(e) => setMode(e.target.value as 'team' | 'solo')} aria-label="参加モード">
-              <option value="team">みんなで審査</option>
-              <option value="solo">ひとりで審査</option>
-            </select>
-            {/* AI のモードの切り替えは開発版だけ（本番は Gemini） */}
-            {import.meta.env.DEV && aiAvailable.length > 1 && (
-              <select value={shownAi} disabled={guest} onChange={(e) => setAiMode(e.target.value as 'gemini' | 'fixture')} aria-label="AIのモード">
-                <option value="gemini">AI：Gemini</option>
-                <option value="fixture">固定データ（無料）</option>
-              </select>
-            )}
           </div>
           {guest ? (
             <div className={styles.waiting}>ホストが始めるのを待っています</div>
