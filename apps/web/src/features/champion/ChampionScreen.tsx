@@ -351,7 +351,7 @@ function CheeringCrowd() {
 }
 
 /** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする（決勝の間に作り置きしているので、ふつうはすぐ押せる） */
-function ProposalButton() {
+export function ProposalButton() {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
@@ -400,7 +400,7 @@ function ProposalButton() {
  * 企画書をその場でめくって読む（#39）。画面の上に大きく開き、前へ・次へ・パートのタブで移る（←→ キーでも、Esc で閉じる）。
  * 中身はダウンロードする PDF と同じ部品（ProposalDocument）で描く
  */
-function ProposalViewer({ onClose }: { onClose: () => void }) {
+export function ProposalViewer({ onClose }: { onClose: () => void }) {
   const snapshot = useSession((s) => s.snapshot)!;
   const proposal = snapshot.proposal;
   const [page, setPage] = useState(0);

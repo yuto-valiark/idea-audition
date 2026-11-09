@@ -613,3 +613,55 @@
   font-size: 11px;
   color: #c9b3df;
 }
+
+/* ---- オフィシャル会議モード：企画書の窓は白と青に ---- */
+:global(:root[data-formality='official']) .modalBackdrop {
+  background: rgba(32, 33, 36, 0.5);
+  backdrop-filter: none;
+}
+
+:global(:root[data-formality='official']) .modalViewer {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(32, 33, 36, 0.25);
+}
+
+:global(:root[data-formality='official']) .viewerHeader,
+:global(:root[data-formality='official']) .pageTabs {
+  background: var(--bg-elev);
+  border-color: var(--line);
+}
+
+:global(:root[data-formality='official']) .viewerSectionTitle,
+:global(:root[data-formality='official']) .pageCounter {
+  color: var(--ink);
+}
+
+:global(:root[data-formality='official']) .viewerBadge {
+  color: var(--blue);
+  background: #e8f0fe;
+  border-color: transparent;
+}
+
+:global(:root[data-formality='official']) .pageBtn,
+:global(:root[data-formality='official']) .closeViewerBtn,
+:global(:root[data-formality='official']) .pageTab {
+  color: var(--blue);
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  box-shadow: none;
+}
+
+:global(:root[data-formality='official']) .pageTab[data-active] {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+:global(:root[data-formality='official']) .pageBtn:disabled {
+  color: var(--ink-faint);
+}
+
+:global(:root[data-formality='official']) .viewerViewport {
+  background: #e8eaed;
+}

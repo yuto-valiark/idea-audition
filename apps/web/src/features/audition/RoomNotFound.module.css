@@ -79,3 +79,15 @@
 .input:focus-visible {
   border-color: #c785ff;
 }
+
+/* オフィシャル会議モード：白い窓に */
+:global(:root[data-formality='official']) .backdrop {
+  background: rgba(32, 33, 36, 0.45);
+}
+
+:global(:root[data-formality='official']) .card {
+  color: var(--ink);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(32, 33, 36, 0.2);
+}

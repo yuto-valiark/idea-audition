@@ -2,6 +2,7 @@ import { PITCH_ROLE_ICON, TASTE_AXES, type ProposalContent, type SessionSnapshot
 import { TasteRadar } from '../taste/TasteRadar.tsx';
 import { isTasteRead, tasteLeaning } from '../taste/taste-summary.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
+import { useDisplay } from '../../store/display-store.ts';
 import styles from './ProposalDocument.module.css';
 
 export const PROPOSAL_PAGES = [
@@ -28,6 +29,8 @@ export function ProposalDocument({
 }) {
   const champ = snapshot.champion!;
   const character = snapshot.characters[champ.instanceId]!;
+  // オフィシャル会議モード：キャラは出さず、発案は「AI」（PDF も同じ。表示の状態はアプリ全体で1つなので、PDF 用の描画からも読める）
+  const official = useDisplay((s) => s.formality) === 1;
   const idea = snapshot.ideas[champ.ideaId]!;
   const revisions = idea.revisions;
   const judgeLabel = (id: string | null) => snapshot.judges.find((j) => j.judgeId === id)?.label ?? '—';
@@ -79,10 +82,10 @@ export function ProposalDocument({
                 <p className={styles.meta}>
                   テーマ：{snapshot.theme}
                   <br />
-                  作成：{date(snapshot.proposal?.generatedAt ?? null)} ／ 発案：{character.name}
+                  作成：{date(snapshot.proposal?.generatedAt ?? null)} ／ 発案：{official ? 'AI' : character.name}
                 </p>
               </div>
-              <Mascot designId={character.designId} className={styles.mascot} />
+              {!official && <Mascot designId={character.designId} className={styles.mascot} />}
             </div>
           </header>
 

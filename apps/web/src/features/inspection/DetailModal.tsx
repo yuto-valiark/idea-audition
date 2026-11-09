@@ -3,6 +3,8 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { PITCH_ROLE_ICON } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
+import { useFormality } from '../../shared/formality.ts';
+import { proposalLabel } from '../../shared/proposal-label.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import { finalistTarget, useMe } from '../../shared/selectors.ts';
 import styles from './Modal.module.css';
@@ -18,6 +20,7 @@ export function DetailModal() {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const formality = useFormality();
   useEffect(() => {
     setMessage('');
     setSelectedVersion(null);
@@ -48,7 +51,18 @@ export function DetailModal() {
   const shown = (selectedVersion !== null ? revisions.find((r) => r.version === selectedVersion) : undefined) ?? current;
   const isLatest = shown.version === current.version;
   const finalist = snapshot.upper.find((f) => f.instanceId === selected);
-  const where = finalist ? '最終オーディション' : character.location === 'lower' ? '新規アイデア' : 'アイデアBOX';
+  const where =
+    formality === 1
+      ? finalist
+        ? '最終審議'
+        : character.location === 'lower'
+          ? '審査中の提案'
+          : '提案一覧'
+      : finalist
+        ? '最終オーディション'
+        : character.location === 'lower'
+          ? '新規アイデア'
+          : 'アイデアBOX';
   const answers = snapshot.answers.filter((a) => a.instanceId === selected).slice(-3).reverse();
   const active = snapshot.status === 'audition_active';
   const canChampion =
@@ -82,10 +96,10 @@ export function DetailModal() {
           <X />
         </button>
         <div className={styles.top}>
-          <Mascot designId={character.designId} className={styles.topMascot} />
+          {formality === 0 && <Mascot designId={character.designId} className={styles.topMascot} />}
           <div>
             <div className={styles.eyebrow}>
-              {character.name} / {where}
+              {proposalLabel(snapshot, selected, formality)} / {where}
             </div>
             <h2>{shown.title}</h2>
             {isLatest && current.title !== original.title && <div className={styles.origin}>元の案：{original.title}</div>}
@@ -99,15 +113,15 @@ export function DetailModal() {
         {shownOutline && (
           <dl className={styles.outline}>
             <div>
-              <dt>誰の</dt>
+              <dt>{formality === 1 ? '対象' : '誰の'}</dt>
               <dd>{shownOutline.who}</dd>
             </div>
             <div>
-              <dt>困りごと</dt>
+              <dt>{formality === 1 ? '課題' : '困りごと'}</dt>
               <dd>{shownOutline.pain}</dd>
             </div>
             <div>
-              <dt>どう解く</dt>
+              <dt>{formality === 1 ? '解決策' : 'どう解く'}</dt>
               <dd>{shownOutline.how}</dd>
             </div>
           </dl>
@@ -184,7 +198,7 @@ export function DetailModal() {
         {character.location !== 'archived' && (
           <div className={styles.conversation}>
             <div className={styles.questionTitle}>
-              <MessageCircle size={17} /> このアイデアを、もっと深く。
+              <MessageCircle size={17} /> {formality === 1 ? '質疑応答' : 'このアイデアを、もっと深く。'}
             </div>
             {answers.map((a) => (
               <div key={a.answerId} className={styles.answer}>
@@ -230,12 +244,12 @@ export function DetailModal() {
                       (r) => {
                         if (!r.ok) return;
                         setMessage('');
-                        useDisplay.getState().toast('改善を依頼しました。上段で新しい版を作ります', 'gold');
+                        useDisplay.getState().toast(formality === 1 ? '修正を依頼しました。新しい版を作成します' : '改善を依頼しました。上段で新しい版を作ります', 'gold');
                       },
                     )
                   }
                 >
-                  <Sparkles size={14} /> 改善を依頼
+                  <Sparkles size={14} /> {formality === 1 ? '修正を依頼' : '改善を依頼'}
                 </button>
               )}
             </div>
@@ -250,7 +264,7 @@ export function DetailModal() {
               void run(() => send('REJECT_CANDIDATE', { instanceId: selected })).then((r) => r.ok && select(null))
             }
           >
-            この案は見送る（次の人と交代）
+            {formality === 1 ? '見送る' : 'この案は見送る（次の人と交代）'}
           </button>
         )}
         {character.location === 'lower' && (
@@ -259,7 +273,13 @@ export function DetailModal() {
             disabled={busy || isSpectator || !active || upperFull}
             onClick={() => void run(() => send('PRESS_BUZZER', { instanceId: selected, on: !myBuzz }))}
           >
-            <Crown size={18} /> {myBuzz ? 'ブザーを取り消す' : 'ゴールデンブザー'}
+            {formality === 1 ? (
+              <>{myBuzz ? '承認を取り消す' : '承認する'}</>
+            ) : (
+              <>
+                <Crown size={18} /> {myBuzz ? 'ブザーを取り消す' : 'ゴールデンブザー'}
+              </>
+            )}
           </button>
         )}
         {finalist && (
@@ -269,12 +289,22 @@ export function DetailModal() {
             disabled={busy || !canChampion || isSpectator}
             onClick={() => void run(() => send('SELECT_CHAMPION', { instanceId: selected }))}
           >
-            <Trophy size={18} />
-            {canChampion ? 'この案を優勝に' : snapshot.mode === 'team' ? '優勝は投票で決めます（ホストが開始）' : 'この案を優勝に'}
+            {formality === 0 && <Trophy size={18} />}
+            {formality === 1
+              ? canChampion
+                ? 'この案を採択'
+                : snapshot.mode === 'team'
+                  ? '採択は採決で決めます（ホストが開始）'
+                  : 'この案を採択'
+              : canChampion
+                ? 'この案を優勝に'
+                : snapshot.mode === 'team'
+                  ? '優勝は投票で決めます（ホストが開始）'
+                  : 'この案を優勝に'}
           </button>
         )}
         <small className={styles.hint}>
-          質問は案を変更しません。改善依頼で新しい版に更新されます。
+          {formality === 1 ? '質問では提案は変わりません。修正の依頼で新しい版になります。' : '質問は案を変更しません。改善依頼で新しい版に更新されます。'}
           {judgeId === null ? '（観覧モードでは操作できません）' : ''}
         </small>
       </section>
