@@ -37,7 +37,9 @@ function createGateways(): Partial<Record<AiMode, IdeaGenerationPort>> {
     return { fixture };
   }
   const config = geminiConfigFromEnv(process.env);
-  log(`AI modes: gemini (fast=${config.fast.model}/${config.fast.thinkingLevel}, refine=${config.refine.model}/${config.refine.thinkingLevel}), fixture`);
+  log(
+    `AI modes: gemini (fast=${config.fast.model}/${config.fast.thinkingLevel}, refine=${config.refine.model}/${config.refine.thinkingLevel}, image=${config.image?.model ?? 'off'}), fixture`,
+  );
   // Gemini が失敗したら固定データで応答し、デモを止めない
   const gemini = new ResilientGateway(new GeminiGateway(createVertexClient(process.env), config, log), fixture, log);
   return { gemini, fixture };

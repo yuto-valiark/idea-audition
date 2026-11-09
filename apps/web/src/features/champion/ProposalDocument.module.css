@@ -156,6 +156,63 @@
   margin-top: 2px;
 }
 
+/* 1ページ目：AI生成の企画イメージ図（キービジュアル） */
+.keyVisual {
+  margin: 0 0 10px;
+  border: 1.5px solid #d7c4f2;
+  background: linear-gradient(135deg, #faf6ff 0%, #fffdf7 100%);
+  border-radius: 10px;
+  padding: 6px 8px 7px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.keyVisualFrame {
+  position: relative;
+  width: 100%;
+  height: 148px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #241336;
+  border: 1px solid #e2d4f4;
+}
+
+.keyVisualImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.keyVisualBadge {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  background: rgba(36, 19, 54, 0.78);
+  border: 1px solid rgba(255, 223, 141, 0.65);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.keyVisualCaption {
+  margin-top: 5px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #4b3960;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.keyVisualCaption strong {
+  color: #5e2ca5;
+}
+
 /* 1ページ目：誰の・課題・どう解く の3ステップ図解 */
 .conceptFlow {
   display: grid;

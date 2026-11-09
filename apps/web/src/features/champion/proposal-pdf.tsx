@@ -93,8 +93,27 @@ async function waitForImages(el: HTMLElement) {
     const m = n.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
     if (m?.[1] && !m[1].startsWith('data:')) urls.add(m[1]);
   });
-  el.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
-    if (img.src && !img.src.startsWith('data:')) urls.add(img.src);
-  });
   await Promise.all([...urls].map((src) => loadImage(src)));
+
+  // 企画イメージ画像（data URL / SVG / 外部 URL）のデコード完了を待ち、SVG data URL は html2canvas 向けに PNG 化する
+  const imgs = [...el.querySelectorAll<HTMLImageElement>('img')];
+  for (const imgNode of imgs) {
+    const src = imgNode.getAttribute('src') || imgNode.src;
+    if (!src) continue;
+    const loaded = await loadImage(src);
+    if (loaded && src.startsWith('data:image/svg+xml') && loaded.naturalWidth > 0 && loaded.naturalHeight > 0) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = loaded.naturalWidth;
+        canvas.height = loaded.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(loaded, 0, 0);
+          imgNode.src = canvas.toDataURL('image/png');
+        }
+      } catch {
+        // canvas 変換できない環境では元の data URL をそのまま使う
+      }
+    }
+  }
 }

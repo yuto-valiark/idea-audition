@@ -166,4 +166,66 @@ describe('GeminiGateway', () => {
     await expect(g.answer({ ...input, question: 'いくら？' })).resolves.toBe('月500円です');
     expect(calls[0]!.contents).toContain('声の文字起こしなので');
   });
+
+  it('企画書イメージ画像生成：Imagen モデルは generateImages、Gemini Image モデルは generateContent で data URL を返す', async () => {
+    const imgCalls: { model: string; prompt: string }[] = [];
+    const imagenClient: GenerateContentClient = {
+      models: {
+        async generateContent() {
+          return { text: '' };
+        },
+        async generateImages(params) {
+          imgCalls.push({ model: params.model, prompt: params.prompt });
+          return {
+            generatedImages: [{ image: { imageBytes: 'QUJDRA==', mimeType: 'image/jpeg' } }],
+          };
+        },
+      },
+    };
+    const gImagen = new GeminiGateway(imagenClient, {
+      ...config,
+      image: { model: 'imagen-3.0-generate-002', timeoutMs: 1000 },
+    });
+    const url1 = await gImagen.generateProposalImage({
+      theme: '放課後',
+      title: '30分探検クラブ',
+      catchphrase: '毎日が冒険',
+      problem: '習い事が長い',
+      target: '小学生',
+      value: '手軽な発見体験',
+      overview: '地域を30分探検する',
+    });
+    expect(url1).toBe('data:image/jpeg;base64,QUJDRA==');
+    expect(imgCalls[0]!.model).toBe('imagen-3.0-generate-002');
+    expect(imgCalls[0]!.prompt).toContain('30分探検クラブ');
+
+    const geminiImgClient: GenerateContentClient = {
+      models: {
+        async generateContent() {
+          return {
+            candidates: [
+              {
+                content: {
+                  parts: [{ inlineData: { mimeType: 'image/png', data: 'WFla' } }],
+                },
+              },
+            ],
+          };
+        },
+      },
+    };
+    const gGeminiImg = new GeminiGateway(geminiImgClient, {
+      ...config,
+      image: { model: 'gemini-2.5-flash-image', timeoutMs: 1000 },
+    });
+    const url2 = await gGeminiImg.generateProposalImage({
+      theme: '放課後',
+      title: '30分探検クラブ',
+      problem: '習い事が長い',
+      target: '小学生',
+      value: '手軽な発見体験',
+      overview: '地域を30分探検する',
+    });
+    expect(url2).toBe('data:image/png;base64,WFla');
+  });
 });

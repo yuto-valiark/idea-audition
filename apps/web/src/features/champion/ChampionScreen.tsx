@@ -248,6 +248,11 @@ function ProposalViewerPane() {
       <div className={styles.viewerTitleGroup}>
         <span className={styles.viewerBadge}>{currentMeta.part}</span>
         <strong className={styles.viewerSectionTitle}>{currentMeta.label}</strong>
+        {proposal.content?.imageUrl && (
+          <span className={styles.viewerBadge} data-visual-badge="true">
+            AIイメージ図つき
+          </span>
+        )}
       </div>
       <div className={styles.viewerNav}>
         <button

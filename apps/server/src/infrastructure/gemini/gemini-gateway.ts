@@ -5,6 +5,7 @@ import type {
   ConsensusOpDraft,
   ConsensusUpdateInput,
   IdeaGenerationPort,
+  ProposalImageInput,
   ProposalInput,
   RefineInput,
   RefineOutput,
@@ -22,14 +23,34 @@ import { ProposalContent, TASTE_AXES } from '@idea-audition/protocol';
  *   前半が同じになるため、Gemini の暗黙キャッシュが効きやすい（cachedContentTokenCount をログに出す）
  */
 
-/** @google/genai の models.generateContent と同じ形（テストで差し替えられるよう構造的に定義） */
+/** @google/genai の models.generateContent / generateImages と同じ形（テストで差し替えられるよう構造的に定義） */
 export interface GenerateContentClient {
   models: {
     generateContent(params: {
       model: string;
       contents: string;
       config: Record<string, unknown>;
-    }): Promise<{ text?: string | undefined; usageMetadata?: { cachedContentTokenCount?: number; promptTokenCount?: number } }>;
+    }): Promise<{
+      text?: string | undefined;
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string;
+            inlineData?: { mimeType?: string; data?: string };
+          }>;
+        };
+      }>;
+      usageMetadata?: { cachedContentTokenCount?: number; promptTokenCount?: number };
+    }>;
+    generateImages?(params: {
+      model: string;
+      prompt: string;
+      config?: Record<string, unknown>;
+    }): Promise<{
+      generatedImages?: Array<{
+        image?: { imageBytes?: string; mimeType?: string };
+      }>;
+    }>;
   };
 }
 
@@ -40,11 +61,18 @@ export interface ModelProfile {
   timeoutMs: number;
 }
 
+export interface ImageModelProfile {
+  model: string;
+  timeoutMs: number;
+}
+
 export interface GeminiConfig {
   /** 案の生成・回答・合意の抽出（速さ優先） */
   fast: ModelProfile;
   /** 上段の改良・相互批評（質優先） */
   refine: ModelProfile;
+  /** 企画書のイメージ画像生成（Imagen 3 または Gemini Image モデル） */
+  image?: ImageModelProfile;
 }
 
 const ICONS = ['♧', '♡', '☆', '✧', '◇', '◎', '⌁', '☾', '☀'] as const;
@@ -263,6 +291,74 @@ ${input.otherFinalists.map((t) => `- ${t}`).join('\n') || '（なし）'}
     const out = await this.call('generateProposal', profile, prompt, ProposalContent);
     const final = revs.at(-1)!;
     return { ...out, title: final.title };
+  }
+
+  /**
+   * 企画書の内容（タイトル・課題・対象者・提供価値・概要）に基づき、
+   * 企画の世界観・利用シーンがひと目で伝わるキービジュアル画像を Imagen 3 / Gemini で生成する。
+   */
+  async generateProposalImage(input: ProposalImageInput): Promise<string | null> {
+    const profile = this.config.image ?? { model: 'imagen-3.0-generate-002', timeoutMs: 25_000 };
+    if (!profile.model || profile.model === 'off') return null;
+    const prompt = [
+      'Create a warm, modern, flat-to-isometric editorial concept illustration (16:9 aspect ratio) representing the following project proposal.',
+      'Do NOT include any text, letters, numbers, logos, watermarks, or signage in the image.',
+      `Theme: ${input.theme}`,
+      `Project Title: ${input.title}`,
+      input.catchphrase ? `Tagline: ${input.catchphrase}` : '',
+      `Target Audience: ${input.target}`,
+      `Problem Solved: ${input.problem}`,
+      `Core Value: ${input.value}`,
+      `Overview: ${input.overview}`,
+      'Depict concrete people actively enjoying the experience in a bright, inviting scene with clear visual storytelling.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const started = Date.now();
+    try {
+      if (profile.model.startsWith('imagen-') && typeof this.client.models.generateImages === 'function') {
+        const res = await this.client.models.generateImages({
+          model: profile.model,
+          prompt,
+          config: {
+            numberOfImages: 1,
+            aspectRatio: '16:9',
+            outputMimeType: 'image/jpeg',
+            abortSignal: AbortSignal.timeout(profile.timeoutMs),
+          },
+        });
+        const img = res.generatedImages?.[0]?.image;
+        if (img?.imageBytes) {
+          const mime = img.mimeType || 'image/jpeg';
+          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms model=${profile.model}`);
+          return `data:${mime};base64,${img.imageBytes}`;
+        }
+        throw new Error('empty image response from generateImages');
+      }
+
+      const res = await this.client.models.generateContent({
+        model: profile.model,
+        contents: prompt,
+        config: {
+          responseModalities: ['IMAGE'],
+          imageConfig: { aspectRatio: '16:9' },
+          abortSignal: AbortSignal.timeout(profile.timeoutMs),
+        },
+      });
+      const parts = res.candidates?.[0]?.content?.parts ?? [];
+      for (const p of parts) {
+        if (p.inlineData?.data) {
+          const mime = p.inlineData.mimeType || 'image/png';
+          this.log(`[ai] generateProposalImage ok ${Date.now() - started}ms model=${profile.model}`);
+          return `data:${mime};base64,${p.inlineData.data}`;
+        }
+      }
+      throw new Error('no inlineData image in generateContent response');
+    } catch (e) {
+      this.log(`[ai] generateProposalImage failed ${Date.now() - started}ms model=${profile.model}: ${String(e)}`);
+      throw e;
+    }
   }
 
   async generateIdeas(input: {

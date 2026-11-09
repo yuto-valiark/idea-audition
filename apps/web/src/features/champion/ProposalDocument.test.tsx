@@ -26,6 +26,7 @@ function makeSampleSnapshot(): { snapshot: SessionSnapshot; content: ProposalCon
     kpis: ['参加児童の継続率80%以上'],
     assumptions: ['学校から徒歩10分圏内に集合場所があること'],
     nextActions: ['近隣公民館へのヒアリング'],
+    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=',
   };
 
   const snapshot: SessionSnapshot = {
@@ -150,6 +151,8 @@ describe('ProposalDocument', () => {
     expect(html).toContain('data-page="3"');
     expect(html).toContain('data-page="4"');
     expect(html).toContain('data-mascot-design="0"');
+    expect(html).toContain('data-proposal-visual="true"');
+    expect(html).toContain('AI CONCEPT VISUAL');
     expect(html).toContain('なぜこの案が選ばれたか');
     expect(html).toContain('01 · 誰のための企画か');
     expect(html).not.toContain('color-mix');

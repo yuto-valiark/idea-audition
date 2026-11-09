@@ -30,5 +30,9 @@ export function geminiConfigFromEnv(env: NodeJS.ProcessEnv): GeminiConfig {
       thinkingLevel: (env.GEMINI_THINKING_REFINE as GeminiConfig['refine']['thinkingLevel']) ?? 'LOW',
       timeoutMs: Number(env.GEMINI_TIMEOUT_REFINE_MS ?? 25_000),
     },
+    image: {
+      model: env.GEMINI_MODEL_IMAGE ?? 'imagen-3.0-generate-002',
+      timeoutMs: Number(env.GEMINI_TIMEOUT_IMAGE_MS ?? 25_000),
+    },
   };
 }

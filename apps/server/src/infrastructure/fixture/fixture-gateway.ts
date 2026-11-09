@@ -5,6 +5,7 @@ import type {
   ConsensusOpDraft,
   ConsensusUpdateInput,
   IdeaGenerationPort,
+  ProposalImageInput,
   ProposalInput,
   RefineInput,
   RefineOutput,
@@ -146,14 +147,19 @@ export class FixtureGateway implements IdeaGenerationPort {
     const first = input.champion.revisions[0]!;
     const agreed = input.context.agreed.map((c) => c.text);
     const lines = final.summary.split('\n');
+    const catchphrase = lines[0] ?? final.title;
+    const problem = `${input.theme}にあたって、参加のきっかけが少なく、続けて使いたくなる仕組みがない。`;
+    const target = '学内の学生（まずは1つの学部・1つの場所から）';
+    const value = lines[1] ?? final.summary;
+    const overview = `「${first.title}」を出発点に、${final.improvementPoints.join('、') || '審査員の指摘'}を取り入れた企画です。${agreed.length ? `審査で合意した方針（${agreed.join('、')}）に沿っています。` : ''}`;
     return {
       title: final.title,
-      catchphrase: lines[0] ?? final.title,
+      catchphrase,
       background: `テーマ「${input.theme}」について、審査員とAIキャラクターが案を出し合い、${input.champion.revisions.length}回の改良を経てこの案に決まりました。`,
-      problem: `${input.theme}にあたって、参加のきっかけが少なく、続けて使いたくなる仕組みがない。`,
-      target: '学内の学生（まずは1つの学部・1つの場所から）',
-      value: lines[1] ?? final.summary,
-      overview: `「${first.title}」を出発点に、${final.improvementPoints.join('、') || '審査員の指摘'}を取り入れた企画です。${agreed.length ? `審査で合意した方針（${agreed.join('、')}）に沿っています。` : ''}`,
+      problem,
+      target,
+      value,
+      overview,
       features: [
         ...final.keepStrengths.map((k) => ({ name: '残した強み', detail: k })),
         ...final.improvementPoints.map((p) => ({ name: '改善した点', detail: p })),
@@ -172,7 +178,23 @@ export class FixtureGateway implements IdeaGenerationPort {
       kpis: ['試行期間の参加者数', '2回目以上の参加率', '参加者アンケートの満足度'],
       nextActions: ['運営側の担当者に企画を共有する', '試行の場所と日程を決める', '告知の文面を作る'],
       assumptions: ['予算と期間は審査では確かめていない目安です', '運営側の協力が得られる前提です'],
+      imageUrl: buildFixtureProposalImage({
+        theme: input.theme,
+        title: final.title,
+        catchphrase,
+        problem,
+        target,
+        value,
+        overview,
+        characterName: input.champion.characterName,
+      }),
     };
+  }
+
+  /** 固定データ・フォールバック用の企画書イメージ画像（SVG data URL） */
+  async generateProposalImage(input: ProposalImageInput): Promise<string | null> {
+    await sleep(this.latencyMs * 0.4);
+    return buildFixtureProposalImage(input);
   }
 
   /**
@@ -249,4 +271,67 @@ export class FixtureGateway implements IdeaGenerationPort {
       icon,
     }));
   }
+}
+
+function escXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * 外部 API を使わない場合やフォールバック時に使う、企画内容に即した SVG キービジュアル。
+ */
+export function buildFixtureProposalImage(input: ProposalImageInput): string {
+  const title = escXml(input.title.slice(0, 22));
+  const catchphrase = escXml((input.catchphrase ?? input.value).slice(0, 32));
+  const target = escXml(input.target.slice(0, 22));
+  const value = escXml(input.value.slice(0, 26));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" width="800" height="420">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c1654"/>
+      <stop offset="52%" stop-color="#4b2382"/>
+      <stop offset="100%" stop-color="#8c46a8"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#fff6e3" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="420" rx="20" fill="url(#bg)"/>
+  <circle cx="680" cy="85" r="130" fill="#ffcf6b" fill-opacity="0.18"/>
+  <circle cx="110" cy="360" r="150" fill="#a76dff" fill-opacity="0.2"/>
+  <g transform="translate(44, 38)">
+    <rect width="430" height="344" rx="18" fill="url(#card)"/>
+    <rect x="22" y="22" width="136" height="26" rx="13" fill="#7a3fc8"/>
+    <text x="90" y="39" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="800">CONCEPT VISUAL</text>
+    <text x="24" y="84" fill="#241336" font-family="sans-serif" font-size="24" font-weight="900">${title}</text>
+    <text x="24" y="116" fill="#8a4b00" font-family="sans-serif" font-size="14" font-weight="700">${catchphrase}</text>
+    <line x1="24" y1="136" x2="406" y2="136" stroke="#e3d5f4" stroke-width="2"/>
+    <rect x="24" y="154" width="382" height="72" rx="10" fill="#f4edfc" stroke="#d6c2f0"/>
+    <text x="40" y="178" fill="#5e3494" font-family="sans-serif" font-size="11" font-weight="800">TARGET / 対象シーン</text>
+    <text x="40" y="204" fill="#241336" font-family="sans-serif" font-size="14" font-weight="700">${target}</text>
+    <rect x="24" y="242" width="382" height="76" rx="10" fill="#eefaf3" stroke="#8ecfa8"/>
+    <text x="40" y="266" fill="#186240" font-family="sans-serif" font-size="11" font-weight="800">VALUE / 生まれる体験</text>
+    <text x="40" y="294" fill="#1c2e24" font-family="sans-serif" font-size="14" font-weight="700">${value}</text>
+  </g>
+  <g transform="translate(504, 54)">
+    <rect x="0" y="0" width="252" height="312" rx="20" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
+    <circle cx="126" cy="108" r="56" fill="#ffe49e"/>
+    <path d="M92 226 C92 178 160 178 160 226 Z" fill="#ffd06e"/>
+    <circle cx="72" cy="146" r="34" fill="#d9b8ff"/>
+    <path d="M46 238 C46 202 98 202 98 238 Z" fill="#b98cf0"/>
+    <circle cx="182" cy="146" r="34" fill="#9fe6c3"/>
+    <path d="M156 238 C156 202 208 202 208 238 Z" fill="#6fd1a2"/>
+    <circle cx="126" cy="98" r="24" fill="#ffffff"/>
+    <path d="M116 98 L123 106 L138 90" stroke="#6b2fb8" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="28" y="254" width="196" height="34" rx="17" fill="#ffdf8d"/>
+    <text x="126" y="276" text-anchor="middle" fill="#3b2200" font-family="sans-serif" font-size="12" font-weight="800">IDEA AUDITION WINNER</text>
+  </g>
+</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
 }

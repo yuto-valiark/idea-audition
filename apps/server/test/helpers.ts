@@ -3,6 +3,7 @@ import type {
   ConsensusOpDraft,
   ConsensusUpdateInput,
   IdeaGenerationPort,
+  ProposalImageInput,
   ProposalInput,
   RefineInput,
   RefineOutput,
@@ -92,7 +93,9 @@ export class StubAi implements IdeaGenerationPort {
     return { critiques, revisions };
   }
   proposalCalls: ProposalInput[] = [];
+  proposalImageCalls: ProposalImageInput[] = [];
   failProposal = false;
+  failProposalImage = false;
   async generateProposal(input: ProposalInput) {
     this.proposalCalls.push(input);
     if (this.failProposal) throw new Error('proposal failed');
@@ -101,6 +104,11 @@ export class StubAi implements IdeaGenerationPort {
       title: t, catchphrase: 'c', background: 'b', problem: 'p', target: 't', value: 'v', overview: 'o',
       features: [], plan: [], resources: 'r', budget: 'b', risks: [], kpis: [], nextActions: [], assumptions: [],
     };
+  }
+  async generateProposalImage(input: ProposalImageInput) {
+    this.proposalImageCalls.push(input);
+    if (this.failProposalImage) throw new Error('proposal image failed');
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><text>${encodeURIComponent(input.title)}</text></svg>`;
   }
   consensusCalls: ConsensusUpdateInput[] = [];
   nextConsensusOps: ConsensusOpDraft[] = [];

@@ -825,7 +825,7 @@ export class SessionActor {
       const input = this.proposalInput(f.instanceId);
       if (!input) continue;
       const epoch = this.epoch;
-      const promise = this.ai.generateProposal(input);
+      const promise = this.generateProposalWithImage(input);
       const entry = { revisionId, promise };
       this.proposalDrafts.set(f.instanceId, entry);
       promise.then(
@@ -834,6 +834,28 @@ export class SessionActor {
           if (epoch === this.epoch && this.proposalDrafts.get(f.instanceId) === entry) this.proposalDrafts.delete(f.instanceId);
         },
       );
+    }
+  }
+
+  /** 企画書本文と、その内容に基づくイメージ画像を生成する（画像生成が失敗しても企画書本文はそのまま返す） */
+  private async generateProposalWithImage(input: ProposalInput): Promise<ProposalContent> {
+    const content = await this.ai.generateProposal(input);
+    if (content.imageUrl || !this.ai.generateProposalImage) return content;
+    try {
+      const imageUrl = await this.ai.generateProposalImage({
+        theme: input.theme,
+        title: content.title,
+        catchphrase: content.catchphrase,
+        problem: content.problem,
+        target: content.target,
+        value: content.value,
+        overview: content.overview,
+        characterName: input.champion.characterName,
+      });
+      return imageUrl ? { ...content, imageUrl } : content;
+    } catch (e) {
+      this.deps.log?.('generateProposalImage failed', e);
+      return content;
     }
   }
 
@@ -847,7 +869,7 @@ export class SessionActor {
     const input = this.proposalInput(champion.instanceId);
     if (!input) return;
     const prepared = draft?.revisionId === revisionId;
-    const promise = prepared ? draft!.promise.catch(() => this.ai.generateProposal(input)) : this.ai.generateProposal(input);
+    const promise = prepared ? draft!.promise.catch(() => this.generateProposalWithImage(input)) : this.generateProposalWithImage(input);
     const epoch = this.epoch;
     const started = this.deps.clock.now();
     promise.then(

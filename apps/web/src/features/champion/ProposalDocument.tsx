@@ -116,6 +116,25 @@ export function ProposalDocument({
             </div>
           </header>
 
+          {/* AI生成の企画イメージ図（キービジュアル） */}
+          {content.imageUrl && (
+            <figure className={styles.keyVisual} data-keep>
+              <div className={styles.keyVisualFrame}>
+                <img
+                  src={content.imageUrl}
+                  alt={`${content.title} の企画イメージ`}
+                  className={styles.keyVisualImg}
+                  data-proposal-visual="true"
+                />
+                <span className={styles.keyVisualBadge}>AI CONCEPT VISUAL · 企画イメージ図</span>
+              </div>
+              <figcaption className={styles.keyVisualCaption}>
+                <strong>利用シーン・世界観：</strong>
+                {content.catchphrase}（対象：{outline?.who ?? content.target}）
+              </figcaption>
+            </figure>
+          )}
+
           {/* 図解：何の案か（誰の・どんな課題を・どう解くか） */}
           <div className={styles.conceptFlow} data-keep>
             <div className={styles.conceptCard}>

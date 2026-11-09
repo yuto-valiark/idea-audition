@@ -44,6 +44,18 @@ export interface ProposalInput {
   otherFinalists: string[];
 }
 
+/** 企画書のイメージ画像を作るための入力（タイトル・課題・対象者・提供価値・概要） */
+export interface ProposalImageInput {
+  theme: string;
+  title: string;
+  catchphrase?: string;
+  problem: string;
+  target: string;
+  value: string;
+  overview: string;
+  characterName?: string;
+}
+
 /** LLM が提案する台帳の操作（ラベルで指す。サーバーが ID に直して当てはめる） */
 export type ConsensusOpDraft =
   | { op: 'add_claim'; text: string; judge: string | null; stance: 'support' | 'oppose' | null; seq: number | null }
@@ -97,6 +109,8 @@ export interface IdeaGenerationPort {
   varyIdea(input: VaryInput): Promise<IdeaDraft>;
   /** 優勝案の企画書（第1部）を作る */
   generateProposal(input: ProposalInput): Promise<ProposalContent>;
+  /** 企画書の内容に基づき、企画を象徴するイメージ画像（data URL 等）を生成する */
+  generateProposalImage?(input: ProposalImageInput): Promise<string | null>;
   /** 会話と行動から、合意台帳への操作を提案する（ADR-0007） */
   updateConsensus(input: ConsensusUpdateInput): Promise<ConsensusOpDraft[]>;
   /**
