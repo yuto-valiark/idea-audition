@@ -173,7 +173,7 @@ export function ProposalDocument({ snapshot, content }: { snapshot: SessionSnaps
         <p className={styles.muted}>
           合意に至らなかった論点：
           {others
-            .map((c) => `${c.label}「${c.text}」（${c.status === 'superseded' ? `${c.supersededBy} に置き換え` : c.status === 'rejected' ? '却下' : '提案のまま'}）`)
+            .map((c) => `「${c.text}」（${c.status === 'superseded' ? '置き換え' : c.status === 'rejected' ? '却下' : '提案のまま'}）`)
             .join('、')}
         </p>
       )}

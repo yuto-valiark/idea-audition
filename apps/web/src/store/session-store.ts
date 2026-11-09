@@ -276,9 +276,9 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
     case 'CONSENSUS_UPDATED': {
       const changes = Array.isArray(d.statusChanges) ? (d.statusChanges as { label: string; text: string; to: string }[]) : [];
       for (const c of changes) {
-        if (c.to === 'agreed') display.toast(`合意：${c.label}「${c.text}」`, 'gold');
-        else if (c.to === 'rejected') display.toast(`却下：${c.label}「${c.text}」`);
-        else if (c.to === 'proposed' && !('from' in c && c.from)) display.toast(`新しい論点：${c.label}「${c.text}」`);
+        if (c.to === 'agreed') display.toast(`合意：「${c.text}」`, 'gold');
+        else if (c.to === 'rejected') display.toast(`却下：「${c.text}」`);
+        else if (c.to === 'proposed' && !('from' in c && c.from)) display.toast(`新しい論点：「${c.text}」`);
       }
       break;
     }

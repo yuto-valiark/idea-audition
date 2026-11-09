@@ -35,6 +35,13 @@
 
 .panel header button {
   margin-left: auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
   color: #bfa6d1;
 }
 
@@ -69,27 +76,31 @@
   opacity: 0.55;
 }
 
-.claimHead {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+.claim[data-pinned] {
+  border-color: var(--gold-soft);
 }
 
-.claimHead b {
-  font-size: 11px;
-  color: var(--gold-soft);
+.claimHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .claimHead p {
   margin: 0;
   font-size: 13px;
+  line-height: 1.5;
   color: #f2e8fb;
+  min-width: 0;
 }
 
 .badge {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
+  flex: none;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 4px;
   background: #3a2550;
   color: #d9c6e5;
   white-space: nowrap;
@@ -100,70 +111,120 @@
   color: #0c1f17;
 }
 
-.stances {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 10px;
+.claim[data-pinned] .badge {
+  background: var(--gold-soft);
+  color: #1a1206;
+}
+
+.replaced {
+  margin: 4px 0 0;
+  font-size: 11px;
   color: #cbb8db;
 }
 
-.stances span {
-  display: inline-flex;
+/* 賛成の人数（全員のうち何人か） */
+.votes {
+  display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
-.stances span[data-stance='oppose'] {
-  color: #ffb3c6;
+.meter {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: #ffffff1a;
+  overflow: hidden;
 }
 
-.judge {
-  display: inline-grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  font-size: 9px;
-  font-weight: 700;
-  color: #110a20;
-  background: var(--judge);
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #b98af0;
+  transition: width 0.3s ease;
 }
 
-.timeline {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
+.claim[data-status='agreed'] .meter i {
+  background: var(--ok);
+}
+
+.count {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #d9c6e5;
+}
+
+/* 誰が賛成・反対したか（名前で） */
+.people {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  font-size: 9px;
-  color: var(--ink-faint);
+  gap: 4px;
+  margin-top: 6px;
 }
 
-.timeline li {
+.person {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #f2e8fb;
+  background: color-mix(in srgb, var(--judge) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--judge) 60%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person[data-stance='oppose'] {
+  background: #ff6b8a1f;
+  border-color: #ff6b8a88;
+  color: #ffd0da;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.meta {
+  font-size: 10px;
+  color: var(--ink-faint);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actions {
   display: flex;
   gap: 6px;
-  justify-content: flex-end;
-  margin-top: 6px;
+  margin-left: auto;
 }
 
 .actions button {
-  width: 26px;
-  height: 24px;
+  width: 28px;
+  height: 26px;
   display: grid;
   place-items: center;
   border: 1px solid #6f448e;
-  border-radius: 5px;
+  border-radius: 6px;
   color: #d9c6e5;
   background: #261536;
+}
+
+.actions button[data-on] {
+  border-color: #b98af0;
+  background: #4a2a6e;
+  color: #fff;
 }
 
 .inspired {
