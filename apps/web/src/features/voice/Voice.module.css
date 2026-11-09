@@ -62,3 +62,16 @@
     height: 13px;
   }
 }
+
+/* オフィシャル：紺のヘッダーに置くマイク */
+:global(:root[data-formality='official']) .mic {
+  color: #fff;
+  background: #ffffff12;
+  border-color: #ffffff40;
+}
+:global(:root[data-formality='official']) .mic[data-state='listening'] {
+  color: #fff;
+  background: #188038;
+  border-color: #188038;
+  animation: none;
+}

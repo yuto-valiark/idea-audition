@@ -1,98 +1,218 @@
-import { Check, FileText, Loader2, MessageSquare, Vote } from 'lucide-react';
+import { Check, Columns3, FileText, Loader2, MessageSquare, Sparkles, Star, Vote, Wand2 } from 'lucide-react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
-import { currentRevision, useMe } from '../../shared/selectors.ts';
+import { EMPTY, currentRevision, useMe } from '../../shared/selectors.ts';
 import { proposalLetter } from '../../shared/proposal-label.ts';
-import { OfficialAgenda } from './OfficialAgenda.tsx';
+import { DiscussionPanel } from './DiscussionPanel.tsx';
+import { People } from './People.tsx';
+import { PhaseDots } from './PhaseDots.tsx';
 import { QA } from './QA.tsx';
 import styles from './Official.module.css';
 
 /**
- * オフィシャル会議モードの決勝（最終審議）。採択候補を A案・B案… の列にした比較表。
+ * オフィシャル会議モードの決勝（比較・改良と採決）。左に参加者、中に採択候補の比較（A案・B案…の列）と改良の方向性、右に議論の要約。
  * 列ごとに「詳細・質問」「議論する（全員で注目＝スポットライト）」、採決中は「投票」。
  * 中身は決勝と同じ：相互批評と改良で版が進み、投票（同票はホスト）で採択を決める
  */
 export function OfficialFinal() {
   const snapshot = useSession((s) => s.snapshot)!;
+  const [tab, setTab] = useState<'compare' | 'refine'>('compare');
   const ids = snapshot.upper.map((f) => f.instanceId);
+  const voting = snapshot.vote?.status === 'open' || snapshot.vote?.status === 'tie';
+  const voted = snapshot.vote?.status === 'open' ? snapshot.vote.votedJudgeIds : (EMPTY as readonly string[]);
   return (
-    <div className={styles.meeting}>
-      <OfficialAgenda phase={1} right={<BallotStatus snapshot={snapshot} />} />
-      <div className={styles.body} data-wide>
-        <main className={styles.main}>
-          <SpotlightNote snapshot={snapshot} />
-          <div className={styles.compareWrap}>
-            <table className={styles.compare} style={{ '--cols': ids.length } as CSSProperties}>
-              <thead>
-                <tr>
-                  <th aria-hidden />
-                  {ids.map((id) => (
-                    <CandidateHead key={id} snapshot={snapshot} instanceId={id} />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <Row label="概要" ids={ids} cell={(id) => currentRevision(snapshot, id)?.summary} />
-                <Row label="対象" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.who} />
-                <Row label="課題" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.pain} />
-                <Row label="解決策" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.how} />
-                <Row
-                  label="この版での変更"
-                  ids={ids}
-                  cell={(id) => {
-                    const r = currentRevision(snapshot, id);
-                    return r && r.version > 1 && r.improvementPoints.length ? (
-                      <ul>
-                        {r.improvementPoints.slice(0, 3).map((t) => (
-                          <li key={t}>{t}</li>
-                        ))}
-                      </ul>
-                    ) : null;
-                  }}
-                />
-                <Row
-                  label="反映した合意"
-                  ids={ids}
-                  cell={(id) => {
-                    const labels = currentRevision(snapshot, id)?.inspiredBy?.claimLabels ?? [];
-                    const texts = labels.map((l) => snapshot.consensus.claims.find((c) => c.label === l)?.text).filter((t): t is string => !!t);
-                    return texts.length ? (
-                      <ul>
-                        {texts.map((t) => (
-                          <li key={t}>{t}</li>
-                        ))}
-                      </ul>
-                    ) : null;
-                  }}
-                />
-                <Row
-                  label="質疑応答"
-                  ids={ids}
-                  cell={(id) => (snapshot.answers.some((a) => a.instanceId === id) ? <QA snapshot={snapshot} instanceId={id} limit={1} /> : null)}
-                />
-                <Row
-                  label="批評"
-                  ids={ids}
-                  cell={(id) => (snapshot.critiques.some((c) => c.toInstanceId === id) ? <LatestCritique snapshot={snapshot} instanceId={id} /> : null)}
-                />
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th aria-hidden />
-                  {ids.map((id) => (
-                    <td key={id}>
-                      <Decide snapshot={snapshot} instanceId={id} />
-                    </td>
-                  ))}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </main>
-      </div>
+    <div className={styles.room}>
+      <People approved={voted} />
+      <section className={styles.stageCard} aria-label="比較・改良">
+        <div className={styles.cardTop}>
+          <PhaseDots phase={voting ? 2 : 1} />
+          <span className={styles.agendaInline}>
+            議題 <b>{snapshot.theme}</b>
+          </span>
+          <BallotStatus snapshot={snapshot} />
+        </div>
+        <SpotlightNote snapshot={snapshot} />
+        <div className={styles.cardTabs} role="tablist">
+          <button role="tab" aria-selected={tab === 'compare'} data-on={tab === 'compare' || undefined} onClick={() => setTab('compare')}>
+            <Columns3 size={15} /> 比較・検討
+          </button>
+          <button role="tab" aria-selected={tab === 'refine'} data-on={tab === 'refine' || undefined} onClick={() => setTab('refine')}>
+            <Sparkles size={15} /> 改良案の生成（AI）
+          </button>
+        </div>
+        {tab === 'compare' ? <CompareTable snapshot={snapshot} ids={ids} /> : <Refine snapshot={snapshot} ids={ids} />}
+      </section>
+      <DiscussionPanel />
     </div>
+  );
+}
+
+/** 星の評価（案の8軸の値 -1〜1 を 1〜5 に）。実現しやすさはコストの逆 */
+const STAR_ROWS = [
+  { label: '実現しやすさ', axis: 0, invert: true },
+  { label: '手軽さ', axis: 2 },
+  { label: '新規性', axis: 1 },
+  { label: '話題性', axis: 3 },
+  { label: '社会性', axis: 5 },
+  { label: '継続性', axis: 4 },
+] as const;
+
+function stars(v: number) {
+  return Math.min(5, Math.max(1, Math.round(1 + (v + 1) * 2)));
+}
+
+function Stars({ value }: { value: number }) {
+  const n = stars(value);
+  return (
+    <span className={styles.stars} role="img" aria-label={`5段階で${n}`}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star key={i} size={15} fill={i <= n ? 'currentColor' : 'none'} data-on={i <= n || undefined} />
+      ))}
+    </span>
+  );
+}
+
+function CompareTable({ snapshot, ids }: { snapshot: SessionSnapshot; ids: string[] }) {
+  return (
+    <div className={styles.compareWrap}>
+      <table className={styles.compare} style={{ '--cols': ids.length } as CSSProperties}>
+        <thead>
+          <tr>
+            <th aria-hidden />
+            {ids.map((id) => (
+              <CandidateHead key={id} snapshot={snapshot} instanceId={id} />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <Row label="概要" ids={ids} cell={(id) => currentRevision(snapshot, id)?.summary} />
+          {STAR_ROWS.map((r) => (
+            <Row
+              key={r.label}
+              label={r.label}
+              ids={ids}
+              cell={(id) => {
+                const v = currentRevision(snapshot, id)?.profile?.[r.axis];
+                return v == null ? null : <Stars value={'invert' in r ? -v : v} />;
+              }}
+            />
+          ))}
+          <Row label="対象" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.who} />
+          <Row label="課題" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.pain} />
+          <Row label="解決策" ids={ids} cell={(id) => currentRevision(snapshot, id)?.outline?.how} />
+          <Row
+            label="反映した合意"
+            ids={ids}
+            cell={(id) => {
+              const labels = currentRevision(snapshot, id)?.inspiredBy?.claimLabels ?? [];
+              const texts = labels.map((l) => snapshot.consensus.claims.find((c) => c.label === l)?.text).filter((t): t is string => !!t);
+              return texts.length ? (
+                <ul>
+                  {texts.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              ) : null;
+            }}
+          />
+          <Row
+            label="質疑応答"
+            ids={ids}
+            cell={(id) => (snapshot.answers.some((a) => a.instanceId === id) ? <QA snapshot={snapshot} instanceId={id} limit={1} /> : null)}
+          />
+        </tbody>
+        <tfoot>
+          <tr>
+            <th aria-hidden />
+            {ids.map((id) => (
+              <td key={id}>
+                <Decide snapshot={snapshot} instanceId={id} />
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+/** 改良の方向性（AI）：この版での変更・他の案からの指摘と、改良の依頼（指示を書いて AI に作り直してもらう） */
+function Refine({ snapshot, ids }: { snapshot: SessionSnapshot; ids: string[] }) {
+  return (
+    <div className={styles.refineGrid} style={{ '--cols': ids.length } as CSSProperties}>
+      {ids.map((id) => (
+        <RefineCard key={id} snapshot={snapshot} instanceId={id} />
+      ))}
+    </div>
+  );
+}
+
+function RefineCard({ snapshot, instanceId }: { snapshot: SessionSnapshot; instanceId: string }) {
+  const send = useSession((s) => s.send);
+  const { isSpectator } = useMe();
+  const [text, setText] = useState('');
+  const rev = currentRevision(snapshot, instanceId);
+  const finalist = snapshot.upper.find((f) => f.instanceId === instanceId);
+  if (!rev || !finalist) return null;
+  const letter = proposalLetter(snapshot, instanceId);
+  const critiques = snapshot.critiques.filter((c) => c.toInstanceId === instanceId).slice(-2);
+  const busy = finalist.status === 'refining';
+  return (
+    <article className={styles.refineCard}>
+      <header>
+        <span className={styles.letter}>{letter}案</span>
+        <span className={styles.version}>版 {rev.version}</span>
+        {busy && (
+          <em className={styles.busy}>
+            <Loader2 size={12} className={styles.spin} /> 改良中
+          </em>
+        )}
+      </header>
+      <h3>{rev.title}</h3>
+      {rev.version > 1 && rev.improvementPoints.length > 0 && (
+        <section>
+          <h4>この版での変更</h4>
+          <ul>
+            {rev.improvementPoints.slice(0, 3).map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {critiques.length > 0 && (
+        <section>
+          <h4>
+            <Sparkles size={13} /> 改良の方向性
+          </h4>
+          <ul>
+            {critiques.map((c, i) => (
+              <li key={i}>{c.text}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {!isSpectator && (
+        <form
+          className={styles.refineForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const t = text.trim();
+            if (!t || busy) return;
+            void send('REQUEST_REFINEMENT', { instanceId, text: t }).then((r) => {
+              if (r.ok) setText('');
+            });
+          }}
+        >
+          <input value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder="改良の指示" aria-label={`${letter}案への改良の指示`} />
+          <button className={styles.primary} disabled={!text.trim() || busy}>
+            <Wand2 size={15} /> 改良する
+          </button>
+        </form>
+      )}
+    </article>
   );
 }
 
@@ -148,19 +268,6 @@ function CandidateHead({ snapshot, instanceId }: { snapshot: SessionSnapshot; in
         )}
       </div>
     </th>
-  );
-}
-
-/** いちばん新しい相互批評（その案が受けたもの） */
-function LatestCritique({ snapshot, instanceId }: { snapshot: SessionSnapshot; instanceId: string }) {
-  const c = [...snapshot.critiques].reverse().find((x) => x.toInstanceId === instanceId);
-  if (!c) return null;
-  const from = proposalLetter(snapshot, c.fromInstanceId);
-  return (
-    <p className={styles.critique}>
-      {from && <b>{from}案より：</b>}
-      {c.text}
-    </p>
   );
 }
 

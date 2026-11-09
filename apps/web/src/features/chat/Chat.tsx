@@ -59,10 +59,10 @@ export function UtteranceInput() {
             ? formality === 1
               ? '話してください…（「A案の費用は？」のように呼べます）'
               : '話してください…（キャラの名前を呼ぶと宛先になります）'
-            : targetName
-              ? `${targetName} に${formality === 1 ? '質問・修正の依頼' : '話しかける（質問・改善の指示）'}`
-              : formality === 1
-                ? '発言する（「A案、費用を下げて」のように呼べます）'
+            : formality === 1
+              ? `${targetName ? `${targetName}について` : 'この案について'}質問・意見を伝える…`
+              : targetName
+                ? `${targetName} に話しかける（質問・改善の指示）`
                 : '発言する（「ルナ、コストを下げて」のように名前で呼べます）'
         }
         aria-label="発言"

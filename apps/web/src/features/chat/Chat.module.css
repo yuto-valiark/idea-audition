@@ -238,3 +238,26 @@
 :global(:root[data-formality='official']) .input[data-listening] {
   border-color: var(--ok);
 }
+:global(:root[data-formality='official']) .input {
+  height: 44px;
+  padding: 0 6px 0 16px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+:global(:root[data-formality='official']) .input input {
+  font-size: 14px;
+}
+/* 送信は青の丸。発言ログは右の列にあるので、履歴のボタンは出さない */
+:global(:root[data-formality='official']) .input button[aria-label='送信'] {
+  width: 34px;
+  height: 34px;
+  color: #fff;
+  background: #5b3fd0;
+  border-radius: 50%;
+}
+:global(:root[data-formality='official']) .input button[aria-label='送信']:disabled {
+  background: #c9c3ec;
+}
+:global(:root[data-formality='official']) .chatToggle {
+  display: none;
+}

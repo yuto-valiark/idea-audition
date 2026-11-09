@@ -87,7 +87,7 @@ export function JudgeWipeBand({ floating = false }: { floating?: boolean }) {
 }
 
 /** 自分の札のカメラのボタン。押すとカメラを映す／止める */
-export function CameraButton() {
+export function CameraButton({ label = false }: { label?: boolean } = {}) {
   const on = useCall((s) => !!s.camera);
   const starting = useCall((s) => s.cameraStarting);
   const toggle = useCall((s) => s.toggleCamera);
@@ -103,6 +103,7 @@ export function CameraButton() {
       title={on ? 'カメラを止める' : 'カメラを映す'}
     >
       {on ? <Video size={15} /> : <VideoOff size={15} />}
+      {label && <span>カメラ</span>}
     </button>
   );
 }

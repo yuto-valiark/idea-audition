@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, Copy } from 'lucide-react';
+import { AlertCircle, ArrowRight, BookOpen, Copy, FileText, Lightbulb, Link2, Sparkles, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
@@ -6,7 +6,9 @@ import { copyText } from '../../shared/copy-text.ts';
 import { currentRevision, useMe } from '../../shared/selectors.ts';
 import { ProposalButton, ProposalViewer } from '../../features/champion/ChampionScreen.tsx';
 import { championText } from '../../features/champion/share-text.ts';
-import { OfficialAgenda } from './OfficialAgenda.tsx';
+import { copyInvite } from '../../shared/invite.ts';
+import { downloadMinutes } from '../../shared/minutes.ts';
+import { PhaseDots } from './PhaseDots.tsx';
 import styles from './Official.module.css';
 
 /**
@@ -34,97 +36,126 @@ export function OfficialChampion() {
   const minutes = snapshot.startedAt ? Math.max(1, Math.round((Date.now() - Date.parse(snapshot.startedAt)) / 60000)) : null;
   const people = snapshot.judges.map((j) => j.name ?? j.label).join('、');
 
+  const imageUrl = proposal?.imageUrl ?? null;
+  const copy = () => {
+    const text = championText({
+      theme: snapshot.theme,
+      title: rev.title,
+      summary: rev.summary,
+      points: rev.outline ? [`対象：${rev.outline.who}`, `課題：${rev.outline.pain}`, `解決策：${rev.outline.how}`] : rev.improvementPoints,
+      proposal,
+    });
+    void copyText(text).then((ok) => toast(ok ? '決定事項をコピーしました' : 'コピーできませんでした', ok ? 'gold' : 'warn'));
+  };
+
   return (
-    <div className={`${styles.meeting} ${styles.page}`}>
-      <OfficialAgenda phase={2} />
-      <div className={styles.body}>
-        <main className={styles.main}>
-          <article className={styles.doc}>
-            <div className={styles.docEyebrow}>
-              <span>採択された案</span>
-              <span className={styles.tag}>{decidedBy}</span>
+    <div className={styles.decisionRoom}>
+      <section className={styles.stageCard} aria-label="最終決定">
+        <div className={styles.cardTop}>
+          <PhaseDots phase={3} />
+          <span className={styles.agendaInline}>
+            議題 <b>{snapshot.theme}</b>
+          </span>
+          <span className={styles.tag}>{decidedBy}</span>
+        </div>
+        <article className={styles.proposal}>
+          {imageUrl ? (
+            <img className={styles.decisionImage} src={imageUrl} alt="" />
+          ) : (
+            <div className={styles.visualTile} data-role="fit" aria-hidden>
+              <Lightbulb size={56} strokeWidth={1.4} />
             </div>
-            <h1 className={styles.docTitle}>{rev.title}</h1>
+          )}
+          <div className={styles.proposalBody}>
+            <div className={styles.badges}>
+              <span className={styles.decidedBadge}>企画の決定</span>
+              <span className={styles.aiBadge}>
+                <Sparkles size={13} /> AI 提案
+              </span>
+            </div>
+            <h1 className={styles.proposalTitle}>{rev.title}</h1>
             <p className={styles.docSummary}>{rev.summary}</p>
             {rev.outline && (
-              <dl className={styles.facts}>
-                <div>
-                  <dt>対象</dt>
-                  <dd>{rev.outline.who}</dd>
-                </div>
-                <div>
-                  <dt>課題</dt>
-                  <dd>{rev.outline.pain}</dd>
-                </div>
-                <div>
-                  <dt>解決策</dt>
-                  <dd>{rev.outline.how}</dd>
-                </div>
-              </dl>
+              <ul className={styles.points}>
+                <li>
+                  <Users size={18} />
+                  <span>
+                    <small>対象</small>
+                    {rev.outline.who}
+                  </span>
+                </li>
+                <li>
+                  <AlertCircle size={18} />
+                  <span>
+                    <small>課題</small>
+                    {rev.outline.pain}
+                  </span>
+                </li>
+                <li>
+                  <Lightbulb size={18} />
+                  <span>
+                    <small>解決策</small>
+                    {rev.outline.how}
+                  </span>
+                </li>
+              </ul>
             )}
-            <div className={styles.actions}>
-              <ProposalButton />
-              {proposal && (
-                <button className={styles.secondary} onClick={() => setViewerOpen(true)}>
-                  <BookOpen size={15} /> 企画書を見る
-                </button>
-              )}
-              <button
-                className={styles.secondary}
-                onClick={() => {
-                  const text = championText({
-                    theme: snapshot.theme,
-                    title: rev.title,
-                    summary: rev.summary,
-                    points: rev.outline ? [`対象：${rev.outline.who}`, `課題：${rev.outline.pain}`, `解決策：${rev.outline.how}`] : rev.improvementPoints,
-                    proposal,
-                  });
-                  void copyText(text).then((ok) => toast(ok ? '決定事項をコピーしました' : 'コピーできませんでした', ok ? 'gold' : 'warn'));
-                }}
-              >
-                <Copy size={15} /> 文章をコピー
-              </button>
-            </div>
-          </article>
-
-          <section className={styles.minutes} aria-label="決定の記録">
-            <div>
-              <h2>合意事項</h2>
-              {agreed.length ? (
-                <ul>
-                  {agreed.map((c) => (
-                    <li key={c.label}>{c.text}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className={styles.muted}>記録なし</p>
-              )}
-            </div>
-            <div>
-              <h2>次のアクション</h2>
-              {proposal?.nextActions.length ? (
-                <ul>
-                  {proposal.nextActions.map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className={styles.muted}>{snapshot.proposal?.status === 'generating' ? '企画書の作成中' : '記録なし'}</p>
-              )}
-            </div>
-          </section>
-        </main>
-        <aside className={styles.side} aria-label="会議の概要">
-          <div className={styles.sectionHead}>
-            <h2>会議の概要</h2>
           </div>
+        </article>
+        <div className={styles.outputs}>
+          <ProposalButton label="決定事項を出力（PDF）" />
+          <button className={styles.secondary} onClick={() => downloadMinutes(snapshot, useDisplay.getState().chatLog)}>
+            <FileText size={15} /> 議事録をダウンロード
+          </button>
+          <button className={styles.secondary} onClick={copy}>
+            <Copy size={15} /> 内容をコピー
+          </button>
+          <button className={styles.secondary} onClick={() => void copyInvite().then((ok) => toast(ok ? '共有リンクをコピーしました' : 'コピーできませんでした', ok ? 'gold' : 'warn'))}>
+            <Link2 size={15} /> 共有リンクを発行
+          </button>
+          {proposal && (
+            <button className={styles.secondary} onClick={() => setViewerOpen(true)}>
+              <BookOpen size={15} /> 企画書を見る
+            </button>
+          )}
+        </div>
+        <section className={styles.minutes} aria-label="決定の記録">
+          <div>
+            <h2>合意事項</h2>
+            {agreed.length ? (
+              <ul>
+                {agreed.map((c) => (
+                  <li key={c.label}>{c.text}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.muted}>記録なし</p>
+            )}
+          </div>
+          <div>
+            <h2>次のアクション</h2>
+            {proposal?.nextActions.length ? (
+              <ul>
+                {proposal.nextActions.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.muted}>{snapshot.proposal?.status === 'generating' ? '企画書の作成中' : '記録なし'}</p>
+            )}
+          </div>
+        </section>
+      </section>
+      <aside className={styles.discussion} aria-label="会議の概要">
+        <div className={styles.summary}>
+          <h3>会議の概要</h3>
           <dl className={styles.summaryList}>
             <div>
               <dt>参加者</dt>
               <dd>{people}</dd>
             </div>
             <div>
-              <dt>審査した提案</dt>
+              <dt>審議した提案</dt>
               <dd>{reviewed} 件</dd>
             </div>
             <div>
@@ -149,8 +180,8 @@ export function OfficialChampion() {
           ) : (
             <span className={styles.muted}>次の会議はホストが始めます</span>
           )}
-        </aside>
-      </div>
+        </div>
+      </aside>
       {viewerOpen && <ProposalViewer onClose={() => setViewerOpen(false)} />}
     </div>
   );

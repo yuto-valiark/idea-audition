@@ -93,17 +93,21 @@ const { isSpectator, isHost } = useMe();
 
       <div className="welcome-content">
         <motion.div className="welcome-identity" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-          <img className="welcome-logo-img" src="/brand/logo-neon.webp" alt="IDEA AUDITION" />
-          <div className="welcome-eyebrow">
-            <i />
-            <span>THE NEXT BIG IDEA</span>
-            <i />
-          </div>
+          {formality === 0 && (
+            <>
+              <img className="welcome-logo-img" src="/brand/logo-neon.webp" alt="IDEA AUDITION" />
+              <div className="welcome-eyebrow">
+                <i />
+                <span>THE NEXT BIG IDEA</span>
+                <i />
+              </div>
+            </>
+          )}
         </motion.div>
         <motion.div className="welcome-copy" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
           {formality === 1 ? (
             <>
-              <h1>企画案の検討を、審査形式で。</h1>
+              <h1>{lobby ? '新しい会議を作成' : '企画案の検討を、審査形式で。'}</h1>
               <p>
                 <strong>AIが企画案を発表します。</strong>
                 <br />
@@ -177,15 +181,15 @@ const { isSpectator, isHost } = useMe();
               </div>
               <div className={styles.rules}>
                 <Choice
-                  label="持ち時間"
+                  label={pick(formality, '持ち時間', '審議の時間')}
                   options={CHALLENGE_SEC_OPTIONS.map((v) => ({ value: v, text: `${v}秒` }))}
                   value={shownSec}
                   disabled={guest}
                   onChange={setChallengeSec}
                 />
                 <Choice
-                  label="合格者"
-                  options={Array.from({ length: MAX_FINALISTS }, (_, i) => ({ value: i + 1, text: `${i + 1}人` }))}
+                  label={pick(formality, '合格者', '採択する案の数')}
+                  options={Array.from({ length: MAX_FINALISTS }, (_, i) => ({ value: i + 1, text: `${i + 1}${formality === 1 ? '案' : '人'}` }))}
                   value={shownFinalists}
                   disabled={guest}
                   onChange={setFinalists}
@@ -196,7 +200,7 @@ const { isSpectator, isHost } = useMe();
               ) : (
                 <button className="create-audition" disabled={busy || isSpectator || connection !== 'open' || !theme.trim()}>
                   <Play />
-                  <span>{pick(formality, 'オーディションをはじめる', '会議をはじめる')}</span>
+                  <span>{pick(formality, 'オーディションをはじめる', '会議を開始')}</span>
                 </button>
               )}
               {(connection !== 'open' || isSpectator) && (

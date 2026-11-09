@@ -351,7 +351,7 @@ function CheeringCrowd() {
 }
 
 /** 優勝と同時に作り始めた企画書を、できしだい1クリックで PDF ダウンロードできるようにする（決勝の間に作り置きしているので、ふつうはすぐ押せる） */
-export function ProposalButton() {
+export function ProposalButton({ label = '企画書PDFをダウンロード' }: { label?: string } = {}) {
   const snapshot = useSession((s) => s.snapshot)!;
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
@@ -391,7 +391,7 @@ export function ProposalButton() {
       }}
     >
       {saving ? <Loader2 size={17} className={styles.spin} /> : <FileDown size={17} />}
-      {saving ? 'PDFを作成中…' : '企画書PDFをダウンロード'}
+      {saving ? 'PDFを作成中…' : label}
     </button>
   );
 }
