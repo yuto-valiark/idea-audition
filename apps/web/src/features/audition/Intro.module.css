@@ -396,3 +396,67 @@
   inset: 0 0 14% 0;
   height: auto;
 }
+
+/* 1画面に収める：高さに合わせて縮む（スクロールさせない） */
+.intro {
+  overflow: hidden;
+  justify-content: center;
+  padding: 1.2vh 24px 1.5vh;
+}
+.hero {
+  gap: 0.6vh;
+}
+.logo {
+  width: auto;
+  height: clamp(70px, 17vh, 200px);
+  max-width: 70vw;
+}
+.eyebrow {
+  font-size: clamp(10px, 1.4vh, 13px);
+}
+.hero h1 {
+  font-size: clamp(22px, min(3.4vw, 5.6vh), 54px);
+  margin: 0;
+}
+.description {
+  font-size: clamp(11px, min(1.05vw, 1.9vh), 17px);
+  line-height: 1.6;
+}
+.stage {
+  height: clamp(110px, 24vh, 280px);
+  margin-top: 1.5vh;
+}
+.setup {
+  margin-top: 1.6vh;
+  gap: 1vh;
+}
+.primary {
+  min-height: clamp(44px, 6.5vh, 66px);
+}
+.themeInput {
+  height: clamp(38px, 5.2vh, 52px);
+}
+.invite {
+  margin-bottom: 0;
+}
+.steps {
+  margin-top: 1.6vh;
+}
+
+/* 部屋を作ったあとは入力が増えるので、上を小さくする */
+.intro[data-lobby] .logo {
+  height: clamp(56px, 11vh, 140px);
+}
+.intro[data-lobby] .hero h1 {
+  font-size: clamp(20px, min(2.8vw, 4.2vh), 44px);
+}
+.intro[data-lobby] .stage {
+  height: clamp(90px, 16vh, 200px);
+  margin-top: 1vh;
+}
+.intro[data-lobby] .setup {
+  margin-top: 1vh;
+}
+.intro[data-lobby] .steps {
+  display: none;
+}

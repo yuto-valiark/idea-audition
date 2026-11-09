@@ -46,7 +46,7 @@ export function Intro() {
   }
 
   return (
-    <section className={styles.intro}>
+    <section className={styles.intro} data-lobby={room === 'active' || undefined}>
       <div className={styles.beams} aria-hidden>
         <i />
         <i />
