@@ -265,6 +265,7 @@
 <div class="warn"><b>公開しないもの</b>：IDEA AUDITION のコード（apps・packages/protocol）、.env、GCP のプロジェクト名やサービスアカウント。切り出しスクリプト（<code>scripts/camp-split.sh</code>）が、<code>idea-audition-run</code>・<code>GOOGLE_CLOUD_PROJECT</code>・<code>.iam.gserviceaccount.com</code> などの文字が入っていたら止まる。境界テストが、CAMP が IDEA AUDITION を import していないことを確かめる。</div>
 
 <h2><span class="no">10</span>公開の手順と、その前に決めること</h2>
+<p><b>2026-11-10 に公開済み</b>：公開リポジトリ camp-protocol/camp（英語1コミット・CI 成功）と npm の <code>@camp-protocol/kit@0.1.0</code>。アプリは npm の版を使っている。</p>
 <ol>
 <li><b>済み</b>：個人のメールは出さない。<code>package.json</code> の著者欄は名前と GitHub の URL だけ。公開用のコミットの作者は GitHub の noreply アドレス。npm のアカウントのメールは、公開のデータ（maintainers）に入る</li>
 <li><b>決める</b>：npm のアカウントの2段階認証。GitHub Actions から出所の証明（provenance）付きで公開するか</li>
