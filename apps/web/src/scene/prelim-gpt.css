@@ -1637,3 +1637,55 @@
 @media (prefers-reduced-motion: reduce) {
   .ia-prelim .waiting-slot.arriving { animation: none; }
 }
+
+/* カウントダウンはキャラの頭に重ならないよう、舞台の右上（深掘りタイムと同じ場所）に出す */
+.ia-prelim .ia-countdown {
+  left: auto;
+  right: 3%;
+  top: 1.5%;
+  transform: none;
+  padding: 4px 14px;
+}
+.ia-prelim .ia-countdown b { font-size: 40px; }
+.ia-prelim .ia-corner { top: 1.5%; }
+
+/* 自分のブザー（P2-3）：「あなた」の札と、自分の色の輪郭 */
+.ia-prelim .buzzer.mine .buzzer-base {
+  outline: 2px solid var(--person, #f2e6ff);
+  outline-offset: 2px;
+  box-shadow: 0 0 16px var(--person, #b250ff);
+}
+.ia-prelim .buzzer:not(.mine) {
+  filter: saturate(0.6) brightness(0.85);
+}
+.ia-prelim .ia-you {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 3;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #1a0b2b;
+  background: var(--person, #f2e6ff);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ブザーの対象：いま誰の案に合格を出すのか */
+.ia-prelim .ia-buzz-target {
+  align-self: center;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  max-width: 180px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #cdb8ea;
+  text-align: right;
+  pointer-events: none;
+}
+.ia-prelim .ia-buzz-target b { color: #fff; }
+.ia-prelim .ia-buzz-target small { color: #ffd36b; font-weight: 800; font-size: 13px; }

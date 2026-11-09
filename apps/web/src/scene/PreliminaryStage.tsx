@@ -349,13 +349,26 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   const { judgeId, isSpectator } = useMe();
   const judges = snapshot.judges.filter((j) => j.connected);
   const pressed = (snapshot.buzzer?.instanceId === instanceId ? snapshot.buzzer?.judgeIds : null) ?? (EMPTY as readonly string[]);
+  const targetName = instanceId ? snapshot.characters[instanceId]?.name : null;
   return (
     <div className="buzzer-zone">
+      {/* いまブザーで審査しているのが誰の案か（見ている間に入れ替わっても、押す相手が分かるように） */}
+      {targetName && !celebrating && (
+        <span className="ia-buzz-target" key={instanceId}>
+          <span>
+            <b>{targetName}</b> に合格を出す？
+          </span>
+          <small>
+            {pressed.length} / {judges.length} 人が押した
+          </small>
+        </span>
+      )}
       <div className="buzzers" style={{ '--count': judges.length } as CSSProperties}>
         {judges.map((j) => (
           <Buzzer
             key={j.judgeId}
             judge={j}
+            mine={j.judgeId === judgeId}
             pressed={celebrating || pressed.includes(j.judgeId)}
             disabled={celebrating || !instanceId || j.judgeId !== judgeId}
             onClick={() => instanceId && void send('PRESS_BUZZER', { instanceId, on: !pressed.includes(j.judgeId) })}
@@ -372,17 +385,18 @@ function BuzzerZone({ snapshot, instanceId, celebrating }: { snapshot: SessionSn
   );
 }
 
-function Buzzer({ judge, pressed, disabled, onClick }: { judge: JudgeView; pressed: boolean; disabled: boolean; onClick(): void }) {
+function Buzzer({ judge, mine, pressed, disabled, onClick }: { judge: JudgeView; mine: boolean; pressed: boolean; disabled: boolean; onClick(): void }) {
   return (
     <motion.button
       whileTap={disabled ? {} : { scale: 0.97 }}
-      className={'buzzer ' + (pressed ? 'pressed' : '')}
+      className={'buzzer ' + (pressed ? 'pressed' : '') + (mine ? ' mine' : '')}
       style={{ '--person': judge.color } as CSSProperties}
       disabled={disabled}
       onClick={onClick}
-      aria-label={`${judge.name ?? judge.label}のブザー`}
+      aria-label={mine ? 'あなたのブザー' : `${judge.name ?? judge.label}のブザー`}
       aria-pressed={pressed}
     >
+      {mine && <span className="ia-you">あなた</span>}
       <span className="buzzer-rays">
         <i />
         <i />
