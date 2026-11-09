@@ -7,6 +7,7 @@ import { playSfx } from '../../shared/sfx.ts';
 import { downloadProposalPdf } from './proposal-pdf.tsx';
 import { useSession } from '../../store/session-store.ts';
 import { useDisplay } from '../../store/display-store.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import { Mascot } from '../../shared/Mascot.tsx';
 import { useMe } from '../../shared/selectors.ts';
 import styles from './Champion.module.css';
@@ -20,9 +21,10 @@ export function ChampionScreen() {
   const send = useSession((s) => s.send);
   const toast = useDisplay((s) => s.toast);
   const { isHost } = useMe();
+  const formality = useFormality();
   const reduced = useReducedMotion();
   const champ = snapshot.champion!;
-  // 紙吹雪：表彰の最初の4秒ほど。「もう一度お祝い」で降らせ直す
+  // 紙吹雪：表彰の最初の4秒ほど。「{pick(formality, 'もう一度お祝い', '結果を再表示')}」で降らせ直す
   const [burst, setBurst] = useState(0);
   const [raining, setRaining] = useState(true);
   useEffect(() => {
@@ -32,10 +34,11 @@ export function ChampionScreen() {
   }, [burst]);
   // 優勝が決まった瞬間にファンファーレ。同じ優勝では1回だけ（再接続や開発時の二重実行で重ねて鳴らさない）
   useEffect(() => {
+    if (formality === 1) return;
     if (lastFanfare === champ.revisionId) return;
     lastFanfare = champ.revisionId;
     playSfx('champion');
-  }, [champ.revisionId]);
+  }, [champ.revisionId, formality]);
   const character = snapshot.characters[champ.instanceId];
   const idea = snapshot.ideas[champ.ideaId];
   const rev = idea?.revisions.find((r) => r.revisionId === champ.revisionId) ?? idea?.revisions.at(-1);
@@ -66,7 +69,7 @@ export function ChampionScreen() {
   const canShare = typeof navigator !== 'undefined' && typeof (navigator as { share?: unknown }).share === 'function';
 
   return (
-    <section className={`ia-ceremony ${styles.stage}`} aria-label="優勝発表">
+    <section className={`ia-ceremony ${styles.stage}`} aria-label={pick(formality, '優勝発表', '最優秀案の発表')}>
       <div className="champion-ceremony">
         <div className="ceremony-light-grid" aria-hidden>
           {[0, 1, 2, 3, 4].map((n) => (
@@ -83,7 +86,7 @@ export function ChampionScreen() {
             <i key={n} style={{ left: `${(n * 43) % 100}%`, top: `${(n * 31) % 85}%`, animationDelay: `${(n % 5) * -0.4}s` }} />
           ))}
         </div>
-        {raining && !reduced && (
+        {raining && !reduced && formality === 0 && (
           <div className="ceremony-paper" key={burst} aria-hidden>
             {Array.from({ length: 74 }, (_, n) => (
               <i
@@ -146,7 +149,7 @@ export function ChampionScreen() {
           initial={{ opacity: 0, x: reduced ? 0 : 25 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.65, delay: 0.25 }}
-          aria-label="優勝アイデアの企画書"
+          aria-label={pick(formality, '優勝アイデアの企画書', '最優秀案の企画書')}
         >
           <div className="winner-plan-header">
             <span>
@@ -191,7 +194,7 @@ export function ChampionScreen() {
               onClick={() => {
                 void copyText(shareText()).then((ok) =>
                   ok
-                    ? toast(snapshot.proposal?.content ? '企画書の文章をコピーしました' : '優勝アイデアの文章をコピーしました', 'gold')
+                    ? toast(snapshot.proposal?.content ? '企画書の文章をコピーしました' : pick(formality, '優勝アイデアの文章をコピーしました', '最優秀案の文章をコピーしました'), 'gold')
                     : toast('コピーできませんでした。ブラウザのコピーの許可を確かめてください', 'warn'),
                 );
               }}
@@ -203,13 +206,13 @@ export function ChampionScreen() {
           <div className="ceremony-followup">
             <button onClick={() => setBurst((n) => n + 1)}>
               <RotateCcw size={11} />
-              もう一度お祝い
+              {pick(formality, 'もう一度お祝い', '結果を再表示')}
             </button>
             {canShare && (
               <button
                 onClick={() => {
                   void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
-                    .share({ title: `IDEA AUDITION 優勝案：${rev.title}`, text: shareText() })
+                    .share({ title: `IDEA AUDITION ${pick(formality, '優勝案', '最優秀案')}：${rev.title}`, text: shareText() })
                     .catch(() => {});
                 }}
               >
@@ -219,7 +222,7 @@ export function ChampionScreen() {
             )}
             {isHost || snapshot.mode === 'solo' ? (
               <button onClick={() => void send('RESET_SESSION', {})}>
-                新しいオーディションへ
+                {pick(formality, '新しいオーディションへ', '新しい会議へ')}
                 <ArrowRight size={12} />
               </button>
             ) : (
@@ -227,7 +230,7 @@ export function ChampionScreen() {
             )}
           </div>
         </motion.section>
-        <CheeringCrowd />
+        {formality === 0 && <CheeringCrowd />}
       </div>
     </section>
   );
