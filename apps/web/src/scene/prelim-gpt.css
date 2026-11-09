@@ -1387,20 +1387,40 @@
   }}
 /* IDEA AUDITION 本体に合わせた追加 */
 .ia-prelim .workspace { border-top: 1px solid #7d3ab4; border-radius: 12px; min-height: 0; }
-.ia-prelim .pass-effect .light-pillar { animation-duration: 0.6s; }
-.ia-prelim .confetti i { animation-duration: 1.3s; }
 
-/* 右上：深掘りタイム／あと n 秒で交代（急かす演出はしない） */
+/* カウントダウン（残り10秒から）と、残り5秒からの赤い急かし */
+.ia-prelim .ia-countdown {
+  position: absolute; left: 50%; top: 9%; transform: translateX(-50%); z-index: 7;
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 8px 18px; border-radius: 16px;
+  background: #12081fcc; border: 1.5px solid #c97cfa; box-shadow: 0 0 18px #b250ff66;
+  color: #f2e6ff;
+}
+.ia-prelim .ia-countdown small { font-size: 14px; font-weight: 700; }
+.ia-prelim .ia-countdown b { display: inline-block; font-size: 54px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.ia-prelim .ia-countdown[data-urgent] {
+  border-color: #ff3b5c; color: #ffd3da; background: #2a0612dd;
+  box-shadow: 0 0 26px #ff2d55aa; animation: ia-shake 0.5s ease-in-out infinite;
+}
+.ia-prelim .ia-countdown[data-urgent] b { color: #ff4d6d; text-shadow: 0 0 18px #ff2d55; font-size: 72px; }
+.ia-prelim .ia-urgent {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none; border-radius: inherit;
+  box-shadow: inset 0 0 90px 20px #ff1f4699;
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, #ff1f4633 100%);
+  animation: ia-pulse 1s ease-in-out infinite;
+}
+@keyframes ia-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes ia-shake { 0%, 100% { translate: 0 0; } 25% { translate: -2px 0; } 75% { translate: 2px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ia-prelim .ia-urgent, .ia-prelim .ia-countdown[data-urgent] { animation: none; }
+}
+
 .ia-prelim .ia-corner {
   position: absolute; right: 3%; top: 8%; z-index: 7;
   display: grid; justify-items: end; gap: 2px;
-  padding: 8px 16px; border-radius: 14px;
-  background: #12081fcc; border: 1.5px solid #c97cfa; box-shadow: 0 0 16px #b250ff55;
-  color: #f2e6ff; text-align: right;
+  padding: 8px 16px; border-radius: 14px; text-align: right;
 }
-.ia-prelim .ia-countdown span { font-size: 15px; font-weight: 800; }
-.ia-prelim .ia-countdown b { font-size: 26px; font-variant-numeric: tabular-nums; color: #ff9bf0; }
-.ia-prelim .ia-countdown small { font-size: 10px; color: #bfaedb; }
+.ia-prelim .ia-corner b { font-size: 24px; font-variant-numeric: tabular-nums; }
 .ia-prelim .ia-pass {
   position: absolute; left: 50%; top: 40%; z-index: 8; transform: translateX(-50%);
   display: grid; justify-items: center; gap: 2px; pointer-events: none;
@@ -1415,7 +1435,8 @@
   color: #d9fff9;
 }
 .ia-prelim .ia-deepdive strong { font-size: 22px; font-weight: 900; color: #7ff5e3; }
-.ia-prelim .ia-deepdive span { font-size: 11px; color: #b9ece4; }
+.ia-prelim .ia-deepdive span { font-size: 14px; font-weight: 700; color: #b9ece4; }
+.ia-prelim .ia-deepdive b { color: #fff; }
 
 .ia-prelim .ia-preparing { margin: auto; color: #b9a8d0; font-size: 14px; }
 .ia-prelim .hero-character { position: relative; }

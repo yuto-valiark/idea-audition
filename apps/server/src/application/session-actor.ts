@@ -67,8 +67,8 @@ export interface RotationConfig {
 const DWELL_PAUSE_MS = 0;
 /** 質問・回答・話題にしたあと、議論の時間として止めておく長さ */
 const DISCUSS_GRACE_MS = 8_000;
-/** 再開したときに最低残す時間（話し終えた直後に急かさない） */
-const RESUME_MIN_MS = 10_000;
+/** 再開したときに最低残す時間。止めたときの残りから再開するが、外した瞬間に交代しないよう少しだけ残す */
+const RESUME_MIN_MS = 3_000;
 
 export const DEFAULT_ROTATION: RotationConfig = {
   checkMs: 1_000,

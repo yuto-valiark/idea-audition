@@ -41,6 +41,8 @@ export const CharacterView = z.object({
   reaction: ReactionView.nullable(),
   /** 深掘りタイム中（質問・議論・じっくり見ている間は交代のカウントを止める） */
   paused: z.boolean().optional(),
+  /** 深掘りタイムで止めたときの残り時間（ミリ秒） */
+  pausedLeftMs: z.number().nullable().optional(),
   /** 登場した時刻（これまでの挑戦者の並び順） */
   spawnedAt: z.string().optional(),
 });

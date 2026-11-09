@@ -125,14 +125,14 @@ describe('アクターの入れ替え', () => {
     expect(actor.session.lowerSlots[0]).toBeTruthy();
   });
 
-  it('キャラから外れれば、また交代のカウントが進む（再開時は最低10秒）', async () => {
+  it('キャラから外れれば、止めたときの残りからカウントが進む（外した瞬間には交代しない）', async () => {
     const { actor, a, tick } = await setup();
     const first = actor.session.lowerSlots[0]!;
     await tick(1_500); // 残り約0.5秒
     actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: null }));
     expect(actor.session.characters.get(first)!.pausedLeftMs).not.toBeNull();
     actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: null, detail: null }));
-    await tick(9_000);
+    await tick(2_000);
     expect(actor.session.characters.get(first)!.location).toBe('lower');
     await tick(2_500);
     expect(actor.session.characters.get(first)!.location).toBe('archived');
@@ -174,7 +174,7 @@ describe('アクターの入れ替え', () => {
     expect(actor.session.characters.get(first)!.location).toBe('upper');
   });
 
-  it('深掘りタイム：質問すると交代のカウントが止まり、話し終わると最低10秒残して再開する', async () => {
+  it('深掘りタイム：質問すると交代のカウントが止まり、話し終わると止めたときの残りから再開する', async () => {
     const { actor, a, tick, events } = await setup();
     const first = actor.session.lowerSlots[0]!;
     await tick(1_000);
@@ -188,7 +188,6 @@ describe('アクターの入れ替え', () => {
     await tick(4_000);
     const resumed = events().find((e) => e.type === 'CHALLENGE_RESUMED');
     expect(resumed).toBeDefined();
-    expect(Date.parse(resumed!.detail.leavingAt as string) - Date.parse(resumed!.snapshot.characters[first]!.spawnedAt!)).toBeGreaterThan(10_000);
     expect(actor.session.lowerSlots[0]).toBe(first);
   });
 
