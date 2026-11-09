@@ -1,10 +1,11 @@
 # ピッチ用スライドの図と画像
 
-`IDEA_AUDITION_Pitch_v6.pptx`（牧の Downloads）に入れた図と画像の元。2026-11-09 作成。
+`IDEA_AUDITION_Pitch_v7.pptx`（牧の Downloads）に入れた図と画像の元。2026-11-09 作成。
 
 | ファイル | スライド | 中身 |
 |---|---|---|
-| `arch.html` → `arch.png` | 10 技術アーキテクチャ | ブラウザ → CAMP サーバー → 合意台帳・好み → Gemini → 同じ列で確定 → 全員へ |
+| `arch2.html` → `arch2.png` | 10 技術アーキテクチャ（v7 で使用） | 技術ごとのデータの流れ：ブラウザ（React・CAMP Client・マイク・WebRTC・PDF）→ Cloud Run（画面の配信・部屋づくり・CAMP Server・SessionActor・ルール・/voice・聞き間違い補正）→ Vertex AI（Gemini 3.5 / 3.8 Flash・Embedding・Live）・Firestore・STUN。アイコンは lucide（`icons.js`、リポジトリに入っているもの） |
+| `arch.html` → `arch.png` | （v6 の簡単な版） | ブラウザ → CAMP サーバー → 合意台帳・好み → Gemini → 同じ列で確定 → 全員へ |
 | `camp.html` → `camp.png` | 12 CAMP の内部 | 検査 → 重複の確認 → アプリのルール → 確定（seq）→ 配信。task() と epoch で古い AI 結果を捨てる |
 | `ab.html` → `ab.png` | 13 BEFORE / AFTER | 作り置きを順に出す方式（想定）と、合意台帳で次の生成が変わる IDEA AUDITION（実際の画面の切り抜き） |
 | `chaos.html` → `chaos.png` | 4 会議の混乱 | 再現イメージ |
