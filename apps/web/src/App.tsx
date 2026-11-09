@@ -79,10 +79,12 @@ export function App() {
 }
 
 function Studio() {
+  // 予選のステージは囲いの中に自前の照明がある。外の照明と二重にならないよう、予選のあいだは外を消す
+  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < 3);
   return (
     <div className={styles.studio} aria-hidden>
       <div className={styles.truss} />
-      {[0, 1, 2, 3, 4].map((i) => (
+      {!prelim && [0, 1, 2, 3, 4].map((i) => (
         <div key={i} className={`${styles.beam} ${styles[`beam${i}`]}`} />
       ))}
       <div className={styles.stars} />

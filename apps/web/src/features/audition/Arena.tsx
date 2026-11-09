@@ -55,11 +55,14 @@ export function Arena() {
 
   return (
     <>
-      <div className={styles.themeBar}>
-        <span className={styles.live}>● LIVE</span>
-        <span className={styles.themeLabel}>本日のテーマ</span>
-        <strong>{theme}</strong>
-      </div>
+      {/* 予選はステージの囲いの中にテーマを出す */}
+      {!prelim && (
+        <div className={styles.themeBar}>
+          <span className={styles.live}>● LIVE</span>
+          <span className={styles.themeLabel}>本日のテーマ</span>
+          <strong>{theme}</strong>
+        </div>
+      )}
       <div className={styles.arena} ref={ref}>
         {prelim ? <PreliminaryStage /> : <FinalStage />}
         <JudgeCursors />

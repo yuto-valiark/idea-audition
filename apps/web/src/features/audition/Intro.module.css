@@ -505,3 +505,9 @@
 .stage {
   margin-bottom: 1.5vh;
 }
+
+.note {
+  text-align: center;
+  font-size: 11px;
+  color: #a893bf;
+}
