@@ -247,3 +247,26 @@ describe('最終オーディションのスポットライト', () => {
     expect(results(a.received).at(-1)).toMatchObject({ ok: false });
   });
 });
+
+describe('発言の二重送信', () => {
+  it('同じ人の同じ発言が続けて届いても、1回だけ扱う', async () => {
+    const { scheduler, advance } = manualScheduler();
+    const t = 1_700_000_000_000;
+    const actor = new SessionActor('dup', {
+      ai: new StubAi(),
+      store: new MemorySessionStore(),
+      scheduler,
+      clock: { now: () => t },
+      ids: seqIds(),
+      config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+    });
+    const a = fakeConnection('a');
+    actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'dup' });
+    actor.receiveCommand(a.conn, cmd('START_AUDITION', { theme: '大学の学食', mode: 'team' }));
+    await advance(0);
+    const judgeId = actor.session.judges[0]!.judgeId;
+    actor.receiveUtterance(judgeId, 'それって費用はどのくらい？', 'text', null);
+    actor.receiveUtterance(judgeId, 'それって費用はどのくらい？', 'text', null);
+    expect(events(a.received).filter((e) => e.type === 'JUDGE_UTTERANCE_RECEIVED')).toHaveLength(1);
+  });
+});

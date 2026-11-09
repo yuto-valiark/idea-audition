@@ -1,5 +1,5 @@
 import { Mic, MicOff, Send } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { judgeById, useMe } from '../../shared/selectors.ts';
@@ -67,6 +67,8 @@ export function UtteranceInput() {
   const voiceState = useVoice((s) => s.state);
   const { isSpectator } = useMe();
   const [text, setText] = useState('');
+  const composing = useRef(false);
+  const sending = useRef(false);
   const spotId = snapshot?.spotlight?.instanceId ?? null;
   const targetName = (selected ?? spotId) && snapshot ? snapshot.characters[(selected ?? spotId)!]?.name : null;
   const listening = voiceState === 'listening' || voiceState === 'starting';
@@ -78,10 +80,17 @@ export function UtteranceInput() {
       onSubmit={(e) => {
         e.preventDefault();
         const t = text.trim();
-        if (!t) return;
-        void send('SUBMIT_UTTERANCE', { text: t, source: 'text', ...(selected ? { targetInstanceId: selected } : {}) }).then(
-          (r) => r.ok && setText(''),
-        );
+        // 日本語入力の変換確定の Enter と、送信中の二度押しでは送らない（同じ発言が2回出ないように）
+        if (!t || composing.current || sending.current) return;
+        sending.current = true;
+        setText('');
+        void send('SUBMIT_UTTERANCE', { text: t, source: 'text', ...(selected ? { targetInstanceId: selected } : {}) })
+          .then((r) => {
+            if (!r.ok) setText((cur) => cur || t);
+          })
+          .finally(() => {
+            sending.current = false;
+          });
       }}
     >
       {listening && interim ? (
@@ -94,6 +103,8 @@ export function UtteranceInput() {
           maxLength={300}
           disabled={isSpectator}
           onChange={(e) => setText(e.target.value)}
+          onCompositionStart={() => (composing.current = true)}
+          onCompositionEnd={() => (composing.current = false)}
           placeholder={
             listening
               ? '話してください…（キャラの名前を呼ぶと宛先になります）'

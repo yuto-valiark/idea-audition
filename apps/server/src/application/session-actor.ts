@@ -63,6 +63,8 @@ export interface RotationConfig {
   policy: RotationPolicy;
 }
 
+/** 同じ人の同じ発言をこの時間内に重ねて受けない */
+const DUPLICATE_UTTERANCE_MS = 3_000;
 /** 深掘りタイム（#5）：キャラの体にカーソルを乗せたらすぐ止める（残り3秒でも止められる） */
 const DWELL_PAUSE_MS = 0;
 /** 質問・回答・話題にしたあと、議論の時間として止めておく長さ */
@@ -168,6 +170,8 @@ export class SessionActor {
   private hoverSince = new Map<string, { instanceId: string; at: number }>(); // judgeId → ホバー開始
   /** 深掘りタイム：この時刻までは議論中として交代を止める */
   private engagedUntil = new Map<string, number>();
+  /** 同じ発言の二重送信を防ぐ（judgeId → 直前の発言） */
+  private lastUtterance = new Map<string, { text: string; at: number }>();
   private hesitation = new HesitationGate();
   private tasteTimer: (() => void) | null = null;
 
@@ -617,6 +621,12 @@ export class SessionActor {
   ): { ok: true } | { ok: false; reason: RejectReason } {
     const s = this.session;
     if (!s.judges.some((j) => j.judgeId === judgeId)) return { ok: false, reason: 'SPECTATOR' };
+    // 同じ人の同じ発言が続けて届いたら（送信の二度押し・声とテキストの重なり）1回だけにする
+    const now = this.deps.clock.now();
+    const key = text.trim();
+    const last = this.lastUtterance.get(judgeId);
+    if (last && last.text === key && now - last.at < DUPLICATE_UTTERANCE_MS) return { ok: true };
+    this.lastUtterance.set(judgeId, { text: key, at: now });
     const meta = { actorJudgeId: judgeId, correlationId: correlationId ?? this.deps.ids.next('utt') };
     // 音声の文字起こしは、会議の語彙（キャラ名・企画名・論点）に寄せて聞き間違いを直す
     const rawText = text;
