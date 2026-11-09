@@ -515,15 +515,21 @@
 /* ロビーの設定：持ち時間と合格者の人数 */
 .rules {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 8px 16px;
+  gap: 10px;
+}
+/* 狭い画面だけ2段にする */
+@media (max-width: 640px) {
+  .rules {
+    flex-wrap: wrap;
+  }
 }
 .choice {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px 4px 14px;
+  gap: 2px;
+  padding: 4px 5px 4px 12px;
   border: 1px solid #6a4392;
   border-radius: 999px;
   background: #120a26cc;
@@ -532,9 +538,9 @@
   margin-right: 6px;
 }
 .choice button {
-  min-width: 44px;
+  min-width: 40px;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: none;
