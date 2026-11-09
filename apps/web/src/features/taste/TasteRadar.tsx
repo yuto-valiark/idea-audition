@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { TASTE_AXES, type SessionSnapshot } from '@idea-audition/protocol';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import { activeTasteJudges } from './taste-summary.ts';
 import styles from './Taste.module.css';
 
@@ -27,11 +28,13 @@ export function TastePanel() {
   const open = useDisplay((s) => s.tasteOpen);
   const setOpen = useDisplay((s) => s.setTasteOpen);
   const snapshot = useSession((s) => s.snapshot);
+  const formality = useFormality();
   if (!open || !snapshot) return null;
+  const title = pick(formality, 'みんなの好み', '評価の傾向');
   return (
-    <section className={styles.panel} aria-label="みんなの好み">
+    <section className={styles.panel} aria-label={title}>
       <header>
-        <strong>みんなの好み</strong>
+        <strong>{title}</strong>
         <small>反応から推定 · v{snapshot.taste.version}</small>
         <button aria-label="閉じる" onClick={() => setOpen(false)}>
           <X size={16} />

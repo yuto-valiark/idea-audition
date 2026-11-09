@@ -1856,3 +1856,8 @@
 :root[data-formality='official'] .ia-prelim .ia-theme strong {
   color: var(--ink);
 }
+
+/* オフィシャル会議モード（#36）：「考え中…」は舞台の白地に直接のるので、文字を濃くする */
+:root[data-formality='official'] .ia-prelim .ia-preparing p {
+  color: var(--ink-soft);
+}

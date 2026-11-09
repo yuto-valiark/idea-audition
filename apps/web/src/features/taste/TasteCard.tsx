@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
+import { pick, useFormality } from '../../shared/formality.ts';
 import { TasteRadar } from './TasteRadar.tsx';
 import { activeTasteJudges } from './taste-summary.ts';
 import styles from './Taste.module.css';
@@ -18,6 +19,7 @@ export function TasteCard() {
   const setOpen = useDisplay((s) => s.setTasteOpen);
   const ref = useRef<HTMLButtonElement>(null);
   const dock = useDockBelow(ref, '.waiting-room', !!snapshot);
+  const formality = useFormality();
   if (!snapshot) return null;
   const active = activeTasteJudges(snapshot.taste, snapshot.judges);
   return (
@@ -32,11 +34,11 @@ export function TasteCard() {
       title="押すと詳しく見られます"
     >
       <span className={styles.cardHead}>
-        🧭 みんなの好み {snapshot.taste.divergence ? <b>割れ</b> : null}
+        {pick(formality, '🧭 みんなの好み', '評価の傾向')} {snapshot.taste.divergence ? <b>割れ</b> : null}
       </span>
       <TasteRadar snapshot={snapshot} compact />
       {active.length === 0 ? (
-        <span className={styles.cardEmpty}>反応すると、ここに好みが出ます</span>
+        <span className={styles.cardEmpty}>{pick(formality, '反応すると、ここに好みが出ます', '反応すると、ここに評価の傾向が出ます')}</span>
       ) : (
         <span className={styles.cardLegend}>
           {active.map((j) => (
