@@ -185,6 +185,8 @@ export class SessionActor {
   private prefetchTimer: (() => void) | null = null;
   /** start / reset のたびに増やし、古い非同期結果を捨てる */
   private epoch = 0;
+  /** 最後に合意が大きく動いたときの台帳の版。これより前の版で頼んだ案は、届いても作り置きに入れない */
+  private staleBefore = 0;
   private unsaved: StoredEvent[] = [];
   // 合意台帳の更新（ADR-0007）
   private consensusRunning = false;
@@ -1282,7 +1284,15 @@ export class SessionActor {
           })
           .then((drafts) => {
             if (epoch !== this.epoch) return;
-            const fresh = drafts.filter((d) => !taken.has(d.title));
+            let fresh = drafts.filter((d) => !taken.has(d.title));
+            // 頼んだあとに合意が大きく動いていたら、古い前提の案は捨てる（届くのが遅れた分も含めて、M2）。
+            // 作り置きが空のときだけ、舞台が止まらないよう1件残す（ADR-0007 ④と同じ）
+            if (context.version < this.staleBefore) {
+              const keep = s.stock.length === 0 ? fresh.slice(0, 1) : [];
+              this.deps.log?.(`[consensus] v${context.version} < v${this.staleBefore}: dropped ${fresh.length - keep.length} late stale ideas`);
+              fresh = keep;
+              if (fresh.length === 0) return;
+            }
             for (const d of fresh) taken.add(d.title);
             // どの版の合意をもとに作ったかを付けておく（古くなったら作り直す）
             s.addToStock(fresh.map((d) => ({ ...d, basedOnConsensus: context.version })));
@@ -1449,6 +1459,7 @@ export class SessionActor {
     if (!significant) return;
     const s = this.session;
     const version = s.ledger.version;
+    this.staleBefore = version;
     const fresh = s.stock.filter((d) => (d.basedOnConsensus ?? 0) >= version);
     const stale = s.stock.filter((d) => (d.basedOnConsensus ?? 0) < version);
     s.stock = [...fresh, ...stale.slice(0, fresh.length > 0 ? 0 : 1)];
