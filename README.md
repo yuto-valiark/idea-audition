@@ -5,6 +5,8 @@ AIがプレゼン。あなたが審査員。— アイデア出しをオーデ�
 - **本番**：https://idea-audition-852280753109.asia-northeast1.run.app （トップで「オーディションを作る」→ リンクを送って一緒に審査）
 - **機能の一覧（完成形と今の状態）**：[docs/00-product/feature-status.md](docs/00-product/feature-status.md)
 - **構成図**：[docs/02-architecture/system-map.html](docs/02-architecture/system-map.html)
+- **CAMP（自作のプロトコル、OSS）**：[github.com/camp-protocol/camp](https://github.com/camp-protocol/camp)、npm [`@camp-protocol/kit`](https://www.npmjs.com/package/@camp-protocol/kit)。仕組みの説明は [docs/protocol/camp-guide.pdf](docs/protocol/camp-guide.pdf)
+- **提出物**：[プロダクト説明](docs/submission/product-description.md)・[著作物利用シート](docs/submission/credits.md)
 - 設計資料は [docs/README.md](docs/README.md)。実装計画は [docs/implementation-plan.md](docs/implementation-plan.md)
 
 ## 遊び方
@@ -14,7 +16,11 @@ AIがプレゼン。あなたが審査員。— アイデア出しをオーデ�
 3. **決勝**：合格した案どうしが批評し合い、改良していく。注目したいキャラをタップして質問・改善を頼む。前の版にも戻せる
 4. **優勝**：投票で決めると、企画書がすぐ出る（PDF・文章コピー・共有）
 
-話した内容は合意メモ（賛成・反対した人と人数）にまとまり、次の案づくりに使われます。
+話した内容は合意メモ（賛成・反対した人と人数）にまとまり、次の案づくりに使われます。審査員どうしは声と顔（ワイプ）でつながり、マイク・相手の声・効果音はどの場面でもヘッダーで切り替えられます。ヘッダーの切り替えで、同じ仕組みのまま会議ツールの画面（オフィシャル会議モード）にもできます。
+
+## 使っている Google の技術
+
+Cloud Run（画面・WebSocket・音声の中継を1つのコンテナで）、Vertex AI の Gemini（3.5 Flash：案・回答・合意・発言の仕分け／3.8 Flash：改良・批評・企画書／Live：文字起こし／Embedding：似た案と好み／画像：企画書のイメージ）、Firestore（続きから再開）、Secret Manager、Cloud Build・Artifact Registry。API キーは持たず、サービスアカウントで認証します。
 
 ## 構成
 
@@ -57,6 +63,8 @@ pnpm build
 ```
 
 ## 素材のクレジット
+
+全体の一覧は [著作物利用シート](docs/submission/credits.md)。
 
 | 素材 | 使っている場所 | 出典・ライセンス |
 |---|---|---|
