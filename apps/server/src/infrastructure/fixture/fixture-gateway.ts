@@ -217,7 +217,7 @@ export class FixtureGateway implements IdeaGenerationPort {
       const k = this.cursor++;
       const firstLine = p.summary.split('\n')[0] ?? p.summary;
       revisions[p.instanceId] = {
-        title: p.version === 1 ? `${p.title}＋` : p.title.replace(/＋*$/, '＋'.repeat(Math.min(p.version, 3))),
+        title: p.title,
         summary: firstLine + SUMMARY_SUFFIX[k % SUMMARY_SUFFIX.length]!,
         keepStrengths: [firstLine.replace(/[。、]$/, '')],
         improvementPoints: input.instruction
