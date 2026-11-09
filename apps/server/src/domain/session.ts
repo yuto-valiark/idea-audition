@@ -1,3 +1,4 @@
+import { createResumeToken, resumeTokenMatches } from '@camp-protocol/kit/server';
 import {
   type ProposalContent,
   type AiMode,
@@ -212,11 +213,14 @@ export class AuditionSession {
 
   /* ------------------------------ 参加者 ------------------------------ */
 
-  join(requestedJudgeId?: string): DomainResult<{ judgeId: string | null }> {
+  /**
+   * 参加。前の審査員として戻れるのは、審査員 ID と、その人に渡した合言葉（resumeToken）の両方が合うときだけ。
+   * 審査員 ID は snapshot で全員に見えるので、ID だけで戻れるとなりすませてしまう。
+   */
+  join(requestedJudgeId?: string, resumeToken?: string): DomainResult<{ judgeId: string | null; resumeToken: string | null }> {
     const now = this.deps.clock.now();
-    const existing = requestedJudgeId
-      ? this.judges.find((j) => j.judgeId === requestedJudgeId)
-      : undefined;
+    const named = requestedJudgeId ? this.judges.find((j) => j.judgeId === requestedJudgeId) : undefined;
+    const existing = named && resumeTokenMatches(named.resumeToken, resumeToken) ? named : undefined;
     const events: DomainEvent[] = [];
     let judge: Judge | undefined = existing;
 
@@ -229,14 +233,14 @@ export class AuditionSession {
           judge.isHost = true;
           events.push({ type: 'JUDGE_JOINED', detail: { judgeId: judge.judgeId, reconnected: true } });
           events.push({ type: 'HOST_CHANGED', detail: { judgeId: judge.judgeId } });
-          return ok(events, { judgeId: judge.judgeId });
+          return ok(events, { judgeId: judge.judgeId, resumeToken: judge.resumeToken ?? null });
         }
       }
     } else {
       if (this.judges.length >= MAX_JUDGES) {
         // 切断済みの審査員の枠を空ける。全員接続中なら観覧モード。
         const stale = this.judges.filter((j) => !j.connected).sort((a, b) => a.joinedAt - b.joinedAt)[0];
-        if (!stale) return ok([], { judgeId: null });
+        if (!stale) return ok([], { judgeId: null, resumeToken: null });
         this.judges = this.judges.filter((j) => j !== stale);
       }
       const used = new Set(this.judges.map((j) => j.slotIndex));
@@ -247,12 +251,13 @@ export class AuditionSession {
         isHost: false,
         connected: true,
         joinedAt: now,
+        resumeToken: createResumeToken(),
       };
       this.judges.push(judge);
     }
     events.push({ type: 'JUDGE_JOINED', detail: { judgeId: judge.judgeId, reconnected: !!existing } });
     events.push(...this.ensureHost());
-    return ok(events, { judgeId: judge.judgeId });
+    return ok(events, { judgeId: judge.judgeId, resumeToken: judge.resumeToken ?? null });
   }
 
   leave(judgeId: string): DomainResult {

@@ -174,6 +174,8 @@ export interface Judge {
   isHost: boolean;
   connected: boolean;
   joinedAt: number;
+  /** つなぎ直し用の合言葉（本人にだけ welcome で渡す。snapshot には出さない） */
+  resumeToken?: string;
 }
 
 export interface Vote {

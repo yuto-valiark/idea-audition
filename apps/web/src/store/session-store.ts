@@ -37,17 +37,26 @@ const storageKey = (sessionId: string) => `idea-audition:judge:${sessionId}`;
 export const roomPath = (roomId: string) => `/a/${roomId}`;
 export const roomUrl = (roomId: string) => `${location.origin}${roomPath(roomId)}`;
 
-function readJudgeId(sessionId: string) {
+/** 開き直しても同じ審査員として戻るための、審査員 ID と合言葉（このタブのあいだだけ覚える） */
+interface SavedSeat {
+  judgeId: string;
+  resumeToken?: string;
+}
+
+function readSeat(sessionId: string): SavedSeat | undefined {
   try {
-    return sessionStorage.getItem(storageKey(sessionId)) ?? undefined;
+    const raw = sessionStorage.getItem(storageKey(sessionId));
+    if (!raw) return undefined;
+    // 前の版は審査員 ID だけを文字列で保存していた（合言葉が無いので、新しい審査員として入り直す）
+    return raw.startsWith('{') ? (JSON.parse(raw) as SavedSeat) : { judgeId: raw };
   } catch {
     return undefined;
   }
 }
 
-function writeJudgeId(sessionId: string, judgeId: string) {
+function writeSeat(sessionId: string, seat: SavedSeat) {
   try {
-    sessionStorage.setItem(storageKey(sessionId), judgeId);
+    sessionStorage.setItem(storageKey(sessionId), JSON.stringify(seat));
   } catch {
     /* プライベートモード等では保存しない */
   }
@@ -72,7 +81,7 @@ export const useSession = create<SessionState>((set, get) => ({
         onRoomNotFound: () => current() && set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
         onWelcome: (m) => {
           if (!current()) return;
-          if (m.participantId) writeJudgeId(sessionId, m.participantId);
+          if (m.participantId) writeSeat(sessionId, { judgeId: m.participantId, ...(m.resumeToken ? { resumeToken: m.resumeToken } : {}) });
           set({ judgeId: m.participantId, snapshot: m.snapshot, room: 'active' });
         },
         onEvent: (m) => current() && handleEvent(m, (snapshot) => set({ snapshot })),
@@ -84,7 +93,7 @@ export const useSession = create<SessionState>((set, get) => ({
           }
         },
       },
-      readJudgeId(sessionId),
+      readSeat(sessionId),
     );
     set({ sessionId, client, room: 'active', connection: 'connecting', snapshot: null, judgeId: null, themeDraft: null });
     client.connect();
