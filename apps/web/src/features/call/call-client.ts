@@ -26,7 +26,25 @@ export interface CallEvents {
 /** 観覧者（聞くだけ）の通話用の ID */
 export const isSpectatorCall = (id: string | null) => !!id?.startsWith('spec_');
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+const STUN_ONLY: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+
+/**
+ * 通話の経路探しのサーバーをサーバーから受け取る（Cloudflare の TURN があれば、その数時間だけ使える接続情報も入る）。
+ * 直接つながらない回線（テザリング・大学や会社の Wi-Fi）では、TURN が音声を中継する。取れなければ Google の STUN だけで試す。
+ */
+async function loadIceServers(): Promise<RTCIceServer[]> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3_000);
+    const res = await fetch('/api/ice', { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(timer);
+    if (!res.ok) return STUN_ONLY;
+    const body = (await res.json()) as { iceServers?: RTCIceServer[] };
+    return body.iceServers?.length ? body.iceServers : STUN_ONLY;
+  } catch {
+    return STUN_ONLY;
+  }
+}
 /** この音量（0〜1 の RMS）を超えたら「話している」 */
 const SPEAKING_RMS = 0.04;
 
@@ -40,6 +58,7 @@ interface Peer {
 
 export class CallClient {
   private local: MediaStream | null = null;
+  private iceServers: RTCIceServer[] = STUN_ONLY;
   private peers = new Map<string, Peer>();
   /** 自分が通話中だと伝えた相手（返事を何度も送り合わないように） */
   private announcedTo = new Set<string>();
@@ -60,6 +79,24 @@ export class CallClient {
     return [...this.peers].map(([id, p]) => ({ id, state: p.pc.connectionState, level: p.analyser ? Math.round(rms(p.analyser) * 1000) / 1000 : null }));
   }
 
+  /** 確認用：TURN を受け取れたか、相手ごとに直接（host・srflx）か中継（relay）か */
+  async route() {
+    const turn = this.iceServers.some((s) => [s.urls].flat().some((u) => u.startsWith('turn')));
+    const peers = await Promise.all(
+      [...this.peers].map(async ([id, p]) => {
+        const stats = await p.pc.getStats().catch(() => null);
+        let via: string | null = null;
+        stats?.forEach((r: { type: string; state?: string; nominated?: boolean; localCandidateId?: string }) => {
+          if (r.type !== 'candidate-pair' || r.state !== 'succeeded' || !r.nominated || !r.localCandidateId) return;
+          const local = stats.get(r.localCandidateId) as { candidateType?: string } | undefined;
+          via = local?.candidateType ?? null;
+        });
+        return { id, state: p.pc.connectionState, via };
+      }),
+    );
+    return { turn, peers };
+  }
+
   get inCall() {
     return this.local !== null;
   }
@@ -67,6 +104,8 @@ export class CallClient {
   /** listenOnly：最初からマイクを使わず聞くだけで入る（観覧者） */
   async join(opts: { listenOnly?: boolean } = {}) {
     if (this.local) return;
+    // マイクの許可を待つあいだに、経路探しのサーバーも受け取っておく
+    const ice = loadIceServers();
     if (opts.listenOnly) {
       this.local = new MediaStream();
       this.listenOnly = true;
@@ -85,6 +124,7 @@ export class CallClient {
     this.localAnalyser = this.analyse(this.local);
     this.setMuted(this.muted);
     this.meter = setInterval(() => this.measure(), 200);
+    this.iceServers = await ice;
     this.announcedTo.clear();
     this.transport.sendState(true);
   }
@@ -173,7 +213,7 @@ export class CallClient {
     const existing = this.peers.get(id);
     if (existing) return existing;
     const me = this.transport.me();
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: this.iceServers });
     const audio = new Audio();
     audio.autoplay = true;
     const peer: Peer = { pc, audio, pendingIce: [], analyser: null };
