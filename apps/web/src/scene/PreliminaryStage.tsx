@@ -7,7 +7,7 @@ import { useSession } from '../store/session-store.ts';
 import { Mascot } from '../shared/Mascot.tsx';
 import { EMPTY, currentRevision, finalistTarget, useMe } from '../shared/selectors.ts';
 import { setHoverFocus } from './focus.ts';
-import { playSfx } from '../shared/sfx.ts';
+import { COUNTDOWN_CLIP, playCountdownClip, playSfx, preloadClip } from '../shared/sfx.ts';
 import './prelim-gpt.css';
 
 /** 合格の演出の長さ（長いとテンポが落ちる） */
@@ -503,6 +503,7 @@ function PassEffect({ seed, name }: { seed: number; name: string }) {
  */
 function Countdown({ leavingAt, pausedLeftMs, held }: { leavingAt: string | null; pausedLeftMs: number | null; held: boolean }) {
   const left = useSecondsLeft(leavingAt);
+  useCountdownSound(pausedLeftMs == null && !held ? leavingAt : null);
   if (pausedLeftMs != null || held) {
     return (
       <div className={'ia-corner ' + (held ? 'ia-held' : 'ia-deepdive')} role="status">
@@ -529,6 +530,22 @@ function Countdown({ leavingAt, pausedLeftMs, held }: { leavingAt: string | null
       </div>
     </>
   );
+}
+
+/**
+ * 残り3秒から、カウントダウンの音を鳴らす。交代の時刻が変わったら（一時停止・再開・合格・交代）止めて数え直す。
+ * 画面を開いた時点ですでに3秒を切っていれば、その位置から鳴らす。
+ */
+function useCountdownSound(leavingAt: string | null) {
+  useEffect(() => {
+    void preloadClip(COUNTDOWN_CLIP);
+  }, []);
+  useEffect(() => {
+    if (!leavingAt) return;
+    const deadline = new Date(leavingAt).getTime();
+    if (deadline <= Date.now()) return;
+    return playCountdownClip(deadline);
+  }, [leavingAt]);
 }
 
 /** これまでの挑戦者：参考程度に、小さく下に並べる */
