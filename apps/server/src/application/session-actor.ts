@@ -573,6 +573,15 @@ export class SessionActor {
         if (r.value.unanimous) return this.promoteCharacter(instanceId, pressers, meta);
         return { ok: true };
       }
+      case 'LEAVE_SESSION': {
+        this.held.delete(judgeId);
+        this.focus.delete(judgeId);
+        const r = apply(s.quit(judgeId));
+        // 抜けた人以外が全員ブザーを押していたら、その場で合格にする
+        const challenger = s.lowerSlots[0];
+        if (challenger && s.buzzerUnanimous()) void this.promoteCharacter(challenger, [...s.buzzers], { actorJudgeId: null });
+        return r;
+      }
       case 'HOLD_CHALLENGE': {
         const { instanceId, on } = cmd.payload;
         const r = s.holdChallenge(judgeId, instanceId, on);

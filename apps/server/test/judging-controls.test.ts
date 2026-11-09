@@ -122,3 +122,27 @@ describe('予選の操作', () => {
     expect(state.challengeMs).toBe(90_000);
   });
 });
+
+describe('退出ボタン', () => {
+  it('退出した人は一覧から消え、ホストは次の人に移る。押していたブザーも消える', async () => {
+    const { actor, host, guest, challenger } = await setup();
+    const hostId = actor.session.judges.find((j) => j.isHost)!.judgeId;
+    actor.receiveCommand(host.conn, cmd('PRESS_BUZZER', { instanceId: challenger(), on: true }));
+    actor.receiveCommand(host.conn, cmd('LEAVE_SESSION', {}));
+    expect(actor.session.judges.map((j) => j.judgeId)).not.toContain(hostId);
+    expect(actor.session.judges).toHaveLength(1);
+    expect(actor.session.judges[0]!.isHost).toBe(true);
+    expect(actor.session.buzzers.has(hostId)).toBe(false);
+    actor.detach(host.conn); // そのあと接続が切れても何も起きない
+    expect(actor.session.judges).toHaveLength(1);
+    expect(guest.received.some((m) => m.kind === 'event' && m.type === 'JUDGE_LEFT')).toBe(true);
+  });
+
+  it('切断（退出ボタンではない）は、戻ってこられるよう一覧に残す', async () => {
+    const { actor, guest } = await setup();
+    const guestId = actor.session.judges.find((j) => !j.isHost)!.judgeId;
+    actor.detach(guest.conn);
+    const g = actor.session.judges.find((j) => j.judgeId === guestId);
+    expect(g?.connected).toBe(false);
+  });
+});

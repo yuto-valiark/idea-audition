@@ -68,7 +68,7 @@ function LeaveButton() {
   const onLeave = () => {
     if (!window.confirm('オーディションから退出しますか？（同じリンクを開けば、また参加できます）')) return;
     useCall.getState().leave();
-    leaveRoom();
+    void leaveRoom();
   };
   return (
     <button type="button" className={styles.copy} onClick={onLeave} title="オーディションから退出する">

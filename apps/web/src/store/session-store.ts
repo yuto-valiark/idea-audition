@@ -27,7 +27,7 @@ interface SessionState {
   /** 部屋を作ってそのリンクに移り、入る（Google Meet の「新しい会議」と同じ） */
   createRoom(): Promise<boolean>;
   /** 部屋を出てトップに戻る */
-  leaveRoom(): void;
+  leaveRoom(): Promise<void>;
   send<T extends CommandType>(type: T, payload: CommandPayload<T>, opts?: SendOptions): Promise<CommandOutcome>;
 }
 
@@ -64,17 +64,20 @@ export const useSession = create<SessionState>((set, get) => ({
 
   connect(sessionId) {
     get().client?.close();
-    const client = new CampClient(
+    const current = () => get().client === client;
+    const client: CampClient = new CampClient(
       sessionId,
       {
-        onRoomNotFound: () => set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
+        // 退出したあと（client を差し替えたあと）に古い接続から届いたものは無視する
+        onRoomNotFound: () => current() && set({ room: 'not_found', client: null, snapshot: null, judgeId: null }),
         onWelcome: (m) => {
+          if (!current()) return;
           if (m.participantId) writeJudgeId(sessionId, m.participantId);
           set({ judgeId: m.participantId, snapshot: m.snapshot, room: 'active' });
         },
-        onEvent: (m) => handleEvent(m, (snapshot) => set({ snapshot })),
-        onEphemeral: handleEphemeral,
-        onState: (connection) => set({ connection }),
+        onEvent: (m) => current() && handleEvent(m, (snapshot) => set({ snapshot })),
+        onEphemeral: (m) => current() && handleEphemeral(m),
+        onState: (connection) => current() && set({ connection }),
         onProtocolError: (m) => {
           if (m.code === 'UNSUPPORTED_VERSION') {
             useDisplay.getState().toast('サーバーが新しくなりました。画面を再読み込みしてください', 'warn');
@@ -106,10 +109,21 @@ export const useSession = create<SessionState>((set, get) => ({
     }
   },
 
-  leaveRoom() {
-    get().client?.close();
+  async leaveRoom() {
+    const { client, sessionId, judgeId } = get();
+    try {
+      if (sessionId) sessionStorage.removeItem(storageKey(sessionId));
+    } catch {
+      // 保存できない環境では何もしない
+    }
+    // 画面はすぐトップに戻す
     if (location.pathname !== '/') history.pushState(null, '', '/');
     set({ sessionId: '', client: null, snapshot: null, judgeId: null, room: 'none', connection: 'connecting' });
+    // 退出をサーバーに伝えてから切る（ほかの人の一覧から自分の名前が消える）。返事が来なくても1.5秒で切る
+    if (client && judgeId) {
+      await Promise.race([client.send('LEAVE_SESSION', {}).catch(() => undefined), new Promise((r) => setTimeout(r, 1_500))]);
+    }
+    client?.close();
   },
 
   async send(type, payload, opts) {

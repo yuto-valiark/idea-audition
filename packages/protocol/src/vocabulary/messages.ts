@@ -35,6 +35,8 @@ export const CommandPayloads = {
   PRESS_BUZZER: z.object({ instanceId: id, on: z.boolean() }),
   /** 最終オーディション：みんなで注目するキャラを選ぶ（null で解除）。名前を呼ばない質問はこのキャラに届く */
   SET_SPOTLIGHT: z.object({ instanceId: id.nullable() }),
+  /** 退出ボタン：席を空けて、審査員の一覧からも消える（同じリンクで入り直すと新しい審査員として入る） */
+  LEAVE_SESSION: z.object({}),
   /** 予選の一時停止（押した人が再開するか、だれかが再開するまで交代のカウントを止める） */
   HOLD_CHALLENGE: z.object({ instanceId: id, on: z.boolean() }),
   /** 合格者が決勝の人数に満たなくても、いまの合格者で決勝に進む（ホストのみ） */

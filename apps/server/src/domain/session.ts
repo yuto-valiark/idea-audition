@@ -268,6 +268,22 @@ export class AuditionSession {
     return ok(events);
   }
 
+  /**
+   * 退出ボタン：切断と違い、席を空けて一覧からも消す（切断なら席を残して戻ってくるのを待つ）。
+   * ホストなら次の人に渡し、押していたブザーは取り消す。投票済みの票はそのまま数える。
+   */
+  quit(judgeId: string): DomainResult {
+    const judge = this.judges.find((j) => j.judgeId === judgeId);
+    if (!judge) return ok([]);
+    const left = this.leave(judgeId);
+    const events = left.ok ? left.events : [];
+    this.judges = this.judges.filter((j) => j !== judge);
+    this.buzzers.delete(judgeId);
+    const first = events.find((e) => e.type === 'JUDGE_LEFT');
+    if (first) first.detail.removed = true;
+    return ok(events);
+  }
+
   private ensureHost(): DomainEvent[] {
     if (this.judges.some((j) => j.isHost && j.connected)) return [];
     for (const j of this.judges) j.isHost = false;
