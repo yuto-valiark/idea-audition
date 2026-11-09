@@ -75,13 +75,13 @@ describe('合意台帳（ドメイン）', () => {
   });
 
   it('台帳・発言・行動はセッションの保存と復元で残る', () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     const j = s.join();
     if (!j.ok || !j.value.judgeId) throw new Error();
     s.start('テーマ', 'solo');
     s.recordUtterance({ seq: 5, judgeId: j.value.judgeId, text: '安くしたい', source: 'text', targetInstanceId: null, intent: 'comment', at: 1 });
     s.applyLedgerOps([{ op: 'add_claim', text: '安く', judgeId: j.value.judgeId, stance: 'support', seq: 5 }], 5);
-    const r = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock() });
+    const r = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     expect(r.ledger.claims[0]).toMatchObject({ label: 'C1', text: '安く', status: 'agreed' });
     expect(r.utterances).toHaveLength(1);
     expect(r.ledgerCursor).toBe(5);
@@ -103,7 +103,7 @@ describe('合意台帳とアクター', () => {
       clock: fakeClock(),
       ids: seqIds(),
       config: {
-        stockTarget: 3,
+        stockTarget: 3, lowerSlotCount: 5,
         critiqueIntervalMs: 10,
         persistDelayMs: 10,
         rotation: null,
@@ -215,7 +215,7 @@ describe('Gemini：台帳の差分と文脈', () => {
   });
 
   it('台帳の材料には人の行動だけを渡す（下段の自動の入れ替えは、誰の判断でもないので渡さない）', () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     const j = s.join(undefined);
     if (!j.ok) throw new Error('join failed');
     s.decisions.push(
@@ -227,7 +227,7 @@ describe('Gemini：台帳の差分と文脈', () => {
   });
 
   it('企画名そのものや、1回選んだだけの行動からは論点を作らない', () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     const j = s.join(undefined);
     if (!j.ok) throw new Error('join failed');
     s.ideas.set('i1', { ideaId: 'i1', revisions: [{ title: '一坪ダンボール横丁' } as never] });

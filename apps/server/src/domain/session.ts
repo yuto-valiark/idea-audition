@@ -67,6 +67,8 @@ export class AuditionSession {
   mode: SessionMode = 'team';
   theme = '';
   lowerSlots: (string | null)[] = Array.from({ length: LOWER_SLOT_COUNT }, () => null);
+  /** いまの挑戦者にゴールデンブザーを押している審査員（保存しない） */
+  buzzers = new Set<string>();
   upper: Finalist[] = [];
   characters = new Map<string, CharacterInstance>();
   ideas = new Map<string, Idea>();
@@ -108,8 +110,15 @@ export class AuditionSession {
 
   constructor(
     readonly sessionId: string,
-    private readonly deps: { ids: IdProvider; clock: Clock },
-  ) {}
+    private readonly deps: { ids: IdProvider; clock: Clock; lowerSlotCount?: number },
+  ) {
+    this.lowerSlots = Array.from({ length: this.lowerSize }, () => null);
+  }
+
+  /** 下段の枠の数。本番は1人ずつ（#5）。古いテストは5枠で動かす */
+  get lowerSize() {
+    return this.deps.lowerSlotCount ?? LOWER_SLOT_COUNT;
+  }
 
   /* --------------------------- 保存と復元 --------------------------- */
 
@@ -151,13 +160,14 @@ export class AuditionSession {
   static fromState(
     sessionId: string,
     state: SessionState,
-    deps: { ids: IdProvider; clock: Clock },
+    deps: { ids: IdProvider; clock: Clock; lowerSlotCount?: number },
   ): AuditionSession {
     const s = new AuditionSession(sessionId, deps);
     s.status = state.status;
     s.mode = state.mode;
     s.theme = state.theme;
-    s.lowerSlots = [...state.lowerSlots];
+    // 1人ずつの審査（#5）より前の保存データは5枠ある。最初の1人だけ残す
+    s.lowerSlots = Array.from({ length: s.lowerSize }, (_, i) => state.lowerSlots.filter((x) => x !== null)[i] ?? null);
     s.upper = state.upper.map((f) => ({ ...f, status: 'ready' }));
     s.characters = new Map(
       state.characters.map((c) => [
@@ -293,7 +303,8 @@ export class AuditionSession {
   }
 
   private clearBoard() {
-    this.lowerSlots = Array.from({ length: LOWER_SLOT_COUNT }, () => null);
+    this.lowerSlots = Array.from({ length: this.lowerSize }, () => null);
+    this.buzzers.clear();
     this.upper = [];
     this.characters.clear();
     this.ideas.clear();
@@ -328,6 +339,8 @@ export class AuditionSession {
    */
   fillEmptySlots(choose?: (stock: readonly IdeaDraft[]) => { index: number; pitch: Pitch | null } | null): DomainEvent[] {
     if (this.status !== 'audition_active') return [];
+    // 合格者が3人そろったら最終オーディション。新しい挑戦者はもう出さない
+    if (this.upper.length >= UPPER_CAPACITY) return [];
     const events: DomainEvent[] = [];
     for (let slot = 0; slot < this.lowerSlots.length; slot++) {
       if (this.lowerSlots[slot] !== null) continue;
@@ -383,6 +396,7 @@ export class AuditionSession {
       this.ideas.set(idea.ideaId, idea);
       this.characters.set(character.instanceId, character);
       this.lowerSlots[slot] = character.instanceId;
+      this.buzzers.clear();
       this.designLastUsedAt.set(designId, now);
       events.push({
         type: 'CANDIDATE_SPAWNED',
@@ -415,6 +429,7 @@ export class AuditionSession {
     character.location = 'archived';
     character.leavingAt = null;
     this.lowerSlots[slot] = null;
+    this.buzzers.clear();
     this.rememberDeparture(character.designId);
     this.ideaBox.push({
       ideaId: character.ideaId,
@@ -439,9 +454,8 @@ export class AuditionSession {
     const c = this.characters.get(instanceId);
     if (!c || c.location === 'archived') return [];
     c.attention = addAttention(c.attention, kind, this.deps.clock.now(), this.rotationPolicy);
-    if (c.leavingAt === null) return [];
-    c.leavingAt = null;
-    return [{ type: 'CANDIDATE_STAYED', detail: { instanceId } }];
+    // 1人ずつの審査（#5）では持ち時間は決まっている。触れても交代の時刻は延ばさない
+    return [];
   }
 
   /** 見られている間（カーソルが乗っている・詳細を開いている）は「触れられていない時間」を進めない */
@@ -497,6 +511,30 @@ export class AuditionSession {
       .map((id) => (id ? this.characters.get(id) : undefined))
       .filter((c): c is CharacterInstance => c?.leavingAt != null)
       .map((c) => ({ instanceId: c.instanceId, leavingAt: c.leavingAt! }));
+  }
+
+  /**
+   * ゴールデンブザー（#5）。いまの挑戦者に対して押す・取り消す。
+   * 参加中の審査員が全員押したら unanimous（呼び出し側が合格者待機室へ上げる）。
+   */
+  pressBuzzer(judgeId: string, instanceId: string, on: boolean): DomainResult<{ unanimous: boolean }> {
+    if (this.status !== 'audition_active') return reject('SESSION_NOT_ACTIVE');
+    const c = this.characters.get(instanceId);
+    if (!c) return reject('UNKNOWN_CHARACTER');
+    if (c.location !== 'lower' || this.lowerSlots[0] !== instanceId) return reject('NOT_IN_LOWER');
+    if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
+    if (on === this.buzzers.has(judgeId)) return ok([], { unanimous: false });
+    if (on) this.buzzers.add(judgeId);
+    else this.buzzers.delete(judgeId);
+    const voters = this.judges.filter((j) => j.connected).map((j) => j.judgeId);
+    const unanimous = voters.length > 0 && voters.every((id) => this.buzzers.has(id));
+    return ok([{ type: 'BUZZER_PRESSED', detail: { instanceId, judgeId, on, count: this.buzzers.size } }], { unanimous });
+  }
+
+  /** 参加中の審査員が全員ブザーを押しているか（誰かが抜けたときに確かめ直す） */
+  buzzerUnanimous(): boolean {
+    const voters = this.judges.filter((j) => j.connected).map((j) => j.judgeId);
+    return this.lowerSlots[0] != null && voters.length > 0 && voters.every((id) => this.buzzers.has(id));
   }
 
   /** 審査員による「見送り」：下段の案をすぐ退場させ、次のキャラと交代する */
@@ -603,6 +641,7 @@ export class AuditionSession {
     if (this.upper.length >= UPPER_CAPACITY) return reject('UPPER_FULL');
 
     this.lowerSlots[slot] = null;
+    this.buzzers.clear();
     character.location = 'upper';
     character.leavingAt = null;
     this.upper.push({ instanceId, status: 'refining' });

@@ -2,6 +2,7 @@ import {
   CHARACTER_DESIGNS,
   CAMP_VERSION,
   LOWER_SLOT_COUNT,
+  CHALLENGE_MS,
   ResultCache,
   UPPER_CAPACITY,
   type ProposalContent,
@@ -46,6 +47,8 @@ export interface ActorConfig {
   persistDelayMs: number;
   /** 合意台帳を更新するまでの待ち時間（発言のあと／行動のあと）。null で無効（テスト用） */
   consensus: { afterUtteranceMs: number; afterDecisionMs: number; flushAfterUtterances: number } | null;
+  /** 下段の枠の数。省略すると1人ずつ（#5）。古いテストは5 */
+  lowerSlotCount?: number;
 }
 
 export interface RotationConfig {
@@ -62,7 +65,8 @@ export interface RotationConfig {
 
 export const DEFAULT_ROTATION: RotationConfig = {
   checkMs: 1_000,
-  warningMs: 10_000,
+  // 1人ずつの審査（#5）：1人の持ち時間。過ぎたら次の人と交代する
+  warningMs: CHALLENGE_MS,
   // 入れ替えは18秒に1案まで、同時に予告するのは1案だけ（プレイテストで6秒に1案は速すぎ、読む前に消えた）
   minGapMs: 18_000,
   maxConcurrentLeaving: 1,
@@ -163,7 +167,7 @@ export class SessionActor {
     private readonly deps: Deps,
     restored?: { seq: number; state: SessionState },
   ) {
-    const domainDeps = { ids: deps.ids, clock: deps.clock };
+    const domainDeps = { ids: deps.ids, clock: deps.clock, lowerSlotCount: deps.config.lowerSlotCount };
     if (restored) {
       this.session = AuditionSession.fromState(sessionId, restored.state, domainDeps);
       this.seq = restored.seq;
@@ -274,6 +278,11 @@ export class SessionActor {
     this.relay(conn, { camp: CAMP_VERSION, kind: 'ephemeral', type: 'CURSOR_MOVED', payload: null });
     const left = this.session.leave(entry.judgeId);
     if (left.ok) this.emit(left.events, { actorJudgeId: entry.judgeId });
+    // 抜けた人以外が全員ブザーを押していたら、その場で合格にする
+    const challenger = this.session.lowerSlots[0];
+    if (challenger && this.session.buzzerUnanimous()) {
+      void this.promoteCharacter(challenger, [...this.session.buzzers], { actorJudgeId: null });
+    }
   }
 
   dispose() {
@@ -493,16 +502,16 @@ export class SessionActor {
         if (r.ok) this.onStopped();
         return r;
       }
-      case 'REQUEST_PROMOTION': {
-        const r = s.promote(cmd.payload.instanceId);
+      case 'REQUEST_PROMOTION':
+        return this.promoteCharacter(cmd.payload.instanceId, [judgeId], meta);
+      case 'PRESS_BUZZER': {
+        const { instanceId, on } = cmd.payload;
+        const presser = s.buzzers;
+        const r = s.pressBuzzer(judgeId, instanceId, on);
         if (!r.ok) return r;
-        s.recordDecision('promoted', cmd.payload.instanceId, judgeId);
-        this.tasteSignal(judgeId, cmd.payload.instanceId, 'promote');
+        const pressers = [...presser];
         this.emit(r.events, meta);
-        this.scheduleConsensus('decision');
-        this.held.forEach((id, j) => id === cmd.payload.instanceId && this.held.delete(j));
-        this.enqueueRefinement({ kind: 'promotion', instanceId: cmd.payload.instanceId });
-        this.ensureStock();
+        if (r.value.unanimous) return this.promoteCharacter(instanceId, pressers, meta);
         return { ok: true };
       }
       case 'NEXT_IDEA': {
@@ -885,6 +894,21 @@ export class SessionActor {
     this.startRotation();
   }
 
+  /** 合格（全員のゴールデンブザー、または昇格の操作）：合格者待機室へ上げ、改良を始める */
+  private promoteCharacter(instanceId: string, judgeIds: string[], meta: { actorJudgeId: string | null; correlationId?: string }) {
+    const s = this.session;
+    const r = s.promote(instanceId);
+    if (!r.ok) return r;
+    s.recordDecision('promoted', instanceId, judgeIds[0] ?? null);
+    for (const j of judgeIds) this.tasteSignal(j, instanceId, 'promote');
+    this.emit(r.events, meta);
+    this.scheduleConsensus('decision');
+    this.held.forEach((id, j) => id === instanceId && this.held.delete(j));
+    this.enqueueRefinement({ kind: 'promotion', instanceId });
+    this.ensureStock();
+    return { ok: true as const };
+  }
+
   /** 下段の入れ替えを始める（誰も接続していなければ始めない） */
   private startRotation() {
     this.stopRotation?.();
@@ -939,33 +963,24 @@ export class SessionActor {
    */
   private rotationTick(rotation: RotationConfig) {
     const s = this.session;
-    if (s.status !== 'audition_active') return;
+    if (s.status !== 'audition_active' || s.upper.length >= UPPER_CAPACITY) return;
+    const id = s.lowerSlots[0];
+    if (!id) return;
+    const c = s.characters.get(id);
+    if (!c) return;
     const now = this.deps.clock.now();
-    const protectedIds = this.protectedIds();
-    for (const id of protectedIds) s.keepAlive(id);
-
-    // 1. 予告の時刻が来た案を退場させる（見られていたら取り消し）
-    const leaving = s.leavingCandidates();
-    for (const l of leaving) {
-      if (protectedIds.has(l.instanceId)) {
-        this.emit(s.touch(l.instanceId, 'hover'), { actorJudgeId: null });
-        continue;
-      }
-      if (now < l.leavingAt || s.stock.length === 0) continue; // 次の案が届くまで待つ
-      s.recordDecision('timed_out', l.instanceId, null);
-      const r = s.rotate(l.instanceId);
-      if (r.ok) this.emit(r.events, { actorJudgeId: null });
+    // 登場したら持ち時間を決める（1人ずつの審査、#5）
+    if (c.leavingAt === null) {
+      this.emit(s.beginLeaving(id, rotation.warningMs), { actorJudgeId: null });
+      return;
     }
-    if (leaving.length > 0) this.ensureStock();
-
-    // 2. 新しい退場予告。予告どうしの間隔をあけ、同時に予告する数も抑える
-    const stillLeaving = s.leavingCandidates().length;
-    if (stillLeaving >= rotation.maxConcurrentLeaving) return;
-    if (now - this.lastWarningAt < rotation.minGapMs || s.stock.length === 0) return;
-    const target = s.pickExitCandidate(protectedIds);
-    if (!target) return;
-    this.lastWarningAt = now;
-    this.emit(s.beginLeaving(target, rotation.warningMs), { actorJudgeId: null });
+    // 回答を待っている間は交代しない
+    if (s.answers.some((x) => x.instanceId === id && x.answer === null)) return;
+    if (now < c.leavingAt || s.stock.length === 0) return; // 次の案が届くまで待つ
+    s.recordDecision('timed_out', id, null);
+    const r = s.rotate(id);
+    if (r.ok) this.emit(r.events, { actorJudgeId: null });
+    this.ensureStock();
   }
 
   /** いま誰かが見ている・触っている案 */
@@ -993,7 +1008,7 @@ export class SessionActor {
     const context = buildConsensusContext(s);
     const now = this.deps.clock.now();
     // 枠ごとに役割（好み・両立・探索・ワイルド）と発想の型を決めて頼む（ADR-0009）
-    const slots = planSlots(s, this.planner, Math.min(need, LOWER_SLOT_COUNT + 3), now);
+    const slots = planSlots(s, this.planner, Math.min(need, s.lowerSize + 3), now);
     // 一度にたくさん頼むと返事が遅い（最初の8案で12秒を超えた）。少しずつに分けて並べて頼み、届いた分から舞台に出す
     const chunks: (typeof slots)[] = [];
     for (let i = 0; i < slots.length; i += GENERATION_CHUNK) chunks.push(slots.slice(i, i + GENERATION_CHUNK));

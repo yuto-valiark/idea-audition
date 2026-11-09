@@ -88,7 +88,7 @@ describe('アクターの入れ替え', () => {
       clock,
       ids: seqIds(),
       config: {
-        stockTarget: 3,
+        stockTarget: 3, lowerSlotCount: 1,
         critiqueIntervalMs: 10,
         persistDelayMs: 10, consensus: null,
         rotation: { checkMs: 500, warningMs: 2_000, minGapMs: 3_000, maxConcurrentLeaving: 1, policy },
@@ -103,52 +103,78 @@ describe('アクターの入れ替え', () => {
     return { actor, a, tick, events, judgeId };
   }
 
-  it('触れられないと退場予告 → 退場し、Idea BOX に入る', async () => {
+  const join = (actor: SessionActor, name: string) => {
+    const c = fakeConnection(name);
+    actor.attach(c.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'r' });
+    return c;
+  };
+  const buzz = (actor: SessionActor, conn: ReturnType<typeof fakeConnection>, on = true) =>
+    actor.receiveCommand(conn.conn, cmd('PRESS_BUZZER', { instanceId: actor.session.lowerSlots[0]!, on }));
+
+  it('1人ずつ登場し、持ち時間が過ぎたら次の人と交代して Idea BOX に入る', async () => {
     const { actor, tick, events } = await setup();
-    await tick(16_000);
-    const leaving = events().find((e) => e.type === 'CANDIDATE_LEAVING');
-    expect(leaving).toBeDefined();
-    const id = leaving!.detail.instanceId as string;
-    await tick(3_000);
-    expect(events().some((e) => e.type === 'CANDIDATE_ARCHIVED' && e.detail.instanceId === id)).toBe(true);
-    expect(actor.session.ideaBox.map((x) => x.instanceId)).toContain(id);
-    expect(actor.session.lowerSlots.filter(Boolean)).toHaveLength(5);
+    expect(actor.session.lowerSlots).toHaveLength(1);
+    const first = actor.session.lowerSlots[0]!;
+    expect(first).toBeTruthy();
+    await tick(1_000);
+    expect(events().find((e) => e.type === 'CANDIDATE_LEAVING')?.detail.instanceId).toBe(first);
+    await tick(2_500);
+    expect(events().some((e) => e.type === 'CANDIDATE_ARCHIVED' && e.detail.instanceId === first)).toBe(true);
+    expect(actor.session.ideaBox.map((x) => x.instanceId)).toContain(first);
+    expect(actor.session.lowerSlots[0]).not.toBe(first);
+    expect(actor.session.lowerSlots[0]).toBeTruthy();
   });
 
-  it('退場予告中に触れると取り消される', async () => {
-    const { actor, a, tick, events } = await setup();
-    await tick(10_500);
-    const id = events().find((e) => e.type === 'CANDIDATE_LEAVING')!.detail.instanceId as string;
-    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: id, detail: null }));
-    expect(events().at(-1)).toMatchObject({ type: 'CANDIDATE_STAYED', detail: { instanceId: id } });
-    await tick(2_000); // 予告の時間（2秒）が過ぎても退場しない。最短間隔（3秒）より短い
-    expect(actor.session.lowerSlots).toContain(id);
-    // 取り消しの直後に、別の案へ予告が連発されない（予告の間隔も最短間隔を守る）
-    const warnings = events().filter((e) => e.type === 'CANDIDATE_LEAVING').map((e) => e.seq);
-    expect(warnings).toHaveLength(1);
-  });
-
-  it('詳細を開いている案は退場しない', async () => {
+  it('触れても持ち時間は延びない', async () => {
     const { actor, a, tick } = await setup();
-    const watched = actor.session.lowerSlots[0]!;
-    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: null, detail: watched }));
-    await tick(60_000);
-    expect(actor.session.lowerSlots).toContain(watched);
+    const first = actor.session.lowerSlots[0]!;
+    await tick(1_000);
+    actor.receiveEphemeral(a.conn, eph('FOCUS_CHANGED', { hover: first, detail: first }));
+    await tick(2_500);
+    expect(actor.session.characters.get(first)!.location).toBe('archived');
   });
 
-  it('会話で取り上げられた案は残り、取り上げられていない案から退場する', async () => {
-    const { actor, tick, events, judgeId } = await setup();
-    // 最も早く登場した（＝何もしなければ最初に退場する）案を会話で取り上げる
-    const talkedAbout = actor.session.lowerSlots[0]!;
-    const name = CHARACTER_DESIGNS[actor.session.characters.get(talkedAbout)!.designId]!.readings[0]!;
-    await tick(9_000);
-    actor.receiveUtterance(judgeId, `${name}の案って面白そう`, 'live', null);
-    const lastUtterance = events().filter((e) => e.type === 'JUDGE_UTTERANCE_RECEIVED').at(-1)!;
-    expect(lastUtterance.detail.mentioned).toEqual([talkedAbout]);
-    expect(lastUtterance.snapshot.characters[talkedAbout]!.mentions).toBe(1);
-    await tick(12_000);
-    const leftFirst = events().find((e) => e.type === 'CANDIDATE_LEAVING')!.detail.instanceId;
-    expect(leftFirst).not.toBe(talkedAbout);
+  it('ゴールデンブザー：全員が押したら合格者待機室へ。1人だけでは上がらない', async () => {
+    const { actor, a, events } = await setup();
+    const b = join(actor, 'b');
+    const first = actor.session.lowerSlots[0]!;
+    buzz(actor, a);
+    expect(actor.session.characters.get(first)!.location).toBe('lower');
+    expect(events().at(-1)).toMatchObject({ type: 'BUZZER_PRESSED', snapshot: { buzzer: { instanceId: first } } });
+    expect((events().at(-1)!.snapshot.buzzer!.judgeIds as string[]).length).toBe(1);
+    buzz(actor, b);
+    expect(actor.session.characters.get(first)!.location).toBe('upper');
+    expect(actor.session.upper.map((f) => f.instanceId)).toEqual([first]);
+    // 次の挑戦者が登場し、ブザーはまっさらに戻る
+    expect(actor.session.lowerSlots[0]).not.toBe(first);
+    expect(actor.session.buzzers.size).toBe(0);
+  });
+
+  it('ブザーは取り消せる', async () => {
+    const { actor, a } = await setup();
+    const b = join(actor, 'b');
+    const first = actor.session.lowerSlots[0]!;
+    buzz(actor, a);
+    buzz(actor, a, false);
+    buzz(actor, b);
+    expect(actor.session.characters.get(first)!.location).toBe('lower');
+    expect([...actor.session.buzzers]).toHaveLength(1);
+  });
+
+  it('押していない人が抜けたら、残りの全員が押していればその場で合格', async () => {
+    const { actor, a } = await setup();
+    const b = join(actor, 'b');
+    const first = actor.session.lowerSlots[0]!;
+    buzz(actor, a);
+    actor.detach(b.conn);
+    expect(actor.session.characters.get(first)!.location).toBe('upper');
+  });
+
+  it('3人合格したら、新しい挑戦者は出ない（最終オーディションへ）', async () => {
+    const { actor, a } = await setup();
+    for (let i = 0; i < 3; i++) buzz(actor, a);
+    expect(actor.session.upper).toHaveLength(3);
+    expect(actor.session.lowerSlots[0]).toBeNull();
   });
 });
 
@@ -167,7 +193,7 @@ describe('見送り（審査員がこの案はないと判断）', () => {
       clock: { now: () => t },
       ids: seqIds(),
       config: {
-        stockTarget: 3,
+        stockTarget: 3, lowerSlotCount: 5,
         critiqueIntervalMs: 10,
         persistDelayMs: 10, consensus: null,
         rotation: rotation ? { checkMs: 500, warningMs: 10_000, minGapMs: 3_000, ...rotation, policy } : null,
@@ -226,15 +252,4 @@ describe('見送り（審査員がこの案はないと判断）', () => {
     expect(actor.session.characters.get(id)!.location).toBe('lower');
   });
 
-  it('カウントダウンは同時に最大2件まで（予告を長くしても入れ替えの速さを保つ）', async () => {
-    const { events, tick } = await setup({ maxConcurrentLeaving: 2 });
-    await tick(16_000);
-    const warned = events().filter((e) => e.type === 'CANDIDATE_LEAVING');
-    const archived = events().filter((e) => e.type === 'CANDIDATE_ARCHIVED');
-    expect(warned.length).toBe(2); // 10s と 13s。3件目は同時2件の上限で待つ
-    expect(archived.length).toBe(0); // 最初の予告は 20s に退場
-    await tick(5_000);
-    expect(events().filter((e) => e.type === 'CANDIDATE_ARCHIVED').length).toBe(1);
-    expect(events().filter((e) => e.type === 'CANDIDATE_LEAVING').length).toBe(3); // 1件退場したので次の予告
-  });
 });

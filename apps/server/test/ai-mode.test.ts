@@ -19,7 +19,7 @@ async function setup(aiMode?: 'gemini' | 'fixture') {
     scheduler,
     clock: fakeClock(),
     ids: seqIds(),
-    config: { stockTarget: 3, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');

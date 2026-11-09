@@ -39,7 +39,7 @@ async function boot() {
           scheduler: nodeScheduler,
           clock: systemClock,
           ids: randomIds(),
-          config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 5, persistDelayMs: 5, consensus: null },
+          config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 5, persistDelayMs: 5, consensus: null },
         });
         actors.set(sessionId, a);
       }

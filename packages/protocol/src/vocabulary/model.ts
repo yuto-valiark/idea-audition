@@ -3,7 +3,10 @@ import { ProposalView } from './proposal.ts';
 import { MetricsView, PitchView, Profile, ReactionView, TasteView } from './taste.ts';
 
 /** ステージ定員（acceptance-criteria AC-01, AC-04） */
-export const LOWER_SLOT_COUNT = 5;
+/** 新しいアイデアは1人ずつ登場する（#5）。合格した3人が最終オーディションへ */
+export const LOWER_SLOT_COUNT = 1;
+/** 1人の持ち時間。過ぎたら次の人と交代する */
+export const CHALLENGE_MS = 15_000;
 export const UPPER_CAPACITY = 3;
 export const MAX_JUDGES = 4;
 
@@ -36,6 +39,8 @@ export const CharacterView = z.object({
   leavingAt: z.string().nullable(),
   /** 審査員の反応へのキャラの反応（🤔 など）。数秒で消える */
   reaction: ReactionView.nullable(),
+  /** 登場した時刻（これまでの挑戦者の並び順） */
+  spawnedAt: z.string().optional(),
 });
 export type CharacterView = z.infer<typeof CharacterView>;
 
@@ -158,8 +163,10 @@ export const SessionSnapshot = z.object({
   theme: z.string(),
   /** 長さ5。準備中の枠は null */
   lowerSlots: z.array(z.string().nullable()),
-  /** 0〜3体。並びは昇格順 */
+  /** 0〜3体。並びは昇格順。3体そろうまでは「合格者待機室」 */
   upper: z.array(FinalistView),
+  /** いまの挑戦者に、ゴールデンブザーを押している審査員 */
+  buzzer: z.object({ instanceId: z.string().nullable(), judgeIds: z.array(z.string()) }).optional(),
   characters: z.record(z.string(), CharacterView),
   ideas: z.record(z.string(), IdeaView),
   critiques: z.array(CritiqueView),

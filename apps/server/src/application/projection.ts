@@ -20,6 +20,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
     theme: s.theme,
     lowerSlots: [...s.lowerSlots],
     upper: s.upper.map((f) => ({ ...f })),
+    buzzer: { instanceId: s.lowerSlots[0] ?? null, judgeIds: [...s.buzzers] },
     characters: Object.fromEntries(
       [...s.characters.values()].map((c) => {
         const design = CHARACTER_DESIGNS[c.designId]!;
@@ -34,6 +35,7 @@ export function toSnapshot(s: AuditionSession, seq: number, now = Date.now()): S
             ideaId: c.ideaId,
             mentions: c.attention.mentions,
             leavingAt: c.leavingAt === null ? null : iso(c.leavingAt),
+            spawnedAt: iso(c.spawnedAt),
             reaction:
               c.reaction && now - c.reaction.at < REACTION_VISIBLE_MS
                 ? { kind: c.reaction.kind, judgeId: c.reaction.judgeId, text: c.reaction.text, at: iso(c.reaction.at) }

@@ -53,6 +53,7 @@ export function DetailModal() {
   const canChampion =
     !!finalist && active && (snapshot.mode === 'solo' || (snapshot.upper.length === 1 && isHost));
   const upperFull = snapshot.upper.length >= UPPER_CAPACITY;
+  const myBuzz = !!judgeId && snapshot.buzzer?.instanceId === selected && snapshot.buzzer.judgeIds.includes(judgeId);
 
   async function run<T>(fn: () => Promise<T>) {
     setBusy(true);
@@ -216,11 +217,9 @@ export function DetailModal() {
           <button
             className={styles.primary}
             disabled={busy || isSpectator || !active || upperFull}
-            onClick={() =>
-              void run(() => send('REQUEST_PROMOTION', { instanceId: selected })).then((r) => r.ok && select(null))
-            }
+            onClick={() => void run(() => send('PRESS_BUZZER', { instanceId: selected, on: !myBuzz }))}
           >
-            <Crown size={18} /> {upperFull ? '最終オーディションは満席です' : '最終オーディションへ選抜'}
+            <Crown size={18} /> {myBuzz ? 'ゴールデンブザーを取り消す' : 'ゴールデンブザーを押す（全員で合格）'}
           </button>
         )}
         {finalist && (

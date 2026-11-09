@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 import { useDisplay } from '../../store/display-store.ts';
 import { useSession } from '../../store/session-store.ts';
 import { FinalStage } from '../../scene/FinalStage.tsx';
-import { LowerStage } from '../../scene/LowerStage.tsx';
+import { PreliminaryStage } from '../../scene/PreliminaryStage.tsx';
+import { UPPER_CAPACITY } from '@idea-audition/protocol';
 import { EMPTY, useMe } from '../../shared/selectors.ts';
 import styles from './Arena.module.css';
 
@@ -13,6 +14,8 @@ export function Arena() {
   const ref = useRef<HTMLDivElement>(null);
   const theme = useSession((s) => s.snapshot?.theme);
   const client = useSession((s) => s.client);
+  // 予選（1人ずつ）：合格者が3人そろうまで。そろったら最終オーディションに切り替わる（#5）
+  const prelim = useSession((s) => s.snapshot?.status === 'audition_active' && (s.snapshot?.upper.length ?? 0) < UPPER_CAPACITY);
 
   useEffect(() => {
     const el = ref.current;
@@ -43,13 +46,7 @@ export function Arena() {
         <strong>{theme}</strong>
       </div>
       <div className={styles.arena} ref={ref}>
-        <FinalStage />
-        <div className={styles.between}>
-          <div />
-          <span>↑ 「おもろいかも」と思ったら、キャラをつまんで上のステージへ</span>
-          <div />
-        </div>
-        <LowerStage />
+        {prelim ? <PreliminaryStage /> : <FinalStage />}
         <JudgeCursors />
       </div>
     </>

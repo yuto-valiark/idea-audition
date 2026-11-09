@@ -138,7 +138,7 @@ async function setup() {
     clock,
     ids: seqIds(),
     rng: () => 0.5,
-    config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+    config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
   });
   const a = fakeConnection('a');
   actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'demo' });

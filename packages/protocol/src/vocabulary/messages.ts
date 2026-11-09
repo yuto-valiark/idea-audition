@@ -23,6 +23,8 @@ export const CommandPayloads = {
   /** AI のモードを切り替える（ホストのみ。途中でも可） */
   SET_AI_MODE: z.object({ mode: AiMode }),
   REQUEST_PROMOTION: z.object({ instanceId: id }),
+  /** ゴールデンブザー（押す・取り消す）。全員が押したら合格者待機室へ（#5） */
+  PRESS_BUZZER: z.object({ instanceId: id, on: z.boolean() }),
   NEXT_IDEA: z.object({ instanceId: id.optional() }),
   /** 審査員の「見送り」：この案はないと判断して、すぐ次のキャラと交代させる */
   REJECT_CANDIDATE: z.object({ instanceId: id }),
@@ -121,6 +123,7 @@ export const EVENT_TYPES = [
   'CANDIDATE_SPAWNED',
   'CANDIDATE_ARCHIVED',
   'CANDIDATE_LEAVING',
+  'BUZZER_PRESSED',
   'CANDIDATE_STAYED',
   'CONSENSUS_UPDATED',
   'PROPOSAL_UPDATED',

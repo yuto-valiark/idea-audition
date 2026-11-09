@@ -23,7 +23,7 @@ describe('誰も接続していない間は AI を使わない', () => {
       clock: { now: () => t },
       ids: seqIds(),
       config: {
-        stockTarget: 3,
+        stockTarget: 3, lowerSlotCount: 5,
         critiqueIntervalMs: 10,
         persistDelayMs: 10,
         consensus: { afterUtteranceMs: 500, afterDecisionMs: 500, flushAfterUtterances: 3 },

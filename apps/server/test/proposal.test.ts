@@ -18,7 +18,7 @@ async function crowned(failFirst = false, store = new MemorySessionStore()) {
     scheduler,
     clock: fakeClock(),
     ids: seqIds(),
-    config: { stockTarget: 3, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+    config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
   };
   const actor = await SessionActor.open('pr', deps);
   const a = fakeConnection('a');
@@ -43,7 +43,7 @@ describe('企画書', () => {
       scheduler,
       clock: fakeClock(),
       ids: seqIds(),
-      config: { stockTarget: 3, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
+      config: { stockTarget: 3, lowerSlotCount: 5, critiqueIntervalMs: 10, persistDelayMs: 10, rotation: null, consensus: null },
     });
     const a = fakeConnection('a');
     actor.attach(a.conn, { camp: CAMP_VERSION, kind: 'hello', sessionId: 'pre' });

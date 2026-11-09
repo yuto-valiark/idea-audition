@@ -20,7 +20,7 @@ async function setup() {
     scheduler,
     clock: fakeClock(),
     ids: seqIds(),
-    config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+    config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
   });
   const a = fakeConnection('a');
   const b = fakeConnection('b');
@@ -149,7 +149,7 @@ describe('SessionActor', () => {
       scheduler,
       clock: fakeClock(),
       ids: seqIds(),
-      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
+      config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 1000, persistDelayMs: 50, consensus: null },
     });
     const host = fakeConnection('h');
     const guest = fakeConnection('g');

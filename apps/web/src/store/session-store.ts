@@ -176,8 +176,9 @@ function handleEvent(e: EventMessage, apply: (s: SessionSnapshot) => void) {
 
   switch (e.type) {
     case 'PROMOTION_CONFIRMED': {
-      const who = whoDid(e.snapshot, e.actorId);
-      display.toast(`${who ? `${who}が選抜：` : ''}${nameOf(e.snapshot, d.instanceId)} が最終オーディションへ！`, 'gold');
+      // 全員のゴールデンブザーで合格（#5）。3人そろったら最終オーディション
+      const full = e.snapshot.upper.length >= 3;
+      display.toast(full ? `${nameOf(e.snapshot, d.instanceId)} が合格！3人そろったので最終オーディションへ` : `全員一致で合格：${nameOf(e.snapshot, d.instanceId)} が合格者待機室へ`, 'gold');
       break;
     }
     case 'FINALIST_CRITIQUE_POSTED':

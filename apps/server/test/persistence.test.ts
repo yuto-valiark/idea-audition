@@ -19,14 +19,14 @@ function deps(store: MemorySessionStore) {
       scheduler,
       clock: fakeClock(),
       ids: seqIds(),
-      config: { stockTarget: 3, rotation: null, critiqueIntervalMs: 100, persistDelayMs: 50, consensus: null },
+      config: { stockTarget: 3, lowerSlotCount: 5, rotation: null, critiqueIntervalMs: 100, persistDelayMs: 50, consensus: null },
     },
   };
 }
 
 describe('セッションの保存と復元（ADR-0003）', () => {
   it('toState → fromState で同じ状態に戻る', () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     s.join();
     s.start('テーマ', 'team');
     s.addToStock(drafts(10));
@@ -35,6 +35,7 @@ describe('セッションの保存と復元（ADR-0003）', () => {
     const restored = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), {
       ids: seqIds(),
       clock: fakeClock(),
+      lowerSlotCount: 5,
     });
     expect(restored.lowerSlots).toEqual(s.lowerSlots);
     expect(restored.upper.map((f) => f.instanceId)).toEqual(s.upper.map((f) => f.instanceId));
@@ -104,11 +105,11 @@ describe('セッションの保存と復元（ADR-0003）', () => {
   });
 
   it('サーバーが再起動しても、元のホストが戻ればホストに戻る（先に戻った人は一時的なホスト）', async () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     const host = s.join(undefined);
     const guest = s.join(undefined);
     if (!host.ok || !guest.ok) throw new Error('join failed');
-    const restored = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock() });
+    const restored = AuditionSession.fromState('s', JSON.parse(JSON.stringify(s.toState())), { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     restored.join(guest.value.judgeId!);
     expect(restored.judges.find((j) => j.judgeId === guest.value.judgeId)!.isHost).toBe(true);
     restored.join(host.value.judgeId!);

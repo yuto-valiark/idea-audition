@@ -3,7 +3,7 @@ import { AuditionSession } from '../src/domain/session.ts';
 import { drafts, fakeClock, seqIds } from './helpers.ts';
 
 function activeSession(stock = 20) {
-  const s = new AuditionSession('s1', { ids: seqIds(), clock: fakeClock() });
+  const s = new AuditionSession('s1', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
   const host = s.join();
   if (!host.ok || !host.value.judgeId) throw new Error('join failed');
   s.start('大学の学食', 'team');
@@ -58,9 +58,9 @@ describe('ステージの定員と一意性', () => {
 
   it('上段は最大3体。満席なら UPPER_FULL で拒否し、下段はそのまま（AC-06, AC-07）', () => {
     const { s } = activeSession();
-    for (let i = 0; i < 3; i++) expect(s.promote(s.lowerSlots[0]!).ok).toBe(true);
+    for (let i = 0; i < 3; i++) expect(s.promote(s.lowerSlots.find((x) => x !== null)!).ok).toBe(true);
     const before = [...s.lowerSlots];
-    const r = s.promote(s.lowerSlots[0]!);
+    const r = s.promote(s.lowerSlots.find((x) => x !== null)!);
     expect(r).toEqual({ ok: false, reason: 'UPPER_FULL' });
     expect(s.lowerSlots).toEqual(before);
     expect(s.upper).toHaveLength(3);
@@ -177,7 +177,7 @@ describe('投票と優勝（Q4）', () => {
   });
 
   it('ソロではクリックで即決できる', () => {
-    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock() });
+    const s = new AuditionSession('s', { ids: seqIds(), clock: fakeClock(), lowerSlotCount: 5 });
     const j = s.join();
     if (!j.ok || !j.value.judgeId) throw new Error();
     s.start('テーマ', 'solo');
