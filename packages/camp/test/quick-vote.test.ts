@@ -281,4 +281,14 @@ describe('@camp-protocol/kit × Quick Vote', () => {
     });
     expect(status).toBe(404);
   });
+  it('一度に250件送っても、送りすぎ防止で切られず、全部に返事が来る（クライアントが1秒100件までに抑える）', async () => {
+    const room = `burst-${++roomNo}`;
+    const host = await join(room);
+    let closedWith: number | null = null;
+    host.socket().on('close', (code) => (closedWith = code));
+    const results = await Promise.all(Array.from({ length: 250 }, () => host.send('VOTE', { option: 0 })));
+    expect(results.filter((r) => !r.ok && r.reason === 'TIMEOUT')).toHaveLength(0);
+    expect(closedWith).toBeNull();
+    host.close();
+  }, 10_000);
 });

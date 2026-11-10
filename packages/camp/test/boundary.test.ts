@@ -25,14 +25,25 @@ describe('@camp-protocol/kit の境界（ADR-0010 §5）', () => {
     }
   });
 
-  it('ResultCache：同じ送り手と commandId には同じ結果、上限を超えたら古いものから捨てる', () => {
+  it('ResultCache：同じ送り手と commandId には同じ結果、送り手ごとの上限を超えたら古いものから捨てる', () => {
     const c = new ResultCache<string>(2);
     c.set('a', '1', 'ok');
     c.set('b', '1', 'ng');
     expect(c.get('a', '1')).toBe('ok');
+    expect(c.get('b', '1')).toBe('ng');
     c.set('a', '2', 'x');
+    expect(c.get('a', '1')).toBe('ok');
+    c.set('a', '3', 'y');
     expect(c.get('a', '1')).toBeUndefined();
-    expect(c.size).toBe(2);
+    expect(c.get('a', '2')).toBe('x');
+    expect(c.size).toBe(3);
+  });
+
+  it('ResultCache：ほかの人の操作が多くても、自分の結果は押し出されない', () => {
+    const c = new ResultCache<string>(3);
+    c.set('a', 'mine', 'ok');
+    for (let i = 0; i < 100; i++) c.set('b', String(i), 'ok');
+    expect(c.get('a', 'mine')).toBe('ok');
   });
 
   it('SeqGate：古い・重複した seq を捨て、snapshot で数え直す', () => {
